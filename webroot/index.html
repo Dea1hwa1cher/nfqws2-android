@@ -366,7 +366,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--md-sys-color-pri
         </button>
         <div class="header-title-box">
             <h1 id="title">nfqws2</h1>
-            <small id="header-version">v1.3.0</small>
+            <small id="header-version">v1.3.1</small>
         </div>
         <button class="btn-m3 icon-btn" onclick="openMonetModal()" title="Палитра темы">🎨</button>
         <span class="badge" id="hs">…</span>
@@ -631,7 +631,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--md-sys-color-pri
     </div>
 
 <script>
-const MOD = '/data/adb/modules/nfqws2-magisk', CTL = MOD + '/bin/nfqws2-ctl', $ = id => document.getElementById(id);
+const MOD = '/data/adb/modules/nfqws2-android', CTL = MOD + '/bin/nfqws2-ctl', $ = id => document.getElementById(id);
 let S = {}, seq = 0, pkgs = [], currentEditorTarget = '';
 const q = s => "'" + String(s).replace(/'/g, "'\\''") + "'";
 const b64 = s => btoa(unescape(encodeURIComponent(s)));
@@ -777,7 +777,7 @@ const KEY = {AUTOSTART:'autostart', WATCHDOG:'watchdog', IPV6_ENABLED:'ipv6', BL
 async function stat(){
   let j; try{ j = JSON.parse(await ctl(['json-status'])); }catch(e){ $('st').textContent = 'Нет связи с модулем'; return; }
   S = j;
-  $('header-version').textContent = j.version || 'v1.3.0';
+  $('header-version').textContent = j.version || 'v1.3.1';
   $('hero-status').className = 'hero-card ' + (j.running ? 'running' : '');
   $('st').textContent = j.running ? 'Служба запущена' : 'Служба остановлена';
   $('hs').textContent = j.running ? 'PID ' + j.pid : 'выкл';
