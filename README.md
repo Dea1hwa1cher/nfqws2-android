@@ -34,7 +34,6 @@
 
 🤝 Благодарности
 
-bol-van — за оригинальный и непревзойденный проект zapret.
-
-nfqws-keenetic — за идеи адаптации конфигов и логику авто-стратегий.
-Разработчикам KernelSU, Magisk и APatch.
+* [bol-van](https://github.com/bol-van) — за оригинальный и непревзойденный проект zapret.
+* [nfqws-keenetic](https://github.com/nfqws/nfqws-keenetic) — за идеи адаптации конфигов и логику авто-стратегий.
+* Разработчикам [KernelSU](https://github.com/tiann/kernelSU), [Magisk](https://github.com/topjohnwu/magisk) и [APatch](https://github.com/bmax121/APatch).
