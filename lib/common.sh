@@ -53,7 +53,7 @@ set_defaults() {
   : "${LOG_LEVEL:=0}"
   : "${AUTOSTART:=1}"
   : "${WATCHDOG:=1}"
-  : "${BLOCK_QUIC:=1}"
+  : "${BLOCK_QUIC:=0}"
   : "${NAT_FIX:=1}"
   : "${STRATEGY_TLS:=auto}"
   : "${STRATEGY_UDP:=auto}"

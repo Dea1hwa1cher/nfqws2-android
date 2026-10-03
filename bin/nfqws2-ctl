@@ -10,7 +10,8 @@ SERVICE="$MODDIR/service.sh"
 
 STRATEGIES_DIR="$MODDIR/strategies"
 USER_STRATEGIES_DIR="$CONFDIR/strategies"
-mkdir -p "$USER_STRATEGIES_DIR" "$STATE_DIR" 2>/dev/null
+IMPORTS_DIR="$CONFDIR/imports"
+mkdir -p "$USER_STRATEGIES_DIR" "$STATE_DIR" "$IMPORTS_DIR" 2>/dev/null
 
 b64d() {
   if command -v base64 >/dev/null 2>&1; then printf '%s' "$1" | base64 -d 2>/dev/null
@@ -44,6 +45,8 @@ current_mode() {
   grep -m1 '^NFQWS_EXTRA_ARGS=' "$CONFFILE" 2>/dev/null | grep -o 'MODE_[A-Z]*' | head -n1 | sed 's/MODE_//' | tr 'A-Z' 'a-z'
 }
 
+json_str() { printf '%s' "$1" | tr -d '"\\'; }
+
 need_restart_note() { is_running && echo "Изменения применятся после перезапуска службы"; }
 
 list_strategies() {
@@ -60,6 +63,7 @@ get_current_strategy() {
 set_strategy() {
   local name="$1"
   if [ "$name" = "default" ] || [ -z "$name" ]; then
+    cp -f "$CONFFILE" "$CONFFILE.bak" 2>/dev/null
     cp -f "$MODDIR/defaults/nfqws2.conf" "$CONFFILE"
     echo "default" > "$STATE_DIR/active_strategy"
     echo "Применена стратегия: default"
@@ -109,14 +113,18 @@ cmd_json_status() {
   fi
   local ver strat_tls strat_udp cur_strat
   ver=$(sed -n 's/^version=//p' "$MODDIR/module.prop" | head -n1)
-  strat_tls=$(norm_args "$NFQWS_ARGS" | tr ' ' '\n' | grep -o 'strategy=[0-9]*' | sort -u | tr -d 'strategy=' | sort -n | tr '\n' ',' | sed 's/,$//')
-  strat_udp=$(norm_args "$NFQWS_ARGS_UDP" | tr ' ' '\n' | grep -o 'strategy=[0-9]*' | sort -u | tr -d 'strategy=' | sort -n | tr '\n' ',' | sed 's/,$//')
+ strat_tls=$(norm_args "$NFQWS_ARGS" | tr ' ' '\n' | grep -o 'strategy=[0-9]*' | sort -u | sed 's/strategy=//' | sort -n | tr '\n' ',' | sed 's/,$//')
+  strat_udp=$(norm_args "$NFQWS_ARGS_UDP" | tr ' ' '\n' | grep -o 'strategy=[0-9]*' | sort -u | sed 's/strategy=//' | sort -n | tr '\n' ',' | sed 's/,$//')
   cur_strat=$(get_current_strategy)
+  local qdrop
+  qdrop=$(awk -v q="$NFQUEUE_NUM" '$1 == q { print $6 + $7; f = 1 } END { if (!f) print 0 }' /proc/net/netfilter/nfnetlink_queue 2>/dev/null)
+  case "$qdrop" in ''|*[!0-9]*) qdrop=0 ;; esac
+  
   cat <<JSON
-{"running":$run,"pid":"$pid","uptime":$uptime,"strategy":"$cur_strat","version":"$ver","mode":"$(current_mode)",
-"strategy_tls":"$STRATEGY_TLS","strategy_udp":"$STRATEGY_UDP","tls_strategies":"$strat_tls","udp_strategies":"$strat_udp",
-"preset":"$PRESET_TCP","limiter":"$(cat "$STATE_DIR/limiter" 2>/dev/null)","pkt_limit_out":${PKT_LIMIT_OUT:-15},"block_quic":${BLOCK_QUIC:-0},"app_mode":"$APP_MODE","autostart":${AUTOSTART:-1},"watchdog":${WATCHDOG:-1},
-"ipv6":${IPV6_ENABLED:-1},"log_level":${LOG_LEVEL:-0},"qdrop":$(awk -v q="$NFQUEUE_NUM" '$1 == q { print $6 + $7; f = 1 } END { if (!f) print 0 }' /proc/net/netfilter/nfnetlink_queue 2>/dev/null),"queue":${NFQUEUE_NUM:-300},"app_uids":$(app_uid_count),
+"running":$run,"pid":"$pid","uptime":$uptime,"strategy":"$(json_str "$cur_strat")","version":"$(json_str "$ver")","mode":"$(json_str "$(current_mode)")",
+"strategy_tls":"$(json_str "$STRATEGY_TLS")","strategy_udp":"$(json_str "$STRATEGY_UDP")","tls_strategies":"$(json_str "$strat_tls")","udp_strategies":"$(json_str "$strat_udp")",
+"preset":"$(json_str "$PRESET_TCP")","limiter":"$(json_str "$(cat "$STATE_DIR/limiter" 2>/dev/null)")","pkt_limit_out":${PKT_LIMIT_OUT:-15},"block_quic":${BLOCK_QUIC:-0},"app_mode":"$(json_str "$APP_MODE")","autostart":${AUTOSTART:-1},"watchdog":${WATCHDOG:-1},
+"ipv6":${IPV6_ENABLED:-1},"log_level":${LOG_LEVEL:-0},"qdrop":$qdrop,"queue":${NFQUEUE_NUM:-300},
 "counts":{"user":$(list_count "$LISTS_DIR/user.list"),"auto":$(list_count "$LISTS_DIR/auto.list"),"exclude":$(list_count "$LISTS_DIR/exclude.list"),"ipset":$(list_count "$LISTS_DIR/ipset.list"),"ipset_exclude":$(list_count "$LISTS_DIR/ipset_exclude.list"),"apps":$(list_count "$CONFDIR/apps.list")}}
 JSON
 }
