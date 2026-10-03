@@ -63,6 +63,7 @@ get_current_strategy() {
 set_strategy() {
   local name="$1"
   if [ "$name" = "default" ] || [ -z "$name" ]; then
+    cp -f "$CONFFILE" "$CONFFILE.bak" 2>/dev/null
     cp -f "$MODDIR/defaults/nfqws2.conf" "$CONFFILE"
     echo "default" > "$STATE_DIR/active_strategy"
     echo "Применена стратегия: default"
