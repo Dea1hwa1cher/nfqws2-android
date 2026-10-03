@@ -1,7 +1,7 @@
 #!/system/bin/sh
 [ -n "$MODDIR" ] || { echo "MODDIR is not set" >&2; return 1 2>/dev/null || exit 1; }
 
-: "${CONFDIR:=/data/adb/nfqws2}"
+: "${CONFDIR:=/data/adb/modules/nfqws2-android}"
 CONFFILE="$CONFDIR/nfqws2.conf"
 LISTS_DIR="$CONFDIR/lists"
 STATE_DIR="$CONFDIR/state"

@@ -25,8 +25,8 @@ unzip -o "$ZIPFILE" -x 'META-INF/*' -d "$MODPATH" >&2 || abort "! Не удал�
 cp -f "$MODPATH/binaries/$BIN/nfqws2" "$MODPATH/bin/nfqws2" || abort "! Не удалось скопировать nfqws2"
 rm -rf "$MODPATH/binaries"
 
-CONF=/data/adb/nfqws2
-mkdir -p "$CONF/lists" "$CONF/state" "$CONF/logs" "$CONF/imports"
+CONF=/data/adb/modules/nfqws2-android
+mkdir -p "$CONF/lists" "$CONF/state" "$CONF/logs" "$CONF/imports" $CONF/strategies"
 
 if [ -f "$CONF/nfqws2.conf" ]; then
   ui_print "- Конфиг сохранён: $CONF/nfqws2.conf"
