@@ -110,8 +110,8 @@ cmd_json_status() {
   fi
   local ver strat_tls strat_udp cur_strat
   ver=$(sed -n 's/^version=//p' "$MODDIR/module.prop" | head -n1)
-  strat_tls=$(norm_args "$NFQWS_ARGS" | tr ' ' '\n' | grep -o 'strategy=[0-9]*' | sort -u | tr -d 'strategy=' | sort -n | tr '\n' ',' | sed 's/,$//')
-  strat_udp=$(norm_args "$NFQWS_ARGS_UDP" | tr ' ' '\n' | grep -o 'strategy=[0-9]*' | sort -u | tr -d 'strategy=' | sort -n | tr '\n' ',' | sed 's/,$//')
+  strat_tls=$(norm_args "$NFQWS_ARGS" | tr ' ' '\n' | grep -o 'strategy=[0-9]*' | sort -u | sed 's/strategy=//' | sort -n | tr '\n' ',' | sed 's/,$//')
+  strat_udp=$(norm_args "$NFQWS_ARGS_UDP" | tr ' ' '\n' | grep -o 'strategy=[0-9]*' | sort -u | sed 's/strategy=//' | sort -n | tr '\n' ',' | sed 's/,$//')
   cur_strat=$(get_current_strategy)
   cat <<JSON
 {"running":$run,"pid":"$pid","uptime":$uptime,"strategy":"$cur_strat","version":"$ver","mode":"$(current_mode)",
