@@ -38,6 +38,12 @@ start() {
   local res=$?
   set +f
 
+  if [ "$res" -ne 0 ]; then
+    log_msg "Ошибка: nfqws2 завершился с кодом $res. Последние строки лога:"
+    tail -n 8 "$NFQWS_LOG" 2>/dev/null | while IFS= read -r l; do log_msg "  $l"; done
+    return 1
+  fi
+
   sleep 1.2
   local pid=""
   [ -f "$PIDFILE" ] && pid=$(cat "$PIDFILE" 2>/dev/null)
