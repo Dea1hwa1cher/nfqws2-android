@@ -1,0 +1,14 @@
+# probe_hosts.list — сайты для вкладки «Проверка» (WebUI). Формат: host или host/путь, по одному на строке.
+www.youtube.com/generate_204
+i.ytimg.com
+discord.com
+gateway.discord.gg
+www.instagram.com
+x.com
+web.telegram.org
+t.me
+rutracker.org
+soundcloud.com
+www.speedtest.net
+cloudflare.com
+1.1.1.1
