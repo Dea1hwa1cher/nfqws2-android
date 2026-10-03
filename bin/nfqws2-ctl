@@ -323,7 +323,7 @@ case "$1" in
     echo "$newname" ;;
 
   get-list) f=$(list_file "$2") || { echo "Неизвестный список" >&2; exit 1; }
-    [ -f "$f" ] || cp -f "$MODDIR/lists/${f##*/}" "$f" 2>/dev/null
+    [ -f "$f" ] || cp -f "$MODDIR/defaults/lists/${f##*/}" "$f" 2>/dev/null
     if [ -f "$f" ]; then cat "$f"; fi ;;
   save-list-b64) f=$(list_file "$2") || { echo "Неизвестный список" >&2; exit 1; }
     b64d "$3" | tr -d '\r' > "$f.tmp" && mv -f "$f.tmp" "$f"; chmod 0644 "$f"
@@ -335,7 +335,7 @@ case "$1" in
     grep -qx "$d" "$LISTS_DIR/user.list" 2>/dev/null || echo "$d" >> "$LISTS_DIR/user.list"
     is_running && sh "$SERVICE" reload >/dev/null 2>&1; echo "Добавлено: $d" ;;
   clear-auto) : > "$LISTS_DIR/auto.list"; is_running && sh "$SERVICE" reload >/dev/null 2>&1; echo OK ;;
-  reset-lists) for f in user exclude ipset ipset_exclude probe_hosts; do cp -f "$MODDIR/lists/$f.list" "$LISTS_DIR/$f.list"; done
+  reset-lists) for f in user exclude ipset ipset_exclude probe_hosts; do cp -f "$MODDIR/defaults/lists/$f.list" "$LISTS_DIR/$f.list"; done
     is_running && sh "$SERVICE" reload >/dev/null 2>&1; echo OK ;;
 
   set)

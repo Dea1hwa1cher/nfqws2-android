@@ -73,13 +73,15 @@ log_msg() {
 sync_lists_and_blobs() {
   mkdir -p "$LISTS_DIR" "$CONFDIR" "$LOG_DIR" "$STATE_DIR" 2>/dev/null
 
-  if [ -d "$MODDIR/lists" ]; then
-    for f in "$MODDIR/lists"/*; do
-      [ -f "$f" ] || continue
-      local bname="${f##*/}"
-      [ -f "$LISTS_DIR/$bname" ] || cp -f "$f" "$LISTS_DIR/$bname"
-    done
-  fi
+  for sdir in "$MODDIR/lists" "$MODDIR/defaults/lists"; do
+    if [ -d "$sdir" ]; then
+      for f in "$sdir"/*; do
+        [ -f "$f" ] || continue
+        local bname="${f##*/}"
+        [ -f "$LISTS_DIR/$bname" ] || cp -f "$f" "$LISTS_DIR/$bname"
+      done
+    fi
+  done
 
   for l in google youtube user_extra ipset_as ipset_do ipset_cf_full ipset_amazon ipset_ovh; do
     if [ ! -f "$LISTS_DIR/$l.list" ]; then
