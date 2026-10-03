@@ -8,7 +8,8 @@ MODDIR="${SELF%/bin}"
 load_conf >/dev/null 2>&1
 SERVICE="$MODDIR/service.sh"
 
-STRATEGIES_DIR="$CONFDIR/strategies"
+STRATEGIES_DIR="$MODDIR/strategies"
+USER_STRATEGIES_DIR="$CONFDIR/strategies"
 mkdir -p "$USER_STRATEGIES_DIR" "$STATE_DIR" 2>/dev/null
 
 b64d() {

@@ -45,6 +45,7 @@ set_perm_recursive "$MODPATH" 0 0 0755 0644
 for x in service.sh action.sh uninstall.sh bin/nfqws2 bin/nfqws2-ctl; do
   set_perm "$MODPATH/$x" 0 0 0755
 done
-chmod 0755 "$CONF" 2>/dev/null
+chmod 0700 "$CONF" 2>/dev/null
 
 ui_print "- Готово. Перезагрузите устройство или запустите модуль кнопкой Action / через WebUI."
+ui_print "- WebUI: KernelSU/APatch — из менеджера; Magisk — через приложение KsuWebUI или MMRL."

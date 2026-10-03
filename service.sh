@@ -1,4 +1,5 @@
 #!/system/bin/sh
+# nfqws2-magisk — управление службой (C-Level Native Daemon)
 MODDIR="${0%/*}"
 case "$MODDIR" in /*) ;; *) MODDIR="$(cd "$MODDIR" 2>/dev/null && pwd)" ;; esac
 umask 077
