@@ -4,7 +4,7 @@ SKIPUNZIP=1
 umask 022
 
 ui_print "*******************************************"
-ui_print " nfqws2 for Android (Keenetic-compatible)"
+ui_print " nfqws2 for Android "
 ui_print " порт nfqws/nfqws2-keenetic + bol-van/zapret2"
 ui_print "*******************************************"
 
