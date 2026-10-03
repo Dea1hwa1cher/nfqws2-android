@@ -3,7 +3,7 @@ umask 077
 SELF="${0%/*}"
 case "$SELF" in /*) ;; *) SELF="$(cd "$SELF" 2>/dev/null && pwd)" ;; esac
 MODDIR="${SELF%/bin}"
-[ -f "$MODDIR/module.prop" ] || MODDIR=/data/adb/modules/nfqws2-magisk
+[ -f "$MODDIR/module.prop" ] || MODDIR=/data/adb/nfqws2
 . "$MODDIR/lib/common.sh"
 load_conf >/dev/null 2>&1
 SERVICE="$MODDIR/service.sh"
