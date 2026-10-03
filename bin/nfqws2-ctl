@@ -1,0 +1,251 @@
+#!/system/bin/sh
+# nfqws2-ctl — CLI и мост для WebUI.  Использование: nfqws2-ctl <команда> [аргументы]
+umask 077
+SELF="${0%/*}"
+case "$SELF" in /*) ;; *) SELF="$(cd "$SELF" 2>/dev/null && pwd)" ;; esac
+MODDIR="${SELF%/bin}"
+[ -f "$MODDIR/module.prop" ] || MODDIR=/data/adb/modules/nfqws2-magisk
+. "$MODDIR/lib/common.sh"
+load_conf >/dev/null 2>&1
+SERVICE="$MODDIR/service.sh"
+
+b64d() {
+  if command -v base64 >/dev/null 2>&1; then printf '%s' "$1" | base64 -d 2>/dev/null
+  else printf '%s' "$1" | busybox base64 -d 2>/dev/null; fi
+}
+
+list_file() {
+  case "$1" in
+    user|user.list) echo "$LISTS_DIR/user.list" ;;
+    exclude|exclude.list) echo "$LISTS_DIR/exclude.list" ;;
+    ipset|ipset.list) echo "$LISTS_DIR/ipset.list" ;;
+    ipset_exclude|ipset_exclude.list) echo "$LISTS_DIR/ipset_exclude.list" ;;
+    auto|auto.list) echo "$LISTS_DIR/auto.list" ;;
+    probe_hosts|probe_hosts.list) echo "$LISTS_DIR/probe_hosts.list" ;;
+    apps|apps.list) echo "$CONFDIR/apps.list" ;;
+    *) return 1 ;;
+  esac
+}
+
+set_conf_param() {   # только однострочные значения
+  local key="$1" val="$2" tmp="$CONFFILE.tmp.$$"
+  awk -v k="$key" -v v="$val" '
+    BEGIN { d = 0 }
+    $0 ~ "^" k "=" { if (!d) { print k "=\"" v "\""; d = 1 } ; next }
+    { print }
+    END { if (!d) print k "=\"" v "\"" }' "$CONFFILE" > "$tmp" && mv -f "$tmp" "$CONFFILE"
+  chmod 0644 "$CONFFILE"
+}
+
+current_mode() {
+  grep -m1 '^NFQWS_EXTRA_ARGS=' "$CONFFILE" 2>/dev/null | grep -o 'MODE_[A-Z]*' | head -n1 | sed 's/MODE_//' | tr 'A-Z' 'a-z'
+}
+
+need_restart_note() { is_running && echo "Изменения применятся после перезапуска службы"; }
+
+cmd_json_status() {
+  local run=false pid="" uptime=0
+  if is_running; then
+    run=true
+    pid=$(cat "$PIDFILE" 2>/dev/null)
+    if [ -f "$STATE_DIR/started_at" ]; then
+      local now=$(date +%s)
+      local st=$(cat "$STATE_DIR/started_at" 2>/dev/null)
+      uptime=$((now - st))
+      [ "$uptime" -ge 0 ] 2>/dev/null || uptime=0
+    fi
+  fi
+  local ver strat_tls strat_udp
+  ver=$(sed -n 's/^version=//p' "$MODDIR/module.prop" | head -n1)
+  strat_tls=$(norm_args "$NFQWS_ARGS" | tr ' ' '\n' | grep -o 'strategy=[0-9]*' | sort -u | tr -d 'strategy=' | sort -n | tr '\n' ',' | sed 's/,$//')
+  strat_udp=$(norm_args "$NFQWS_ARGS_UDP" | tr ' ' '\n' | grep -o 'strategy=[0-9]*' | sort -u | tr -d 'strategy=' | sort -n | tr '\n' ',' | sed 's/,$//')
+  cat <<JSON
+{"running":$run,"pid":"$pid","uptime":$uptime,"version":"$ver","mode":"$(current_mode)",
+"strategy_tls":"$STRATEGY_TLS","strategy_udp":"$STRATEGY_UDP","tls_strategies":"$strat_tls","udp_strategies":"$strat_udp",
+"preset":"$PRESET_TCP","limiter":"$(cat "$STATE_DIR/limiter" 2>/dev/null)","pkt_limit_out":${PKT_LIMIT_OUT:-15},"block_quic":${BLOCK_QUIC:-0},"app_mode":"$APP_MODE","autostart":${AUTOSTART:-1},"watchdog":${WATCHDOG:-1},
+"ipv6":${IPV6_ENABLED:-1},"log_level":${LOG_LEVEL:-0},"qdrop":$(awk -v q="$NFQUEUE_NUM" '$1 == q { print $6 + $7; f = 1 } END { if (!f) print 0 }' /proc/net/netfilter/nfnetlink_queue 2>/dev/null),"queue":${NFQUEUE_NUM:-300},
+"counts":{"user":$(list_count "$LISTS_DIR/user.list"),"auto":$(list_count "$LISTS_DIR/auto.list"),"exclude":$(list_count "$LISTS_DIR/exclude.list"),"ipset":$(list_count "$LISTS_DIR/ipset.list"),"ipset_exclude":$(list_count "$LISTS_DIR/ipset_exclude.list"),"apps":$(list_count "$CONFDIR/apps.list")}}
+JSON
+}
+
+cmd_status() {
+  status_line=$(sh "$SERVICE" status)
+  echo "$status_line"
+  echo "Режим: $(current_mode) | QUIC-блок: $BLOCK_QUIC | Приложения: $APP_MODE"
+  echo "user=$(list_count "$LISTS_DIR/user.list") auto=$(list_count "$LISTS_DIR/auto.list") exclude=$(list_count "$LISTS_DIR/exclude.list") ipset=$(list_count "$LISTS_DIR/ipset.list")"
+  is_running && { firewall_ok && echo "Правила iptables: активны" || echo "Правила iptables: ОТСУТСТВУЮТ"; }
+}
+
+cmd_doctor() {
+  row() { printf '%s\t%s\t%s\n' "$1" "$2" "$3"; }
+  local arch
+  [ "$(id -u)" = "0" ] && row ok root "uid 0" || row fail root "нужен root"
+  arch=$(getprop ro.product.cpu.abi 2>/dev/null)
+  row ok abi "$arch, ядро $(uname -r)"
+  [ -x "$NFQWS_BIN" ] && row ok nfqws2 "$(ls -l "$NFQWS_BIN" | awk '{print $5}') байт" || row fail nfqws2 "бинарник не найден или не исполняемый"
+  command -v iptables >/dev/null 2>&1 && row ok iptables "есть" || row fail iptables "не найден"
+  command -v ip6tables >/dev/null 2>&1 && row ok ip6tables "есть" || row warn ip6tables "нет — отключите IPV6_ENABLED"
+  has_ipt_feature iptables -p tcp --dport 65000 -j NFQUEUE --queue-num "$NFQUEUE_NUM" --queue-bypass \
+    && row ok NFQUEUE "цель NFQUEUE доступна" || row fail NFQUEUE "ядро без NFQUEUE — модуль работать НЕ БУДЕТ"
+  has_ipt_feature iptables -p tcp -m multiport --dports 80,443 -j RETURN \
+    && row ok multiport "есть" || row fail multiport "нет xt_multiport"
+  local lim
+  lim=$(detect_limiter iptables)
+  case "$lim" in
+    connbytes)    row ok limiter "есть connbytes: обе стороны, лимит исх. $PKT_LIMIT_OUT / вх. $PKT_LIMIT_IN пак. на соединение" ;;
+    connmark_out) row warn limiter "нет connbytes: входящий поток данных не перехватывается (только RST/FIN/SYN,ACK); исходящий ограничен $PKT_LIMIT_OUT пак. на соединение, сбрасывается раз в 30 сек" ;;
+  esac
+  has_ipt_feature iptables -m owner --uid-owner 0 -j RETURN \
+    && row ok owner "фильтр приложений доступен" || row warn owner "нет xt_owner — фильтр приложений не сработает"
+  [ -e /proc/sys/net/netfilter/nf_conntrack_checksum ] && row ok conntrack "sysctl доступны" || row warn conntrack "нет nf_conntrack sysctl"
+  is_running && row ok process "nfqws2 PID $(cat "$PIDFILE")" || row info process "не запущен"
+  if is_running; then
+    local qn
+    qn=$(cat /proc/net/netfilter/nfnetlink_queue 2>/dev/null | awk -v q="$NFQUEUE_NUM" '$1 == q { print }')
+    if [ -n "$qn" ]; then
+      set -- $qn
+      if [ "${6:-0}" -gt 0 ] || [ "${7:-0}" -gt 0 ]; then
+        row fail queue "переполнение очереди: сброшено ядром $6, ошибок доставки $7 — nfqws2 не успевает обрабатывать пакеты"
+      else
+        row ok queue "работает, переполнений нет"
+      fi
+    else
+      row fail queue "процесс запущен, но НЕ привязан к очереди $NFQUEUE_NUM"
+    fi
+    firewall_ok && row ok rules "правила iptables на месте" || row fail rules "правила iptables отсутствуют"
+  fi
+  [ "$LOG_LEVEL" = "1" ] && row warn debug "включён подробный лог nfqws2 — работает заметно медленнее, выключите после диагностики"
+  [ -f "$LOG_DIR/rollback-diag.txt" ] && row warn rollback "есть след последнего автооткота — см. Логи → export, файл rollback-diag.txt"
+}
+
+# ---- Импорт конфигов пачками (flowseal и т.п.) -----------------------------------------------
+# Исходники хранятся в imports/ БЕЗ изменений (validate_conf проверяет только безопасность,
+# не переписывает файл). Подстановка путей и Настроек Android происходит "на лету" в
+# render_import_merged — только когда пользователь выбирает конфиг в редакторе, поэтому смена
+# Android-параметров сразу видна на всех импортированных конфигах, а не только на новых.
+cmd_import_add() {   # $1 = имя (может быть пустым — тогда по дате), $2 = путь к файлу с содержимым
+  local name="$1" src="$2" safe
+  [ -f "$src" ] || { echo "Нет данных для импорта" >&2; return 1; }
+  tr -d '\r' < "$src" > "$src.n" && mv -f "$src.n" "$src"
+
+  if ! is_keenetic_config "$src"; then
+    echo "Похоже, это не конфиг nfqws2-keenetic: не нашлось ни одной из переменных NFQWS_ARGS / NFQWS_BASE_ARGS / ISP_INTERFACE / TCP_PORTS и т.п." >&2
+    return 1
+  fi
+  if ! validate_conf "$src" >/dev/null 2>&1; then
+    echo "Файл отклонён: $(validate_conf "$src" 2>&1 | head -n1)" >&2
+    return 1
+  fi
+
+  [ -n "$name" ] || name="import-$(date '+%Y%m%d-%H%M%S' 2>/dev/null)"
+  safe=$(import_safe_name "$name")
+  [ -n "$safe" ] || safe="import-$(date '+%Y%m%d-%H%M%S' 2>/dev/null)"
+  local dst="$IMPORTS_DIR/$safe.conf" n=1
+  while [ -f "$dst" ]; do dst="$IMPORTS_DIR/${safe}_$n.conf"; n=$((n + 1)); done
+  cp -f "$src" "$dst" && chmod 0644 "$dst"
+  echo "$(basename "$dst" .conf)"
+}
+
+cmd_get_logs() {
+  local n="${2:-100}" f
+  case "$n" in ''|*[!0-9]*) n=100 ;; esac
+  case "$1" in
+    nfqws) f="$NFQWS_LOG" ;; debug) f="$LOG_DIR/nfqws2-debug.log" ;; auto) f="$LOG_DIR/auto.log" ;;
+    args) f="$ARGS_FILE" ;; *) f="$SERVICE_LOG" ;;
+  esac
+  [ -s "$f" ] && tail -n "$n" "$f" || echo "(пусто)"
+}
+
+cmd_export_logs() {
+  local d="/sdcard/Download/nfqws2-logs"
+  mkdir -p "$d" 2>/dev/null || { echo "Нет доступа к $d" >&2; return 1; }
+  cp -f "$LOG_DIR"/* "$d"/ 2>/dev/null
+  cp -f "$ARGS_FILE" "$d/last.args" 2>/dev/null
+  cmd_doctor > "$d/doctor.txt" 2>&1
+  iptables-save -t mangle 2>/dev/null | grep -i nfqws > "$d/iptables-nfqws.txt"
+  echo "Логи сохранены в $d"
+}
+
+cmd_list_apps() {   # установленные сторонние приложения: пакет
+  pm list packages -3 2>/dev/null | sed 's/^package://' | sort
+}
+
+case "$1" in
+  status) cmd_status ;;
+  json-status) cmd_json_status ;;
+  is-running) is_running ;;
+  start|stop|restart|reload) sh "$SERVICE" "$1" ;;
+  doctor) cmd_doctor ;;
+
+  get-conf) cat "$CONFFILE" ;;
+  validate-conf-b64)
+    t="$STATE_DIR/val.tmp"; b64d "$2" > "$t"; validate_conf "$t" && echo OK; rc=$?; rm -f "$t"; exit $rc ;;
+  save-conf-b64)
+    t="$STATE_DIR/save.tmp"; b64d "$2" > "$t"
+    if [ ! -s "$t" ]; then echo "Пустой конфиг" >&2; rm -f "$t"; exit 1; fi
+    if err=$(validate_conf "$t" 2>&1); then
+      cp -f "$CONFFILE" "$CONFFILE.bak" 2>/dev/null; mv -f "$t" "$CONFFILE"; chmod 0644 "$CONFFILE"; echo OK; need_restart_note
+    else echo "Конфиг отклонён: $err" >&2; rm -f "$t"; exit 1; fi ;;
+  reset-conf)
+    cp -f "$CONFFILE" "$CONFFILE.bak" 2>/dev/null; cp -f "$MODDIR/defaults/nfqws2.conf" "$CONFFILE"; echo OK ;;
+
+  import-add-b64)   # $2 = имя (b64, может быть пустым ""), $3 = содержимое файла (b64)
+    t="$STATE_DIR/imp.in"; b64d "$3" > "$t"
+    cmd_import_add "$(b64d "$2")" "$t"; rc=$?; rm -f "$t"; exit $rc ;;
+  list-imports) list_imports ;;
+  get-import-merged-b64)   # $2 = имя импорта
+    case "$2" in ''|*/*|*'`'*|*'\$'*|*'"'*|*"'"*|*'\\'*) echo "Некорректное имя" >&2; exit 1 ;; esac
+    f="$IMPORTS_DIR/$2.conf"
+    [ -f "$f" ] || { echo "Импорт не найден" >&2; exit 1; }
+    render_import_merged "$f" | { command -v base64 >/dev/null 2>&1 && base64 || busybox base64; } ;;
+  delete-import)
+    case "$2" in ''|*/*|*'`'*|*'\$'*|*'"'*|*"'"*|*'\\'*) echo "Некорректное имя" >&2; exit 1 ;; esac
+    rm -f "$IMPORTS_DIR/$2.conf"; echo OK ;;
+  rename-import)   # $2 = текущее имя, $3 = новое (как есть, не b64 — пробелы передаются в кавычках)
+    case "$2" in ''|*/*|*'`'*|*'\$'*|*'"'*|*"'"*|*'\\'*) echo "Некорректное текущее имя" >&2; exit 1 ;; esac
+    src="$IMPORTS_DIR/$2.conf"
+    [ -f "$src" ] || { echo "Импорт не найден" >&2; exit 1; }
+    newname=$(import_safe_name "$3")
+    [ -n "$newname" ] || { echo "Пустое имя" >&2; exit 1; }
+    dst="$IMPORTS_DIR/$newname.conf"
+    if [ "$src" != "$dst" ]; then
+      [ -f "$dst" ] && { echo "Такое имя уже есть" >&2; exit 1; }
+      mv -f "$src" "$dst"
+    fi
+    echo "$newname" ;;
+
+  get-list) f=$(list_file "$2") || { echo "Неизвестный список" >&2; exit 1; }
+    [ -f "$f" ] || cp -f "$MODDIR/defaults/lists/${f##*/}" "$f" 2>/dev/null
+    [ -f "$f" ] && cat "$f" ;;
+  save-list-b64) f=$(list_file "$2") || { echo "Неизвестный список" >&2; exit 1; }
+    b64d "$3" | tr -d '\r' > "$f.tmp" && mv -f "$f.tmp" "$f"; chmod 0644 "$f"; is_running && [ "$2" != "apps" ] && sh "$SERVICE" reload >/dev/null 2>&1; echo OK ;;
+  add-domain)
+    d=$(printf '%s' "$2" | tr 'A-Z' 'a-z' | sed 's#^[a-z]*://##; s#/.*##; s/^www\.//')
+    case "$d" in ''|*[!a-z0-9.-]*) echo "Некорректный домен" >&2; exit 1 ;; esac
+    grep -qx "$d" "$LISTS_DIR/user.list" 2>/dev/null || echo "$d" >> "$LISTS_DIR/user.list"
+    is_running && sh "$SERVICE" reload >/dev/null 2>&1; echo "Добавлено: $d" ;;
+  clear-auto) : > "$LISTS_DIR/auto.list"; is_running && sh "$SERVICE" reload >/dev/null 2>&1; echo OK ;;
+  reset-lists) for f in user exclude ipset ipset_exclude probe_hosts; do cp -f "$MODDIR/defaults/lists/$f.list" "$LISTS_DIR/$f.list"; done
+    is_running && sh "$SERVICE" reload >/dev/null 2>&1; echo OK ;;
+
+  set)
+    case "$2" in
+      BLOCK_QUIC|AUTOSTART|WATCHDOG|IPV6_ENABLED|NAT_FIX|LOG_LEVEL) case "$3" in 0|1) ;; *) echo "Допустимо 0 или 1" >&2; exit 1 ;; esac ;;
+      PKT_LIMIT_OUT|PKT_LIMIT_IN) case "$3" in [1-9]|1[0-5]) ;; *) echo "Допустимо 1..15" >&2; exit 1 ;; esac ;;
+      APP_MODE) case "$3" in off|include|exclude) ;; *) echo "off|include|exclude" >&2; exit 1 ;; esac ;;
+      *) echo "Параметр $2 нельзя менять этой командой" >&2; exit 1 ;;
+    esac
+    set_conf_param "$2" "$3"; echo OK; need_restart_note ;;
+  set-mode)
+    case "$2" in list|auto|all) set_conf_param NFQWS_EXTRA_ARGS "\$MODE_$(printf '%s' "$2" | tr a-z A-Z)"; echo OK; need_restart_note ;;
+      *) echo "list|auto|all" >&2; exit 1 ;; esac ;;
+  list-apps) cmd_list_apps ;;
+  get-logs) cmd_get_logs "$2" "$3" ;;
+  export-logs) cmd_export_logs ;;
+  clear-logs) : > "$SERVICE_LOG"; : > "$NFQWS_LOG"; rm -f "$LOG_DIR/nfqws2-debug.log" "$LOG_DIR/auto.log"; echo OK ;;
+  *)
+    echo "Команды: status json-status is-running start stop restart reload doctor get-conf save-conf-b64 reset-conf" >&2
+    echo "         import-add-b64 list-imports get-import-merged-b64 rename-import delete-import" >&2
+    echo "         get-list save-list-b64 add-domain clear-auto reset-lists set set-mode list-apps get-logs export-logs clear-logs" >&2
+    exit 1 ;;
+esac

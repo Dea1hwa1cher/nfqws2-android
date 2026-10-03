@@ -1,0 +1,6 @@
+id=nfqws2-magisk
+name=nfqws2 for Android
+version=v1.2.2
+versionCode=1022
+author=port of nfqws/nfqws2-keenetic (MIT) + bol-van/zapret2
+description=Обход DPI на базе nfqws2. Конфиг и стратегии совместимы с nfqws2-keenetic: circular, автообучение доменов, QUIC/UDP, раздача, фильтр приложений, WebUI.

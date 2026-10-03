@@ -1,0 +1,1153 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#171217">
+<title>nfqws2</title>
+<!-- Внешние системные цвета KernelSU (если доступны онлайн) -->
+<link rel="stylesheet" href="https://mui.kernelsu.org/internal/insets.css" type="text/css">
+<link rel="stylesheet" href="https://mui.kernelsu.org/internal/colors.css" type="text/css">
+<style>
+/* ==============================================================================
+   MATERIAL 3 DESIGN SYSTEM & SLOPRET ARCHITECTURE (INLINE & BULLETPROOF)
+   ============================================================================== */
+:root {
+  --top-inset: var(--window-inset-top, env(safe-area-inset-top, 0px));
+  --bottom-inset: var(--window-inset-bottom, env(safe-area-inset-bottom, 0px));
+
+  /* Динамическая палитра Monet (по умолчанию HyperOS Сирень #deb0da) */
+  --md-source-color: #deb0da;
+  --md-sys-color-primary: var(--primary, #eeb8e8);
+  --md-sys-color-on-primary: var(--onPrimary, #472146);
+  --md-sys-color-primary-container: var(--primaryContainer, #60375e);
+  --md-sys-color-on-primary-container: var(--onPrimaryContainer, #ffd6f8);
+  --md-sys-color-secondary: var(--secondary, #d6bfd3);
+  --md-sys-color-secondary-container: var(--secondaryContainer, #523f50);
+  --md-sys-color-on-secondary-container: var(--onSecondaryContainer, #f3dbe0);
+  --md-sys-color-error: var(--error, #ffb4ab);
+  --md-sys-color-on-error: var(--onError, #690005);
+  --md-sys-color-error-container: var(--errorContainer, #93000a);
+  --md-sys-color-on-error-container: var(--onErrorContainer, #ffdad6);
+  --md-sys-color-background: var(--background, #171217);
+  --md-sys-color-on-background: var(--onBackground, #ebddeb);
+  --md-sys-color-surface: var(--surface, #171217);
+  --md-sys-color-on-surface: var(--onSurface, #ebddeb);
+  --md-sys-color-surface-variant: var(--surfaceVariant, #4e404c);
+  --md-sys-color-on-surface-variant: var(--onSurfaceVariant, #d2c2d1);
+  --md-sys-color-surface-container-lowest: var(--surfaceContainerLowest, #110d12);
+  --md-sys-color-surface-container-low: var(--surfaceContainerLow, #1e171e);
+  --md-sys-color-surface-container: var(--surfaceContainer, #241c23);
+  --md-sys-color-surface-container-high: var(--surfaceContainerHigh, #2f252e);
+  --md-sys-color-surface-container-highest: var(--surfaceContainerHighest, #3a2f39);
+  --md-sys-color-outline: var(--outline, #9b8a99);
+  --md-sys-color-outline-variant: var(--outlineVariant, #4e404c);
+
+  --z2-ok: #6dd58c;
+  --z2-warn: #f3c774;
+  --z2-bad: #ffb4ab;
+  --z2-mono: ui-monospace, 'Roboto Mono', Menlo, Consolas, monospace;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-full: 9999px;
+}
+
+body.amoled {
+  --md-sys-color-background: #000000 !important;
+  --md-sys-color-surface: #000000 !important;
+  --md-sys-color-surface-container-lowest: #000000 !important;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body {
+  background: var(--md-sys-color-background);
+  color: var(--md-sys-color-on-surface);
+  font: 400 14px/1.45 system-ui, -apple-system, Roboto, 'Segoe UI', sans-serif;
+  min-height: 100vh; overflow-x: hidden;
+  transition: background-color 0.25s ease;
+}
+
+/* Header */
+.header {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 25;
+  height: calc(var(--top-inset) + 64px);
+  padding: var(--top-inset) 14px 0 10px;
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  background: var(--md-sys-color-surface);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  backdrop-filter: blur(16px);
+}
+.header-title-box { display: flex; align-items: baseline; gap: 8px; flex: 1; overflow: hidden; }
+.header-title-box h1 { font-size: 19px; font-weight: 600; white-space: nowrap; }
+.header-title-box small { font-size: 12px; color: var(--md-sys-color-outline); white-space: nowrap; }
+
+/* Navigation Drawer */
+.drawer-scrim {
+  position: fixed; inset: 0; z-index: 35;
+  background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+  opacity: 0; pointer-events: none; transition: opacity 0.25s ease;
+}
+.drawer-scrim.show { opacity: 1; pointer-events: auto; }
+.drawer {
+  position: fixed; top: 0; bottom: 0; left: 0; z-index: 40;
+  width: min(300px, 82vw);
+  background: var(--md-sys-color-surface-container-low);
+  padding: calc(18px + var(--top-inset)) 12px calc(20px + var(--bottom-inset));
+  transform: translateX(-105%); transition: transform 0.25s cubic-bezier(0.1, 0.9, 0.2, 1);
+  display: flex; flex-direction: column; overflow-y: auto;
+  border-top-right-radius: var(--radius-xl); border-bottom-right-radius: var(--radius-xl);
+  box-shadow: 4px 0 24px rgba(0,0,0,0.4);
+}
+.drawer.open { transform: translateX(0); }
+.drawer-header { display: flex; align-items: center; gap: 14px; padding: 6px 10px 18px; }
+.drawer-logo { width: 36px; height: 36px; flex: none; color: var(--md-sys-color-primary); }
+.drawer-group { font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--md-sys-color-outline); margin: 12px 14px 6px; letter-spacing: 0.8px; }
+.drawer-item {
+  appearance: none; border: none; background: transparent; outline: none; cursor: pointer;
+  text-align: left; width: 100%; border-radius: var(--radius-full);
+  padding: 12px 18px; font-size: 14px; font-weight: 500;
+  color: var(--md-sys-color-on-surface); margin: 2px 0;
+  transition: background 0.15s;
+}
+.drawer-item:hover { background: rgba(255,255,255,0.05); }
+.drawer-item.active {
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container); font-weight: 600;
+}
+
+/* Content Container & Pages */
+.content {
+  margin-top: calc(var(--top-inset) + 68px);
+  padding: 8px 14px calc(24px + var(--bottom-inset));
+  max-width: 720px; margin-left: auto; margin-right: auto;
+}
+.page-view { display: none; flex-direction: column; gap: 12px; }
+.page-view.active { display: flex; animation: fade-in 0.22s ease; }
+@keyframes fade-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Cards & Layout */
+.card {
+  background: var(--md-sys-color-surface-container);
+  border-radius: var(--radius-xl); padding: 18px;
+  display: flex; flex-direction: column; gap: 12px;
+  border: 1px solid var(--md-sys-color-outline-variant);
+}
+.card-title {
+  font-size: 14px; font-weight: 600; text-transform: uppercase;
+  color: var(--md-sys-color-primary); letter-spacing: 0.6px;
+}
+.mu { color: var(--md-sys-color-on-surface-variant); font-size: 12px; line-height: 1.4; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.row > * { flex: 1; min-width: 100px; }
+.divider { height: 1px; background: var(--md-sys-color-outline-variant); margin: 6px 0; }
+
+/* Slopret Hero Card */
+.hero-card {
+  border-radius: var(--radius-xl); padding: 20px;
+  display: flex; flex-direction: column; gap: 14px;
+  background: var(--md-sys-color-surface-container-high);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  transition: all 0.25s ease;
+}
+.hero-card.running {
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+}
+.hero-card.running .card-title,
+.hero-card.running .hero-label { color: var(--md-sys-color-on-primary-container); opacity: 0.85; }
+.hero-label { font-size: 12px; font-weight: 500; }
+.hero-state { font-size: 24px; font-weight: 600; line-height: 1.2; }
+.hero-pill {
+  display: inline-block; align-self: flex-start;
+  background: rgba(0,0,0,0.18); border-radius: var(--radius-full);
+  padding: 4px 12px; font-size: 12px; font-weight: 500;
+}
+
+/* Badges & Chips */
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip {
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface-variant);
+  border-radius: var(--radius-sm);
+  padding: 4px 10px; font-size: 12px; font-weight: 500;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  font-family: var(--z2-mono);
+}
+.hero-card.running .chip {
+  background: rgba(0,0,0,0.15);
+  color: var(--md-sys-color-on-primary-container);
+  border-color: rgba(255,255,255,0.15);
+}
+.badge {
+  border-radius: var(--radius-full); font-size: 12px; font-weight: 500;
+  padding: 3px 10px; display: inline-flex; align-items: center; justify-content: center;
+  background: var(--md-sys-color-surface-container-highest);
+}
+.badge.ok { background: rgba(109, 213, 140, 0.2); color: var(--z2-ok); }
+.badge.bad { background: rgba(255, 180, 171, 0.2); color: var(--z2-bad); }
+.badge.warn { background: rgba(243, 199, 116, 0.2); color: var(--z2-warn); }
+
+/* Buttons */
+.btn-m3 {
+  appearance: none; border: none; outline: none; cursor: pointer;
+  border-radius: var(--radius-full); padding: 11px 18px;
+  font: 500 13.5px/1 system-ui, sans-serif;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  background: var(--md-sys-color-surface-container-highest);
+  color: var(--md-sys-color-on-surface);
+  transition: transform 0.1s, opacity 0.2s;
+}
+.btn-m3:active { transform: scale(0.97); }
+.btn-m3.primary { background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); font-weight: 600; }
+.btn-m3.tonal { background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container); }
+.btn-m3.danger { background: var(--md-sys-color-error); color: var(--md-sys-color-on-error); font-weight: 600; }
+.btn-m3.icon-btn { background: transparent; padding: 10px; border-radius: 50%; min-width: auto; flex: none; font-size: 18px; }
+
+/* Segmented Buttons */
+.seg-group {
+  display: flex; gap: 3px; background: var(--md-sys-color-surface-container-lowest);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--radius-full); padding: 3px;
+}
+.seg-btn {
+  flex: 1; background: transparent; border: none; outline: none; cursor: pointer;
+  padding: 8px 0; font-size: 13px; font-weight: 500;
+  color: var(--md-sys-color-on-surface-variant);
+  border-radius: var(--radius-full);
+}
+.seg-btn.on { background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container); font-weight: 600; }
+
+/* Switches */
+/* Официальный Material 3 Switch (52 x 32 px) */
+.switch-m3 {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 52px !important;
+  min-width: 52px !important;
+  max-width: 52px !important;
+  height: 32px !important;
+  flex: 0 0 52px !important;
+  cursor: pointer;
+  background: var(--md-sys-color-surface-container-highest);
+  border: 2px solid var(--md-sys-color-outline);
+  border-radius: var(--radius-full);
+  position: relative;
+  box-sizing: border-box;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.switch-m3:after {
+  content: "";
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--md-sys-color-outline);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.switch-m3:checked {
+  background: var(--md-sys-color-primary);
+  border-color: var(--md-sys-color-primary);
+}
+
+.switch-m3:checked:after {
+  left: 24px;
+  top: 2px;
+  width: 24px;
+  height: 24px;
+  background: var(--md-sys-color-on-primary);
+}
+
+/* Inputs & Textareas */
+input[type="text"], input[type="search"], input[type="number"], select, textarea {
+  width: 100%; background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--radius-md); padding: 11px 14px; font: inherit; outline: none;
+}
+input:focus, select:focus, textarea:focus { border-color: var(--md-sys-color-primary); }
+.log-box {
+  background: #0d0a0d; border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--radius-md); padding: 12px;
+  font: 11px/1.45 var(--z2-mono); color: #eeddee;
+  overflow: auto; max-height: 52vh; white-space: pre-wrap; word-break: break-all;
+}
+
+/* Slopret Fullscreen Slide Panel */
+.slide-panel {
+  position: fixed; inset: 0; z-index: 50;
+  background: var(--md-sys-color-background);
+  display: flex; flex-direction: column;
+  transform: translateY(100%);
+  opacity: 0; pointer-events: none;
+  transition: transform 0.28s cubic-bezier(0.1, 0.9, 0.2, 1), opacity 0.2s ease;
+}
+.slide-panel.open { transform: translateY(0); opacity: 1; pointer-events: auto; }
+.panel-header {
+  height: calc(64px + var(--top-inset));
+  padding: var(--top-inset) 14px 0 8px;
+  background: var(--md-sys-color-surface);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; flex: none;
+}
+.panel-title { font-size: 17px; font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.panel-body { flex: 1; display: flex; flex-direction: column; padding: 8px 12px calc(14px + var(--bottom-inset)); background: var(--md-sys-color-surface-container-lowest); }
+.editor-textarea {
+  flex: 1; width: 100%; height: 100%; background: transparent; border: none; outline: none; resize: none;
+  font: 13px/1.5 var(--z2-mono); color: var(--md-sys-color-on-surface); white-space: pre; overflow: auto;
+}
+
+/* Diagnostics rows */
+.dr {
+  display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  font-size: 13px; align-items: center;
+}
+.dr:last-child { border-bottom: none; }
+.dr b { width: 92px; flex: none; color: var(--md-sys-color-on-surface); }
+.dr span { color: var(--md-sys-color-on-surface-variant); word-break: break-word; }
+
+/* Prompt / Toast */
+.prompt-container {
+  position: fixed; left: 50%; bottom: calc(24px + var(--bottom-inset));
+  transform: translateX(-50%) translateY(20px);
+  background: var(--md-sys-color-surface-container-highest);
+  color: var(--md-sys-color-on-surface);
+  padding: 12px 22px; border-radius: var(--radius-full);
+  font-size: 13px; font-weight: 500; box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  opacity: 0; pointer-events: none; transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 100; max-width: 90%; text-align: center;
+  border: 1px solid var(--md-sys-color-outline-variant);
+}
+.prompt-container.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* Modal Monet */
+#monet-modal {
+  display: none; position: fixed; inset: 0; z-index: 110;
+  background: rgba(0,0,0,0.65); backdrop-filter: blur(8px);
+  align-items: flex-end; justify-content: center;
+}
+#monet-modal.show { display: flex; }
+.monet-sheet {
+  background: var(--md-sys-color-surface-container-high);
+  width: 100%; max-width: 520px; border-radius: 28px 28px 0 0;
+  padding: 20px 22px calc(24px + var(--bottom-inset));
+  display: flex; flex-direction: column; gap: 14px;
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+}
+.palette-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.color-circle {
+  height: 48px; border-radius: var(--radius-md); border: 2px solid transparent;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 600;
+}
+.hex-input-group {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--md-sys-color-surface-container-highest);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--radius-md); padding: 6px 12px;
+}
+.hex-swatch {
+  width: 32px; height: 32px; border-radius: var(--radius-sm);
+  border: 2px solid rgba(255,255,255,0.25); flex: none; cursor: pointer; position: relative; overflow: hidden;
+}
+.hex-swatch input[type="color"] { position: absolute; inset: -10px; width: 60px; height: 60px; opacity: 0; cursor: pointer; }
+.hex-prefix { font-size: 15px; font-weight: 600; color: var(--md-sys-color-outline); }
+.hex-field {
+  flex: 1; border: none !important; background: transparent !important; padding: 6px 0 !important;
+  font-family: var(--z2-mono); font-size: 15px; font-weight: 600;
+  color: var(--md-sys-color-on-surface); text-transform: uppercase; outline: none !important;
+}
+</style>
+</head>
+<body>
+
+    <!-- Header -->
+    <div class="header">
+        <button class="btn-m3 icon-btn" id="menu-btn" title="Меню">
+            <svg style="width:24px;height:24px;fill:currentColor;" viewBox="0 -960 960 960"><path d="M120-240v-80h720v80H120Zm0-200v-80h720v80H120Zm0-200v-80h720v80H120Z"/></svg>
+        </button>
+        <div class="header-title-box">
+            <h1 id="title">nfqws2</h1>
+            <small id="header-version">v1.2.2</small>
+        </div>
+        <button class="btn-m3 icon-btn" onclick="openMonetModal()" title="Палитра темы">🎨</button>
+        <span class="badge" id="hs">…</span>
+    </div>
+
+    <!-- Navigation Drawer -->
+    <div class="drawer-scrim" id="drawer-scrim" onclick="closeDrawer()"></div>
+    <nav class="drawer" id="drawer">
+        <div class="drawer-header">
+            <svg class="drawer-logo" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2 4 5v6c0 5.05 3.41 9.76 8 10.86 4.59-1.1 8-5.81 8-10.86V5l-8-3zm-1 6h2v2h-2V8zm0 4h2v6h-2v-6z"/></svg>
+            <div>
+                <b style="font-size:16px;">nfqws2</b>
+                <div class="mu">Обход блокировок DPI</div>
+            </div>
+        </div>
+        <div class="drawer-group">Навигация</div>
+        <button class="drawer-item active" data-page="control">Управление</button>
+        <button class="drawer-item" data-page="lists">Списки доменов</button>
+        <button class="drawer-item" data-page="apps">Приложения (UID)</button>
+        <button class="drawer-item" data-page="config">Конфигурация</button>
+        <button class="drawer-item" data-page="logs">Журналы</button>
+        <button class="drawer-item" data-page="test">Тестирование</button>
+    </nav>
+
+    <!-- Content Views -->
+    <div class="content" id="content-container">
+
+        <!-- 1. УПРАВЛЕНИЕ -->
+        <div class="page-view active" data-page="control">
+            <div class="hero-card" id="hero-status">
+                <div class="hero-label">Состояние службы</div>
+                <div class="hero-state" id="st">Опрос службы...</div>
+                <div class="mu" id="sub">—</div>
+                <div class="hero-pill" id="upt">Остановлен</div>
+                <div class="chips" id="cnt" style="margin-top: 6px;"></div>
+                <div class="row" style="margin-top: 10px;">
+                    <button class="btn-m3 primary grow" id="bt" onclick="toggle()">Запустить</button>
+                    <button class="btn-m3 tonal" onclick="act('restart')">Перезапуск</button>
+                </div>
+            </div>
+            <div id="warn" style="margin-top: 8px;"></div>
+
+            <div class="card" style="margin-top: 10px;">
+                <div class="card-title">Параметры ядра и сети</div>
+                <div id="sws"></div>
+                <div class="divider"></div>
+                <div class="row">
+                    <div style="flex:1;">
+                        <b style="font-size:13.5px;">Лимит исходящих пакетов</b>
+                        <div class="mu">Пакетов на соединение (1–15)</div>
+                    </div>
+                    <input type="number" id="pkout" min="1" max="15" style="width:72px; text-align:center; flex:none;" onchange="setp('PKT_LIMIT_OUT',this.value)">
+                </div>
+                <div class="row" style="margin-top: 6px;">
+                    <div style="flex:1;">
+                        <b style="font-size:13.5px;">Лимит входящих пакетов</b>
+                        <div class="mu">Действует только при xt_connbytes</div>
+                    </div>
+                    <input type="number" id="pkin" min="1" max="15" style="width:72px; text-align:center; flex:none;" onchange="setp('PKT_LIMIT_IN',this.value)">
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">Диагностика</div>
+                <div class="row">
+                    <button class="btn-m3 tonal" onclick="doctor()">Проверить ядро и правила</button>
+                    <button class="btn-m3 tonal" onclick="showArgs()">Аргументы запуска</button>
+                </div>
+                <div id="doc" style="margin-top: 8px;"></div>
+                <pre class="log-box" id="args" hidden></pre>
+            </div>
+        </div>
+
+        <!-- 2. СПИСКИ -->
+        <div class="page-view" data-page="lists">
+            <div class="card">
+                <div class="card-title">Режим обработки доменов</div>
+                <div class="seg-group" id="mode"></div>
+                <div class="mu" style="margin-top:6px;">auto — автообучение; list — строго user.list; all — всё, кроме exclude.</div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">Быстрое добавление в user.list</div>
+                <div class="row">
+                    <input type="text" id="dom" placeholder="например, youtube.com" style="flex:1;">
+                    <button class="btn-m3 primary" style="flex:0 0 46px;" onclick="addDom()">+</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">Редактор списков</div>
+                <select id="lsel" onchange="loadList()"></select>
+                <textarea id="ltx" spellcheck="false" style="min-height:200px; cursor:pointer;" onclick="openSlideEditor('list')" title="Нажмите для открытия во весь экран" readonly></textarea>
+                <div class="row">
+                    <button class="btn-m3 primary" onclick="openSlideEditor('list')">Открыть во весь экран ⛶</button>
+                    <button class="btn-m3 tonal" onclick="ctl(['clear-auto']).then(()=>{toast('auto.list очищен');loadList();stat();})">Очистить auto</button>
+                    <button class="btn-m3 danger" onclick="resetLists()">Сброс списков</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. ПРИЛОЖЕНИЯ -->
+        <div class="page-view" data-page="apps">
+            <div class="card">
+                <div class="card-title">Фильтрация по приложениям (UID)</div>
+                <select id="amode">
+                    <option value="off">Выключен (весь системный трафик)</option>
+                    <option value="include">Только выбранные приложения</option>
+                    <option value="exclude">Все, кроме выбранных</option>
+                </select>
+                <div class="mu">В режиме «только выбранные» трафик раздачи (hotspot) не обрабатывается.</div>
+                <div class="row" style="margin-top:6px;">
+                    <button class="btn-m3 tonal" onclick="openSlideEditor('apps')">Ввести вручную (пакеты)</button>
+                    <button class="btn-m3 tonal" onclick="loadPk()">Выбрать из установленных</button>
+                </div>
+                <input type="search" id="pf" placeholder="Поиск пакета..." oninput="drawPk()" style="margin-top:6px;" hidden>
+                <div id="pk" style="max-height:240px; overflow-y:auto; display:flex; flex-direction:column; gap:4px; margin-top:6px;"></div>
+                <button class="btn-m3 primary" style="margin-top:8px;" onclick="saveApps()">Сохранить и применить</button>
+            </div>
+        </div>
+
+        <!-- 4. КОНФИГУРАЦИЯ -->
+        <div class="page-view" data-page="config">
+            <div class="card">
+                <div class="card-title">nfqws2.conf</div>
+                <!-- Клик по рамке разворачивает полноэкранный редактор Slide Panel -->
+                <textarea id="ctx" spellcheck="false" style="min-height:220px; cursor:pointer;" onclick="openSlideEditor('conf')" title="Нажмите на рамку для редактирования во весь экран" readonly></textarea>
+                <div class="row">
+                    <button class="btn-m3 primary" onclick="openSlideEditor('conf')">Редактировать во весь экран ⛶</button>
+                    <button class="btn-m3 danger" onclick="if(confirm('Сбросить конфиг к стандартному?'))ctl(['reset-conf']).then(()=>{toast('Сброшено');loadConf();})">Сброс</button>
+                </div>
+                <div class="mu">Нажмите на рамку выше для открытия полноэкранного редактора.</div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">Импорт пресетов Keenetic</div>
+                <div class="mu">Поддерживается выбор пачки файлов (.txt/.conf/.bat/.ini). Кликните по имени в списке для переименования.</div>
+                <input type="file" id="impFile" multiple hidden onchange="importFiles(this.files)">
+                <div class="row" style="margin-top:4px;">
+                    <button class="btn-m3 tonal" onclick="$('impFile').click()">Импортировать файлы…</button>
+                    <button class="btn-m3 tonal" onclick="importPaste()">Вставить текст…</button>
+                </div>
+                <div id="impMsg" class="mu" style="margin-top:4px;"></div>
+                <div id="impList" style="display:flex; flex-direction:column; gap:4px; margin-top:6px;"></div>
+            </div>
+        </div>
+
+        <!-- 5. ЖУРНАЛЫ -->
+        <div class="page-view" data-page="logs">
+            <div class="card">
+                <div class="row">
+                    <select id="lt" onchange="loadLog()" style="flex:1;">
+                        <option value="service">Служба (service.log)</option>
+                        <option value="nfqws">Процесс (nfqws2.log)</option>
+                        <option value="auto">Автообучение (auto.log)</option>
+                        <option value="debug">Отладка (debug.log)</option>
+                    </select>
+                    <select id="ln" onchange="loadLog()" style="width:84px; flex:none;">
+                        <option>100</option>
+                        <option>300</option>
+                        <option>1000</option>
+                    </select>
+                </div>
+                <pre class="log-box" id="lg" style="margin-top:8px;">Загрузка логов...</pre>
+                <div class="row" style="margin-top:4px;">
+                    <button class="btn-m3 tonal" onclick="loadLog()">Обновить</button>
+                    <button class="btn-m3 tonal" onclick="ctl(['export-logs']).then(r=>toast(r.trim()))">Экспорт в Download</button>
+                    <button class="btn-m3 danger" onclick="ctl(['clear-logs']).then(loadLog)">Очистить</button>
+                </div>
+                <div class="divider"></div>
+                <div class="row">
+                    <div style="flex:1;">
+                        <b style="font-size:13.5px;">Подробный Debug-лог</b>
+                        <div class="mu">Замедляет nfqws2, нужен перезапуск</div>
+                    </div>
+                    <input type="checkbox" class="switch-m3" id="dbg" onchange="setp('LOG_LEVEL',this.checked?1:0)">
+                </div>
+            </div>
+        </div>
+
+        <!-- 6. ТЕСТИРОВАНИЕ -->
+        <div class="page-view" data-page="test">
+            <div class="card">
+                <div class="card-title">Проверка доступности ресурсов</div>
+                <div class="mu">Прямой опрос fetch (3 попытки без кэша). Список: probe_hosts.list</div>
+                <button class="btn-m3 primary" id="tb" onclick="runTest()" style="margin-top:8px;">Запустить тест связи</button>
+                <div id="tr" style="margin-top:10px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Полноэкранный редактор Slide Panel (Slopret M3 Panel 100dvh) -->
+    <div class="slide-panel" id="editor-panel">
+        <div class="panel-header">
+            <button class="btn-m3 icon-btn" onclick="closeSlideEditor()" title="Закрыть">✕</button>
+            <span class="panel-title" id="panel-title-text">Редактор</span>
+            <div style="display:flex; gap:6px;">
+                <button class="btn-m3 primary" id="panel-save-btn">Сохранить</button>
+            </div>
+        </div>
+        <div class="panel-body">
+            <textarea class="editor-textarea" id="panel-editor-text" spellcheck="false" placeholder="# Конфигурация..."></textarea>
+        </div>
+    </div>
+
+    <!-- Toast / Prompt -->
+    <div class="prompt-container" id="prompt-container">
+        <span id="prompt-msg"></span>
+    </div>
+
+    <!-- Модальное окно темы Monet с M3 HEX Палитрой -->
+    <div id="monet-modal" onclick="if(event.target===this)closeMonetModal()">
+        <div class="monet-sheet">
+            <h2 style="font-size:16px; color:var(--md-sys-color-primary);">Динамическая тема (Monet)</h2>
+            
+            <div class="row" style="padding: 4px 0;">
+                <span style="font-weight:600; flex:1;">Режим AMOLED (глубокий черный фон)</span>
+                <input type="checkbox" class="switch-m3" id="amoled-toggle" onchange="toggleAmoled(this.checked)">
+            </div>
+
+            <div class="mu">Готовые палитры Material You:</div>
+            <div class="palette-grid">
+                <div class="color-circle" style="background:#deb0da; color:#472146;" onclick="applyMonet('#deb0da')">Сирень</div>
+                <div class="color-circle" style="background:#d0bcff; color:#381e72;" onclick="applyMonet('#d0bcff')">Лаванда</div>
+                <div class="color-circle" style="background:#a8c7fa; color:#06305f;" onclick="applyMonet('#a8c7fa')">Pixel Blue</div>
+                <div class="color-circle" style="background:#f4b5d2; color:#5c1d3c;" onclick="applyMonet('#f4b5d2')">Сакура</div>
+                <div class="color-circle" style="background:#7bd0ff; color:#003549;" onclick="applyMonet('#7bd0ff')">Циан</div>
+                <div class="color-circle" style="background:#6dd58c; color:#003915;" onclick="applyMonet('#6dd58c')">Изумруд</div>
+                <div class="color-circle" style="background:#f3c774; color:#422c00;" onclick="applyMonet('#f3c774')">Янтарь</div>
+                <div class="color-circle" style="background:#ffb4ab; color:#690005;" onclick="applyMonet('#ffb4ab')">Коралл</div>
+            </div>
+
+            <div class="mu" style="margin-top:2px;">Свой цвет (HEX / Палитра):</div>
+            <div class="row" style="gap:8px;">
+                <div class="hex-input-group" style="flex:1;">
+                    <label class="hex-swatch" id="custom-swatch" style="background:var(--md-source-color);" title="Кликните для выбора из палитры">
+                        <input type="color" id="native-color-picker" oninput="onNativeColorPick(this.value)">
+                    </label>
+                    <span class="hex-prefix">#</span>
+                    <input type="text" class="hex-field" id="custom-hex-input" maxlength="6" placeholder="DEB0DA" oninput="onHexInput(this.value)">
+                </div>
+                <button class="btn-m3 primary" style="flex:0 0 auto;" onclick="applyCustomHex()">Применить</button>
+            </div>
+
+            <div class="row" style="margin-top:4px;">
+                <button class="btn-m3 tonal" style="width:100%;" onclick="detectSystemMonet(true)">Синхронизировать с обоями</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+const MOD = '/data/adb/modules/nfqws2-magisk', CTL = MOD + '/bin/nfqws2-ctl', $ = id => document.getElementById(id);
+let S = {}, seq = 0, pkgs = [], currentEditorTarget = '';
+const q = s => "'" + String(s).replace(/'/g, "'\\''") + "'";
+const b64 = s => btoa(unescape(encodeURIComponent(s)));
+const unb64 = s => { try { return decodeURIComponent(escape(atob(s))); } catch(e) { return atob(s); } };
+
+function toast(m){
+  const pc = $('prompt-container'); $('prompt-msg').textContent = m;
+  pc.classList.add('show');
+  clearTimeout(pc._t); pc._t = setTimeout(() => pc.classList.remove('show'), 2600);
+}
+
+function sh(cmd, ms=15000){
+  return new Promise(res => {
+    const k = window.ksu;
+    if(!k || !k.exec){
+      res({code: 1, out: '', err: 'Нет моста ksu.exec'}); return;
+    }
+    const id = '__cb' + (++seq); let done = 0;
+    const fin = (c, o, e) => { if(done) return; done = 1; clearTimeout(tm); delete window[id]; res({code: +c || 0, out: String(o || ''), err: String(e || '')}); };
+    const tm = setTimeout(() => fin(-1, '', 'Таймаут'), ms);
+    window[id] = fin;
+    try { k.exec(cmd, '{}', id); } catch(e) { try { k.exec(cmd, id); } catch(e2) { fin(1, '', String(e2)); } }
+  });
+}
+
+async function ctl(a, ms){
+  const r = await sh('sh ' + q(CTL) + ' ' + a.map(q).join(' '), ms);
+  if(r.code && r.err && !r.out) toast(r.err.slice(0, 160));
+  return r.out + (r.code && r.err ? '\n' + r.err : '');
+}
+async function ctlx(a, ms){ return await sh('sh ' + q(CTL) + ' ' + a.map(q).join(' '), ms); }
+
+// Navigation Drawer
+function openDrawer(){ $('drawer').classList.add('open'); $('drawer-scrim').classList.add('show'); }
+function closeDrawer(){ $('drawer').classList.remove('open'); $('drawer-scrim').classList.remove('show'); }
+$('menu-btn').onclick = openDrawer;
+
+document.querySelectorAll('.drawer-item').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('.drawer-item').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const page = btn.getAttribute('data-page');
+    document.querySelectorAll('.page-view').forEach(p => {
+      p.classList.toggle('active', p.getAttribute('data-page') === page);
+    });
+    closeDrawer();
+    ({control: stat, lists: listsInit, apps: appsInit, config: confInit, logs: loadLog}[page] || (()=>{}))();
+  };
+});
+
+// Uptime Ticker
+let uptTimer = null;
+function fmtUptime(sec){
+  sec = Math.max(0, Math.floor(sec));
+  const d = Math.floor(sec / 86400); sec -= d * 86400;
+  const h = Math.floor(sec / 3600);  sec -= h * 3600;
+  const m = Math.floor(sec / 60);    sec -= m * 60;
+  const s = sec, p = n => String(n).padStart(2, '0');
+  if(d > 0) return d + ' д ' + p(h) + ':' + p(m) + ':' + p(s);
+  if(h > 0) return p(h) + ':' + p(m) + ':' + p(s);
+  return p(m) + ':' + p(s);
+}
+function stopUptTimer(){ if(uptTimer){ clearInterval(uptTimer); uptTimer = null; } $('upt').textContent = 'Остановлен'; }
+function startUptTimer(baseSec){
+  stopUptTimer();
+  let currentSec = Math.max(0, Math.floor(baseSec));
+  const tick = () => { $('upt').textContent = 'Работает: ' + fmtUptime(currentSec++); };
+  tick(); uptTimer = setInterval(tick, 1000);
+}
+
+// 1. УПРАВЛЕНИЕ / СТАТУС
+const SW = [
+  ['AUTOSTART','Автозапуск при загрузке'],
+  ['WATCHDOG','Контроль работы (перезапуск, правила)'],
+  ['IPV6_ENABLED','Обрабатывать IPv6'],
+  ['BLOCK_QUIC','Блокировать QUIC (UDP/443)']
+];
+const KEY = {AUTOSTART:'autostart', WATCHDOG:'watchdog', IPV6_ENABLED:'ipv6', BLOCK_QUIC:'block_quic'};
+
+async function stat(){
+  let j; try{ j = JSON.parse(await ctl(['json-status'])); }catch(e){ $('st').textContent = 'Нет связи с модулем'; return; }
+  S = j;
+  $('header-version').textContent = j.version || 'v1.2.2';
+  $('hero-status').className = 'hero-card ' + (j.running ? 'running' : '');
+  $('st').textContent = j.running ? 'Служба запущена' : 'Служба остановлена';
+  $('hs').textContent = j.running ? 'PID ' + j.pid : 'выкл';
+  $('sub').textContent = 'Режим: ' + j.mode + (j.running && j.limiter ? ' · ' + ({connbytes:'обе стороны', connmark_out:'только исх., лимит ' + j.pkt_limit_out}[j.limiter] || j.limiter) : '');
+
+  if(j.running){ startUptTimer(j.uptime || 0); } else { stopUptTimer(); }
+
+  $('bt').textContent = j.running ? 'Остановить' : 'Запустить';
+  $('bt').className = 'btn-m3 ' + (j.running ? 'danger' : 'primary') + ' grow';
+
+  const c = j.counts || {};
+  $('cnt').innerHTML = [['user', c.user], ['auto', c.auto], ['exclude', c.exclude], ['ipset', c.ipset], ['apps', c.apps]]
+    .map(x => `<span class="chip">${x[0]}: ${x[1]}</span>`).join('');
+
+  $('sws').innerHTML = SW.map(s => `
+    <div class="row" style="padding: 4px 0;">
+      <span style="flex:1; font-size:13.5px;">${s[1]}</span>
+      <input type="checkbox" class="switch-m3" ${j[KEY[s[0]]] == 1 ? 'checked' : ''} onchange="setp('${s[0]}', this.checked ? 1 : 0)">
+    </div>`).join('');
+
+  $('dbg').checked = (j.log_level == 1);
+  $('pkout').value = j.pkt_limit_out;
+  $('pkin').value = j.pkt_limit_in;
+  $('warn').innerHTML = (j.qdrop > 0 ? `<div class="badge bad" style="margin-top:6px;">Сброшено пакетов: ${j.qdrop}</div>` : '');
+}
+
+async function setp(k,v){
+  const r = await ctlx(['set', k, String(v)]);
+  toast(r.code ? r.err.trim() : (r.out.trim().split('\n').pop() || 'OK'));
+  stat();
+}
+async function act(a){
+  toast('Выполнение...');
+  const r = await ctlx([a], 40000);
+  toast((r.out + r.err).trim().split('\n').pop() || 'Готово');
+  stat();
+}
+function toggle(){ stopUptTimer(); act(S.running ? 'stop' : 'start'); }
+
+async function doctor(){
+  $('doc').innerHTML = '<div class="mu">Проверка…</div>';
+  const t = await ctl(['doctor'], 30000);
+  $('doc').innerHTML = t.trim().split('\n').map(l => l.split('\t')).map(([s,n,d]) => `
+    <div class="dr">
+      <span class="badge ${s==='ok'?'ok':(s==='warn'?'warn':'bad')}">${s==='ok'?'✔':(s==='warn'?'!':'✘')}</span>
+      <b>${n||''}</b>
+      <span>${(d||'').replace(/</g,'&lt;')}</span>
+    </div>`).join('');
+}
+async function showArgs(){
+  const e = $('args'); e.hidden = !e.hidden;
+  if(!e.hidden) e.textContent = await ctl(['get-logs','args','5']);
+}
+
+// 2. СПИСКИ
+const LISTS = [
+  ['auto','auto.list — выучено'],
+  ['user','user.list — обходить'],
+  ['exclude','exclude.list — не трогать'],
+  ['ipset','ipset.list — IP для обхода'],
+  ['ipset_exclude','ipset_exclude.list — IP-исключения'],
+  ['probe_hosts','probe_hosts — для проверки']
+];
+$('lsel').innerHTML = LISTS.map(l => `<option value="${l[0]}">${l[1]}</option>`).join('');
+
+async function listsInit(){
+  await stat();
+  $('mode').innerHTML = ['auto','list','all'].map(m => `
+    <button class="seg-btn ${S.mode === m ? 'on' : ''}" onclick="setMode('${m}')">${m}</button>
+  `).join('');
+  loadList();
+}
+async function setMode(m){ await ctl(['set-mode', m]); toast('Режим: ' + m); listsInit(); }
+async function loadList(){ $('ltx').value = await ctl(['get-list', $('lsel').value]); }
+async function addDom(){
+  const d = $('dom').value.trim(); if(!d) return;
+  const r = await ctlx(['add-domain', d]); toast((r.out + r.err).trim());
+  $('dom').value = ''; if($('lsel').value === 'user') loadList(); stat();
+}
+function resetLists(){
+  if(confirm('Вернуть списки к стандартным? Ваши правки будут удалены.')){
+    ctl(['reset-lists']).then(() => { toast('Сброшено'); loadList(); stat(); });
+  }
+}
+
+// 3. ПРИЛОЖЕНИЯ
+async function appsInit(){ await stat(); $('amode').value = S.app_mode; }
+async function loadPk(){
+  $('pk').innerHTML = '<div class="mu">Загрузка пакетов...</div>';
+  pkgs = (await ctl(['list-apps'], 30000)).trim().split('\n').filter(Boolean);
+  $('pf').hidden = false; drawPk();
+}
+async function getAppsList(){ return new Set((await ctl(['get-list', 'apps'])).split('\n').map(s=>s.trim()).filter(s=>s&&s[0]!=='#')); }
+async function drawPk(){
+  const f = $('pf').value.toLowerCase(), s = await getAppsList();
+  $('pk').innerHTML = pkgs.filter(p => p.includes(f)).slice(0, 100).map(p => `
+    <div style="padding:8px 12px; border-radius:var(--radius-sm); font-family:var(--z2-mono); font-size:12px; cursor:pointer; background:${s.has(p)?'var(--md-sys-color-primary-container)':'var(--md-sys-color-surface-container-high)'}; color:${s.has(p)?'var(--md-sys-color-on-primary-container)':'var(--md-sys-color-on-surface)'}; display:flex; justify-content:space-between;" onclick="togglePkg('${p}')">
+      <span>${p}</span>
+      <b>${s.has(p)?'✔':'+'}</b>
+    </div>`).join('');
+}
+async function togglePkg(p){
+  const s = await getAppsList();
+  s.has(p) ? s.delete(p) : s.add(p);
+  await ctlx(['save-list-b64', 'apps', b64([...s].join('\n'))]);
+  drawPk();
+}
+async function saveApps(){
+  await ctl(['set', 'APP_MODE', $('amode').value]);
+  if(S.running) await act('restart'); else toast('Сохранено');
+}
+
+// 4. КОНФИГУРАЦИЯ & ИМПОРТ
+async function confInit(){ await loadConf(); await loadImports(); }
+async function loadConf(){ $('ctx').value = await ctl(['get-conf']); }
+async function loadImports(){
+  const names = (await ctl(['list-imports'])).trim().split('\n').filter(Boolean);
+  $('impList').innerHTML = names.length ? names.map(n => `
+    <div class="dr">
+      <b style="width:auto;flex:1;cursor:pointer;" title="Нажмите для переименования" onclick="renameImportStart(this,'${n}')">${n}</b>
+      <button class="btn-m3 tonal" style="padding:6px 12px; font-size:12px;" onclick="loadImport('${n}')">Выбрать</button>
+      <button class="btn-m3 danger" style="padding:6px 12px; font-size:12px;" onclick="delImport('${n}')">✕</button>
+    </div>`).join('') : '<div class="mu">Пока пусто</div>';
+}
+function renameImportStart(el, oldName){
+  const input = document.createElement('input');
+  input.value = oldName; input.style.cssText = 'flex:1;padding:6px 8px;font-size:13px;';
+  input.onclick = e => e.stopPropagation();
+  input.onkeydown = e => { if(e.key === 'Enter') input.blur(); if(e.key === 'Escape'){ input.value = oldName; input.blur(); } };
+  input.onblur = async () => {
+    const n = input.value.trim();
+    if(!n || n === oldName){ loadImports(); return; }
+    const r = await ctlx(['rename-import', oldName, n]);
+    if(r.code) alert(r.err || 'Не удалось переименовать');
+    loadImports();
+  };
+  el.replaceWith(input); input.focus(); input.select();
+}
+const IMPORT_EXTS = ['.txt','.conf','.ini','.cfg','.list','.bat'];
+async function importFiles(files){
+  if(!files || !files.length) return;
+  let ok = 0, fail = 0;
+  for(const f of files){
+    const text = await f.text(); const name = f.name.replace(/\.[^.]+$/, '');
+    const r = await ctlx(['import-add-b64', b64(name), b64(text)]);
+    if(!r.code) ok++; else fail++;
+  }
+  toast(`Импортировано: ${ok}` + (fail ? `, ошибок: ${fail}` : ''));
+  loadImports();
+}
+async function importPaste(){
+  const t = prompt('Вставьте текст конфига nfqws2-keenetic:'); if(!t||!t.trim()) return;
+  const name = prompt('Имя для этого конфига:', 'import') || 'import';
+  const r = await ctlx(['import-add-b64', b64(name), b64(t)]);
+  if(r.code) alert(r.err || 'Файл отклонен'); else { toast('Импортировано'); loadImports(); }
+}
+async function loadImport(name){
+  const r = await ctlx(['get-import-merged-b64', name]); if(r.code) return;
+  const val = unb64(r.out.trim());
+  $('ctx').value = val;
+  toast('Подставлено в редактор');
+}
+async function delImport(name){
+  if(confirm('Удалить «' + name + '»?')){ await ctl(['delete-import', name]); loadImports(); }
+}
+
+// Полноэкранный Slide Panel Редактор
+async function openSlideEditor(type){
+  currentEditorTarget = type;
+  if(type === 'conf'){
+    $('panel-title-text').textContent = 'nfqws2.conf';
+    $('panel-editor-text').value = await ctl(['get-conf']);
+  } else if(type === 'list'){
+    const listKey = $('lsel').value;
+    $('panel-title-text').textContent = listKey + '.list';
+    $('panel-editor-text').value = await ctl(['get-list', listKey]);
+  } else if(type === 'apps'){
+    $('panel-title-text').textContent = 'apps.list (пакеты)';
+    $('panel-editor-text').value = await ctl(['get-list', 'apps']);
+  }
+  $('editor-panel').classList.add('open');
+}
+function closeSlideEditor(){ $('editor-panel').classList.remove('open'); }
+$('panel-save-btn').onclick = async () => {
+  const val = $('panel-editor-text').value;
+  if(currentEditorTarget === 'conf'){
+    const r = await ctlx(['save-conf-b64', b64(val)]);
+    toast(r.code ? (r.err || 'Отклонен').trim() : 'Конфиг сохранен');
+    loadConf();
+  } else if(currentEditorTarget === 'list'){
+    const listKey = $('lsel').value;
+    await ctlx(['save-list-b64', listKey, b64(val)]);
+    toast('Список сохранен');
+    loadList();
+  } else if(currentEditorTarget === 'apps'){
+    await ctlx(['save-list-b64', 'apps', b64(val)]);
+    toast('Список приложений сохранен');
+  }
+  closeSlideEditor();
+  stat();
+};
+
+// 5. ЖУРНАЛЫ
+async function loadLog(){
+  $('lg').textContent = await ctl(['get-logs', $('lt').value, $('ln').value]);
+  $('lg').scrollTop = $('lg').scrollHeight;
+}
+
+// 6. ТЕСТИРОВАНИЕ
+async function probe(u){
+  const t0 = performance.now(), c = new AbortController(), m = setTimeout(() => c.abort(), 6000);
+  try{
+    await fetch('https://' + u + (u.includes('?') ? '&' : '?') + '_=' + Date.now(), {mode:'no-cors', cache:'no-store', signal:c.signal});
+    return performance.now() - t0;
+  }catch(e){ return null; }finally{ clearTimeout(m); }
+}
+async function runTest(){
+  $('tb').disabled = true;
+  const hosts = (await ctl(['get-list', 'probe_hosts'])).split('\n').map(s => s.trim()).filter(s => s && s[0] !== '#');
+  $('tr').innerHTML = hosts.map((h, i) => `
+    <div class="dr">
+      <span class="badge" id="ti${i}">…</span>
+      <b style="width:auto;flex:1;">${h}</b>
+      <span class="mu" id="tr${i}"></span>
+    </div>`).join('');
+  await Promise.all(hosts.map(async (h, i) => {
+    let ok = 0, sum = 0;
+    for(let k = 0; k < 3; k++){
+      const t = await probe(h); if(t != null){ ok++; sum += t; }
+    }
+    const elemI = $('ti' + i), elemR = $('tr' + i);
+    elemI.className = 'badge ' + (ok === 3 ? 'ok' : (ok > 0 ? 'warn' : 'bad'));
+    elemI.textContent = ok === 3 ? '✔' : (ok > 0 ? '!' : '✘');
+    elemR.textContent = ok + '/3' + (ok ? ' · ' + Math.round(sum/ok) + ' мс' : '');
+  }));
+  $('tb').disabled = false;
+}
+
+// ==============================================================================
+// ADVANCED MATERIAL 3 / MONET (HYPEROS / ANDROID 14-16)
+// ==============================================================================
+function hexToHsl(hex){
+  hex = hex.replace('#','');
+  if(hex.length === 3) hex = hex.split('').map(x => x + x).join('');
+  const r = parseInt(hex.substr(0,2),16)/255, g = parseInt(hex.substr(2,2),16)/255, b = parseInt(hex.substr(4,2),16)/255;
+  const max = Math.max(r,g,b), min = Math.min(r,g,b);
+  let h, s, l = (max + min) / 2;
+  if(max === min){ h = s = 0; } else {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch(max){
+      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+      case g: h = (b - r) / d + 2; break;
+      case b: h = (r - g) / d + 4; break;
+    }
+    h /= 6;
+  }
+  return [h * 360, s, l];
+}
+
+function hslToHex(h, s, l){
+  h = ((h % 360) + 360) % 360;
+  s = Math.max(0, Math.min(1, s));
+  l = Math.max(0, Math.min(1, l));
+  h /= 360;
+  let r, g, b;
+  if(s === 0){ r = g = b = l; } else {
+    const hue2rgb = (p, q, t) => {
+      if(t < 0) t += 1; if(t > 1) t -= 1;
+      if(t < 1/6) return p + (q - p) * 6 * t;
+      if(t < 1/2) return q;
+      if(t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+      return p;
+    };
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    r = hue2rgb(p, q, h + 1/3);
+    g = hue2rgb(p, q, h);
+    b = hue2rgb(p, q, h - 1/3);
+  }
+  const toHex = x => Math.round(x * 255).toString(16).padStart(2, '0');
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+
+let currentSeed = '#deb0da';
+
+function applyMonet(seedHex){
+  try {
+    currentSeed = seedHex;
+    const isAmoled = localStorage.getItem('amoled_mode') === 'true';
+    document.body.classList.toggle('amoled', isAmoled);
+    $('amoled-toggle').checked = isAmoled;
+
+    const rawClean = seedHex.replace('#', '').toUpperCase();
+    if($('custom-hex-input')) $('custom-hex-input').value = rawClean;
+    if($('custom-swatch')) $('custom-swatch').style.background = seedHex;
+    if($('native-color-picker')) $('native-color-picker').value = seedHex;
+
+    const [h, s] = hexToHsl(seedHex);
+    const root = document.documentElement;
+
+    const primary = hslToHex(h, Math.min(s, 0.65), 0.82);
+    const onPrimary = hslToHex(h, Math.min(s, 0.70), 0.20);
+    const primaryContainer = hslToHex(h, Math.min(s, 0.50), 0.30);
+    const onPrimaryContainer = hslToHex(h, Math.min(s, 0.60), 0.92);
+    const secondary = hslToHex(h, Math.min(s * 0.35, 0.22), 0.78);
+    const secondaryContainer = hslToHex(h, Math.min(s * 0.38, 0.26), 0.30);
+    const onSecondaryContainer = hslToHex(h, Math.min(s * 0.40, 0.26), 0.90);
+
+    let bg, surface, surfaceLowest, surfaceLow, surfaceContainer, surfaceHigh, surfaceHighest, outlineVariant;
+
+    if(isAmoled){
+      bg = '#000000'; surface = '#000000'; surfaceLowest = '#000000';
+      surfaceLow = hslToHex(h, 0.12, 0.05);
+      surfaceContainer = hslToHex(h, 0.11, 0.08);
+      surfaceHigh = hslToHex(h, 0.10, 0.12);
+      surfaceHighest = hslToHex(h, 0.09, 0.16);
+      outlineVariant = hslToHex(h, 0.10, 0.22);
+    } else {
+      bg = hslToHex(h, 0.12, 0.08); surface = bg;
+      surfaceLowest = hslToHex(h, 0.14, 0.06);
+      surfaceLow = hslToHex(h, 0.11, 0.10);
+      surfaceContainer = hslToHex(h, 0.10, 0.13);
+      surfaceHigh = hslToHex(h, 0.09, 0.17);
+      surfaceHighest = hslToHex(h, 0.08, 0.21);
+      outlineVariant = hslToHex(h, 0.08, 0.28);
+    }
+
+    const outline = hslToHex(h, 0.08, 0.55);
+
+    root.style.setProperty('--md-source-color', seedHex);
+    root.style.setProperty('--md-sys-color-primary', primary);
+    root.style.setProperty('--md-sys-color-on-primary', onPrimary);
+    root.style.setProperty('--md-sys-color-primary-container', primaryContainer);
+    root.style.setProperty('--md-sys-color-on-primary-container', onPrimaryContainer);
+    root.style.setProperty('--md-sys-color-secondary', secondary);
+    root.style.setProperty('--md-sys-color-secondary-container', secondaryContainer);
+    root.style.setProperty('--md-sys-color-on-secondary-container', onSecondaryContainer);
+
+    root.style.setProperty('--md-sys-color-background', bg);
+    root.style.setProperty('--md-sys-color-surface', surface);
+    root.style.setProperty('--md-sys-color-surface-container-lowest', surfaceLowest);
+    root.style.setProperty('--md-sys-color-surface-container-low', surfaceLow);
+    root.style.setProperty('--md-sys-color-surface-container', surfaceContainer);
+    root.style.setProperty('--md-sys-color-surface-container-high', surfaceHigh);
+    root.style.setProperty('--md-sys-color-surface-container-highest', surfaceHighest);
+    root.style.setProperty('--md-sys-color-outline', outline);
+    root.style.setProperty('--md-sys-color-outline-variant', outlineVariant);
+
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if(meta) meta.setAttribute('content', bg);
+
+    localStorage.setItem('monet_seed', seedHex);
+    closeMonetModal();
+  } catch(e){ console.error(e); }
+}
+
+function toggleAmoled(enabled){
+  localStorage.setItem('amoled_mode', enabled ? 'true' : 'false');
+  applyMonet(currentSeed);
+}
+
+function onNativeColorPick(hex){
+  const clean = hex.replace('#', '').toUpperCase();
+  $('custom-hex-input').value = clean;
+  $('custom-swatch').style.background = hex;
+}
+function onHexInput(val){
+  const clean = val.replace(/[^0-9a-fA-F]/g, '').slice(0, 6);
+  $('custom-hex-input').value = clean;
+  if(clean.length === 6){ $('custom-swatch').style.background = '#' + clean; }
+}
+function applyCustomHex(){
+  let val = $('custom-hex-input').value.trim().replace('#', '');
+  if(val.length === 3) val = val.split('').map(x => x + x).join('');
+  if(/^[0-9a-fA-F]{6}$/.test(val)){
+    applyMonet('#' + val);
+    toast('Цвет применен: #' + val.toUpperCase());
+  } else {
+    toast('Введите 6-значный HEX');
+  }
+}
+
+async function detectSystemMonet(showToastNotice=false){
+  const probeCmd = `
+    dumpsys wallpaper 2>/dev/null | grep -iE "Color\(" | tail -n 4
+    settings get secure theme_customization_overlay_packages 2>/dev/null
+    dumpsys activity service com.android.systemui/.theme.ThemeOverlayController 2>/dev/null | grep -iE "color|accent|mMain" | tail -n 4
+  `;
+
+  const r = await sh(probeCmd);
+  const out = r.out || '';
+  let hex = '';
+
+  const intMatches = Array.from(out.matchAll(/Color\(\s*(-?\d{5,12})/gi)).reverse();
+  for(const m of intMatches){
+    const val = parseInt(m[1], 10);
+    if(!isNaN(val) && val !== 0 && val !== -1){
+      const rawHex = ((val >>> 0) & 0xFFFFFF).toString(16).padStart(6, '0');
+      if(rawHex !== '000000' && rawHex !== 'ffffff' && rawHex !== 'e2e2e9' && rawHex !== '111318'){
+        hex = '#' + rawHex; break;
+      }
+    }
+  }
+
+  if(!hex){
+    const floatMatches = Array.from(out.matchAll(/Color\(\s*([\d.]+),\s*([\d.]+),\s*([\d.]+)/gi)).reverse();
+    for(const m of floatMatches){
+      const toHex = v => { const n = parseFloat(v); return Math.round(n <= 1.0 ? n * 255 : n).toString(16).padStart(2, '0'); };
+      const candidate = '#' + toHex(m[1]) + toHex(m[2]) + toHex(m[3]);
+      if(candidate !== '#000000' && candidate !== '#ffffff' && candidate !== '#e2e2e9'){
+        hex = candidate; break;
+      }
+    }
+  }
+
+  if(!hex){
+    const setMatches = Array.from(out.matchAll(/(?:_|[#"'])([0-9a-fA-F]{6})/g)).reverse();
+    for(const m of setMatches){
+      const candidate = '#' + m[1];
+      if(candidate.toLowerCase() !== '#e2e2e9' && candidate !== '#000000' && candidate.toLowerCase() !== '#ffffff'){
+        hex = candidate; break;
+      }
+    }
+  }
+
+  if(!hex) hex = '#deb0da';
+
+  applyMonet(hex);
+  if(showToastNotice) toast('Monet обоев применен: ' + hex);
+}
+
+function openMonetModal(){ $('monet-modal').classList.add('show'); }
+function closeMonetModal(){ $('monet-modal').classList.remove('show'); }
+
+// Инициализация при открытии WebUI
+detectSystemMonet();
+stat();
+</script>
+</body>
+</html>
