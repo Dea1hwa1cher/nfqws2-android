@@ -45,6 +45,8 @@ current_mode() {
   grep -m1 '^NFQWS_EXTRA_ARGS=' "$CONFFILE" 2>/dev/null | grep -o 'MODE_[A-Z]*' | head -n1 | sed 's/MODE_//' | tr 'A-Z' 'a-z'
 }
 
+json_str() { printf '%s' "$1" | tr -d '"\\'; }
+
 need_restart_note() { is_running && echo "Изменения применятся после перезапуска службы"; }
 
 list_strategies() {
@@ -114,9 +116,9 @@ cmd_json_status() {
   strat_udp=$(norm_args "$NFQWS_ARGS_UDP" | tr ' ' '\n' | grep -o 'strategy=[0-9]*' | sort -u | sed 's/strategy=//' | sort -n | tr '\n' ',' | sed 's/,$//')
   cur_strat=$(get_current_strategy)
   cat <<JSON
-{"running":$run,"pid":"$pid","uptime":$uptime,"strategy":"$cur_strat","version":"$ver","mode":"$(current_mode)",
-"strategy_tls":"$STRATEGY_TLS","strategy_udp":"$STRATEGY_UDP","tls_strategies":"$strat_tls","udp_strategies":"$strat_udp",
-"preset":"$PRESET_TCP","limiter":"$(cat "$STATE_DIR/limiter" 2>/dev/null)","pkt_limit_out":${PKT_LIMIT_OUT:-15},"block_quic":${BLOCK_QUIC:-0},"app_mode":"$APP_MODE","autostart":${AUTOSTART:-1},"watchdog":${WATCHDOG:-1},
+{"running":$run,"pid":"$pid","uptime":$uptime,"strategy":"$(json_str "$cur_strat")","version":"$(json_str "$ver")","mode":"$(json_str "$(current_mode)")",
+"strategy_tls":"$(json_str "$STRATEGY_TLS")","strategy_udp":"$(json_str "$STRATEGY_UDP")","tls_strategies":"$(json_str "$strat_tls")","udp_strategies":"$(json_str "$strat_udp")",
+"preset":"$(json_str "$PRESET_TCP")","limiter":"$(json_str "$(cat "$STATE_DIR/limiter" 2>/dev/null)")","pkt_limit_out":${PKT_LIMIT_OUT:-15},"block_quic":${BLOCK_QUIC:-0},"app_mode":"$(json_str "$APP_MODE")","autostart":${AUTOSTART:-1},"watchdog":${WATCHDOG:-1},
 "ipv6":${IPV6_ENABLED:-1},"log_level":${LOG_LEVEL:-0},"qdrop":$(awk -v q="$NFQUEUE_NUM" '$1 == q { print $6 + $7; f = 1 } END { if (!f) print 0 }' /proc/net/netfilter/nfnetlink_queue 2>/dev/null),"queue":${NFQUEUE_NUM:-300},
 "counts":{"user":$(list_count "$LISTS_DIR/user.list"),"auto":$(list_count "$LISTS_DIR/auto.list"),"exclude":$(list_count "$LISTS_DIR/exclude.list"),"ipset":$(list_count "$LISTS_DIR/ipset.list"),"ipset_exclude":$(list_count "$LISTS_DIR/ipset_exclude.list"),"apps":$(list_count "$CONFDIR/apps.list")}}
 JSON
