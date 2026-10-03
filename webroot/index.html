@@ -1,0 +1,1988 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#1c1b1f">
+<title>nfqws2</title>
+<link rel="stylesheet" href="https://mui.kernelsu.org/internal/insets.css" type="text/css">
+<link rel="stylesheet" href="https://mui.kernelsu.org/internal/colors.css" type="text/css">
+<style>
+/* ══════════════════════════════════════════════════════════════════════════
+   MATERIAL DESIGN 3 — DESIGN TOKENS
+   Роли цвета, typescale, shape, elevation и motion соответствуют базовой
+   палитре M3 (purple40 / purple80) из таблиц токенов m3.material.io.
+   Значения перезаписываются рантайм-генератором палитры (см. applyTheme()).
+   ══════════════════════════════════════════════════════════════════════════ */
+:root {
+  /* Shape: --md-sys-shape-corner-* */
+  --md-sys-shape-corner-none: 0px;
+  --md-sys-shape-corner-extra-small: 4px;
+  --md-sys-shape-corner-small: 8px;
+  --md-sys-shape-corner-medium: 12px;
+  --md-sys-shape-corner-large: 16px;
+  --md-sys-shape-corner-extra-large: 28px;
+  --md-sys-shape-full: 9999px;
+
+  /* Motion: easing */
+  --md-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --md-ease-standard-decelerate: cubic-bezier(0, 0, 0, 1);
+  --md-ease-standard-accelerate: cubic-bezier(0.3, 0, 1, 1);
+  --md-ease-emphasized: cubic-bezier(0.2, 0, 0, 1);
+  --md-ease-emphasized-decelerate: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --md-ease-emphasized-accelerate: cubic-bezier(0.3, 0, 0.8, -0.15);
+
+  /* Motion: duration */
+  --md-dur-extra-short: 50ms;
+  --md-dur-short: 150ms;
+  --md-dur-medium: 250ms;
+  --md-dur-medium-long: 350ms;
+  --md-dur-long: 450ms;
+
+  /* State layers */
+  --md-state-hover: 0.08;
+  --md-state-focus: 0.10;
+  --md-state-pressed: 0.12;
+  --md-state-disabled-content: 0.38;
+  --md-state-disabled-container: 0.12;
+
+  /* Elevation: key light + ambient light */
+  --md-elev-1: 0 1px 2px 0 rgba(0,0,0,.30), 0 1px 3px 1px rgba(0,0,0,.15);
+  --md-elev-2: 0 1px 2px 0 rgba(0,0,0,.30), 0 2px 6px 2px rgba(0,0,0,.15);
+  --md-elev-3: 0 1px 3px 0 rgba(0,0,0,.30), 0 4px 8px 3px rgba(0,0,0,.15);
+  --md-elev-4: 0 2px 3px 0 rgba(0,0,0,.30), 0 6px 10px 4px rgba(0,0,0,.15);
+  --md-elev-5: 0 4px 4px 0 rgba(0,0,0,.30), 0 8px 12px 6px rgba(0,0,0,.15);
+
+  /* Typescale */
+  --md-font: 'Roboto', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --md-font-code: 'Roboto Mono', ui-monospace, Menlo, Consolas, monospace;
+  --ts-display-large: 57px/64px;
+  --ts-headline-large: 32px/40px;
+  --ts-headline-medium: 28px/36px;
+  --ts-headline-small: 24px/32px;
+  --ts-title-large: 22px/28px;
+  --ts-title-medium: 16px/24px;
+  --ts-title-small: 14px/20px;
+  --ts-body-large: 16px/24px;
+  --ts-body-medium: 14px/20px;
+  --ts-body-small: 12px/16px;
+  --ts-label-large: 14px/20px;
+  --ts-label-medium: 12px/16px;
+  --ts-label-small: 11px/16px;
+
+  /* Layout */
+  --top-inset: var(--window-inset-top, env(safe-area-inset-top, 0px));
+  --bottom-inset: var(--window-inset-bottom, env(safe-area-inset-bottom, 0px));
+  --appbar-height: 64px;
+  --content-max: 760px;
+  --gutter: 16px;
+
+  /* Диагностика: M3 не определяет семантических success/info, поэтому
+     используются тонированные контейнеры около error/tertiary. */
+  --status-ok: #6dd58c;
+  --status-warn: #f0c14b;
+  --status-bad: #ffb4ab;
+}
+
+/* Color roles — тёмная схема (baseline purple80) */
+:root {
+  --md-sys-color-primary: var(--primary, #d0bcff);
+  --md-sys-color-on-primary: var(--onPrimary, #381e72);
+  --md-sys-color-primary-container: var(--primaryContainer, #4f378b);
+  --md-sys-color-on-primary-container: var(--onPrimaryContainer, #eaddff);
+  --md-sys-color-secondary: var(--secondary, #ccc2dc);
+  --md-sys-color-on-secondary: var(--onSecondary, #332d41);
+  --md-sys-color-secondary-container: var(--secondaryContainer, #4a4458);
+  --md-sys-color-on-secondary-container: var(--onSecondaryContainer, #e8def8);
+  --md-sys-color-tertiary: var(--tertiary, #efb8c8);
+  --md-sys-color-on-tertiary: #492532;
+  --md-sys-color-tertiary-container: #633b49;
+  --md-sys-color-on-tertiary-container: #ffd8e4;
+  --md-sys-color-error: var(--error, #f2b8b5);
+  --md-sys-color-on-error: var(--onError, #601410);
+  --md-sys-color-error-container: var(--errorContainer, #8c1d18);
+  --md-sys-color-on-error-container: #f9dedc;
+  --md-sys-color-background: var(--background, #1c1b1f);
+  --md-sys-color-on-background: var(--onBackground, #e6e1e5);
+  --md-sys-color-surface: var(--surface, #1c1b1f);
+  --md-sys-color-on-surface: var(--onSurface, #e6e1e5);
+  --md-sys-color-surface-variant: var(--surfaceVariant, #49454f);
+  --md-sys-color-on-surface-variant: var(--onSurfaceVariant, #cac4d0);
+  --md-sys-color-surface-dim: #141218;
+  --md-sys-color-surface-bright: #3b383e;
+  --md-sys-color-surface-container-lowest: var(--surfaceContainerLowest, #141218);
+  --md-sys-color-surface-container-low: var(--surfaceContainerLow, #1d1b20);
+  --md-sys-color-surface-container: var(--surfaceContainer, #211f26);
+  --md-sys-color-surface-container-high: var(--surfaceContainerHigh, #2b2930);
+  --md-sys-color-surface-container-highest: var(--surfaceContainerHighest, #36343b);
+  --md-sys-color-outline: var(--outline, #938f99);
+  --md-sys-color-outline-variant: var(--outlineVariant, #49454f);
+  --md-sys-color-inverse-surface: var(--inverseSurface, #e6e1e5);
+  --md-sys-color-inverse-on-surface: var(--inverseOnSurface, #322f35);
+  --md-sys-color-inverse-primary: var(--inversePrimary, #6750a4);
+  --md-sys-color-scrim: rgba(0, 0, 0, .45);
+}
+
+/* Color roles — светлая схема (baseline purple40) */
+html[data-mode="light"] {
+  --md-sys-color-primary: #6750a4;
+  --md-sys-color-on-primary: #ffffff;
+  --md-sys-color-primary-container: #eaddff;
+  --md-sys-color-on-primary-container: #21005d;
+  --md-sys-color-secondary: #625b71;
+  --md-sys-color-on-secondary: #ffffff;
+  --md-sys-color-secondary-container: #e8def8;
+  --md-sys-color-on-secondary-container: #1d192b;
+  --md-sys-color-tertiary: #7d5260;
+  --md-sys-color-on-tertiary: #ffffff;
+  --md-sys-color-tertiary-container: #ffd8e4;
+  --md-sys-color-on-tertiary-container: #371e23;
+  --md-sys-color-error: #ba1a1a;
+  --md-sys-color-on-error: #ffffff;
+  --md-sys-color-error-container: #ffdad6;
+  --md-sys-color-on-error-container: #410002;
+  --md-sys-color-background: #fffbfe;
+  --md-sys-color-on-background: #1c1b1f;
+  --md-sys-color-surface: #fffbfe;
+  --md-sys-color-on-surface: #1c1b1f;
+  --md-sys-color-surface-variant: #e7e0ec;
+  --md-sys-color-on-surface-variant: #49454f;
+  --md-sys-color-surface-dim: #ded8dd;
+  --md-sys-color-surface-bright: #fffbfe;
+  --md-sys-color-surface-container-lowest: #ffffff;
+  --md-sys-color-surface-container-low: #f7f2fa;
+  --md-sys-color-surface-container: #f3edf7;
+  --md-sys-color-surface-container-high: #ece6f0;
+  --md-sys-color-surface-container-highest: #e6e0e9;
+  --md-sys-color-outline: #79747e;
+  --md-sys-color-outline-variant: #cac4d0;
+  --md-sys-color-inverse-surface: #313033;
+  --md-sys-color-inverse-on-surface: #f4eff4;
+  --md-sys-color-inverse-primary: #d0bcff;
+  --status-ok: #166a33;
+  --status-warn: #6b5000;
+  --status-bad: #a01811;
+}
+
+/* AMOLED: surface-роли уходят в чёрный (M3 dark + OLED-вариант) */
+html[data-mode="dark"][data-amoled="true"] {
+  --md-sys-color-background: #000000;
+  --md-sys-color-surface: #000000;
+  --md-sys-color-surface-dim: #000000;
+  --md-sys-color-surface-container-lowest: #000000;
+  --md-sys-color-surface-container-low: #05040a;
+}
+
+/* ── Typescale роли ───────────────────────────────────────────────────── */
+.t-display-large { font: 400 var(--ts-display-large); letter-spacing: -.25px; }
+.t-headline-large { font: 400 var(--ts-headline-large); }
+.t-headline-medium { font: 400 var(--ts-headline-medium); }
+.t-headline-small { font: 400 var(--ts-headline-small); }
+.t-title-large { font: 400 var(--ts-title-large); }
+.t-title-medium { font: 500 var(--ts-title-medium); }
+.t-title-small { font: 500 var(--ts-title-small); }
+.t-body-large { font: 400 var(--ts-body-large); }
+.t-body-medium { font: 400 var(--ts-body-medium); }
+.t-body-small { font: 400 var(--ts-body-small); }
+.t-label-large { font: 500 var(--ts-label-large); letter-spacing: .1px; }
+.t-label-medium { font: 500 var(--ts-label-medium); letter-spacing: .5px; }
+.t-label-small { font: 500 var(--ts-label-small); letter-spacing: .5px; }
+
+/* ── Base ─────────────────────────────────────────────────────────────── */
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body {
+  background: var(--md-sys-color-background);
+  color: var(--md-sys-color-on-background);
+  font: 400 var(--ts-body-medium) var(--md-font);
+  min-height: 100dvh;
+  transition: background-color var(--md-dur-medium) var(--md-ease-standard);
+}
+body { overflow-x: hidden; }
+button, input, select, textarea { font-family: inherit; }
+svg.icon { width: 24px; height: 24px; flex: none; fill: none; stroke: currentColor;
+  stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; display: block; }
+svg.icon.s16 { width: 16px; height: 16px; }
+svg.icon.s18 { width: 18px; height: 18px; }
+svg.icon.s20 { width: 20px; height: 20px; }
+svg.icon.fill { fill: currentColor; stroke: none; }
+:where(button, a, input, select, textarea, label.clickable, [tabindex]):focus-visible {
+  outline: 2px solid var(--md-sys-color-primary); outline-offset: 2px;
+}
+[hidden] { display: none !important; }
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* State layer: M3 использует оверлей currentColor вместо ripple */
+.state { position: relative; isolation: isolate; overflow: hidden; }
+.state::after {
+  content: ""; position: absolute; inset: 0; background: currentColor; opacity: 0;
+  pointer-events: none; border-radius: inherit;
+  transition: opacity var(--md-dur-short) var(--md-ease-standard);
+}
+.state:hover::after { opacity: var(--md-state-hover); }
+.state:focus-visible::after { opacity: var(--md-state-focus); }
+.state:active::after { opacity: var(--md-state-pressed); transition-duration: var(--md-dur-extra-short); }
+.state[disabled] { pointer-events: none; }
+
+/* ── Top app bar (small) ──────────────────────────────────────────────── */
+.app-bar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 25;
+  min-height: calc(var(--top-inset) + var(--appbar-height));
+  padding: var(--top-inset) 4px 0 4px;
+  display: flex; align-items: center; gap: 4px;
+  background: var(--md-sys-color-surface);
+  transition: background-color var(--md-dur-medium) var(--md-ease-emphasized);
+}
+.app-bar.scrolled { background: var(--md-sys-color-surface-container); }
+.app-bar .title { flex: 1; min-width: 0; font: 400 var(--ts-title-large); color: var(--md-sys-color-on-surface); }
+.app-bar .title .ver { font: 500 var(--ts-label-small); color: var(--md-sys-color-on-surface-variant);
+  vertical-align: 5px; margin-left: 8px; }
+.status-pill {
+  display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px;
+  border-radius: var(--md-sys-shape-corner-extra-small); flex: none;
+  background: var(--md-sys-color-surface-container-highest); color: var(--md-sys-color-on-surface-variant);
+  font: 500 var(--ts-label-medium);
+}
+.status-pill.on { background: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); }
+.status-pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--md-sys-color-outline); }
+.status-pill.on .dot { background: var(--md-sys-color-primary); }
+
+/* Icon button 40×40 */
+.icon-btn {
+  appearance: none; border: none; background: transparent; cursor: pointer;
+  width: 40px; height: 40px; flex: none; border-radius: var(--md-sys-shape-full);
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--md-sys-color-on-surface-variant);
+}
+.icon-btn.tone-on { color: var(--md-sys-color-on-surface); }
+.icon-btn.tone-primary { color: var(--md-sys-color-primary); }
+
+/* ── Scrim / modal navigation drawer ─────────────────────────────────── */
+.scrim {
+  position: fixed; inset: 0; z-index: 40; background: var(--md-sys-color-scrim);
+  opacity: 0; pointer-events: none;
+  transition: opacity var(--md-dur-medium) var(--md-ease-standard);
+}
+.scrim.show { opacity: 1; pointer-events: auto; }
+.nav-drawer {
+  position: fixed; top: 0; bottom: 0; left: 0; z-index: 50;
+  width: min(360px, 88vw);
+  padding: calc(var(--top-inset) + 4px) 0 calc(var(--bottom-inset) + 8px);
+  background: var(--md-sys-color-surface-container-low); color: var(--md-sys-color-on-surface);
+  border-top-right-radius: var(--md-sys-shape-corner-extra-large);
+  border-bottom-right-radius: var(--md-sys-shape-corner-extra-large);
+  box-shadow: var(--md-elev-3);
+  transform: translateX(-102%);
+  transition: transform var(--md-dur-medium-long) var(--md-ease-emphasized-decelerate);
+  display: flex; flex-direction: column; gap: 4px; overflow-y: auto;
+}
+.nav-drawer.open { transform: translateX(0); }
+.drawer-head { padding: 8px 16px 16px; display: flex; align-items: center; gap: 16px; }
+.drawer-head .mark { width: 44px; height: 44px; flex: none; border-radius: var(--md-sys-shape-corner-large);
+  background: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container);
+  display: flex; align-items: center; justify-content: center; }
+.drawer-subtitle { font: 400 var(--ts-body-small); color: var(--md-sys-color-on-surface-variant); }
+.drawer-label { font: 500 var(--ts-label-small); letter-spacing: .6px; text-transform: uppercase;
+  color: var(--md-sys-color-on-surface-variant); padding: 16px 28px 8px; }
+.nav-item {
+  appearance: none; border: none; background: transparent; cursor: pointer; text-align: left;
+  display: flex; align-items: center; gap: 12px; margin: 0 12px; height: 56px; padding: 0 16px;
+  border-radius: var(--md-sys-shape-full);
+  font: 500 var(--ts-title-medium); color: var(--md-sys-color-on-surface-variant);
+  transition: background-color var(--md-dur-short) var(--md-ease-emphasized);
+}
+.nav-item .nav-icon { width: 24px; height: 24px; flex: none; }
+.nav-item .nav-text { flex: 1; min-width: 0; }
+.nav-item .nav-badge {
+  min-width: 22px; height: 22px; padding: 0 6px; border-radius: var(--md-sys-shape-full);
+  background: var(--md-sys-color-tertiary-container); color: var(--md-sys-color-on-tertiary-container);
+  font: 500 var(--ts-label-small); display: flex; align-items: center; justify-content: center;
+}
+.nav-item.active { background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container); }
+
+/* ── Content / pages ─────────────────────────────────────────────────── */
+.content {
+  padding: calc(var(--top-inset) + var(--appbar-height) + 8px) var(--gutter)
+           calc(var(--bottom-inset) + 96px);
+  max-width: var(--content-max); margin: 0 auto;
+}
+.page { display: none; flex-direction: column; gap: 12px; }
+.page.active { display: flex; animation: fadeThrough var(--md-dur-medium) var(--md-ease-emphasized-decelerate); }
+@keyframes fadeThrough { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* ── Cards ───────────────────────────────────────────────────────────── */
+.card {
+  border-radius: var(--md-sys-shape-corner-large); padding: 16px;
+  display: flex; flex-direction: column; gap: 12px;
+  background: var(--md-sys-color-surface-container-low);
+  transition: background-color var(--md-dur-medium) var(--md-ease-emphasized);
+}
+.card.filled { background: var(--md-sys-color-surface-container); }
+.card.outlined { background: transparent; border: 1px solid var(--md-sys-color-outline-variant); }
+.card.elevated { box-shadow: var(--md-elev-1); }
+.card-head { display: flex; align-items: center; gap: 12px; }
+.card-head .card-icon { width: 40px; height: 40px; flex: none; border-radius: var(--md-sys-shape-corner-medium);
+  background: var(--md-sys-color-surface-container-highest); color: var(--md-sys-color-on-surface-variant);
+  display: flex; align-items: center; justify-content: center; }
+.card-title { flex: 1; min-width: 0; font: 500 var(--ts-title-medium); color: var(--md-sys-color-on-surface); }
+.card-desc { font: 400 var(--ts-body-medium); color: var(--md-sys-color-on-surface-variant); }
+.stack { display: flex; flex-direction: column; gap: 12px; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.row > .grow { flex: 1 1 0; min-width: 0; }
+.spacer { flex: 1; }
+.divider:not(.list) { height: 1px; background: var(--md-sys-color-outline-variant); }
+
+/* ── Banner ──────────────────────────────────────────────────────────── */
+.banner {
+  display: flex; align-items: center; gap: 12px; padding: 12px 16px;
+  border-radius: var(--md-sys-shape-corner-extra-small);
+  background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container);
+  font: 400 var(--ts-body-medium);
+  animation: fadeThrough var(--md-dur-medium) var(--md-ease-emphasized-decelerate);
+}
+.banner.danger { background: var(--md-sys-color-error-container); color: var(--md-sys-color-on-error-container); }
+
+/* ── Hero (статус службы) ────────────────────────────────────────────── */
+.hero {
+  border-radius: var(--md-sys-shape-corner-extra-large); padding: 20px;
+  display: flex; flex-direction: column; gap: 16px;
+  background: var(--md-sys-color-surface-container); color: var(--md-sys-color-on-surface);
+  transition: background-color var(--md-dur-medium-long) var(--md-ease-emphasized),
+              color var(--md-dur-medium-long) var(--md-ease-emphasized);
+}
+.hero.running { background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container); box-shadow: var(--md-elev-1); }
+.hero-label { font: 500 var(--ts-label-large); opacity: .8; letter-spacing: .6px; }
+.hero-state { font: 400 var(--ts-headline-medium); }
+.hero-sub { font: 400 var(--ts-body-medium); opacity: .85; }
+.hero-metrics { display: flex; flex-wrap: wrap; gap: 12px 24px; }
+.metric { display: flex; flex-direction: column; gap: 2px; min-width: 78px; }
+.metric .m-label { font: 500 var(--ts-label-small); opacity: .75; }
+.metric .m-value { font: 500 var(--ts-title-medium); font-variant-numeric: tabular-nums; }
+
+/* ── Chips / status ──────────────────────────────────────────────────── */
+.chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px;
+  border-radius: var(--md-sys-shape-corner-small); border: 1px solid var(--md-sys-color-outline-variant);
+  background: transparent; color: var(--md-sys-color-on-surface-variant); font: 500 var(--ts-label-large);
+}
+.chip.mono { font-family: var(--md-font-code); font-size: 12px; }
+.hero .chip { border-color: currentColor; color: inherit; opacity: .9; }
+.status {
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  min-width: 26px; height: 26px; padding: 0 6px; flex: none;
+  border-radius: var(--md-sys-shape-corner-extra-small); font: 500 var(--ts-label-medium);
+}
+.status.ok { background: color-mix(in srgb, var(--status-ok) 18%, transparent); color: var(--status-ok); }
+.status.warn { background: color-mix(in srgb, var(--status-warn) 20%, transparent); color: var(--status-warn); }
+.status.bad { background: color-mix(in srgb, var(--status-bad) 18%, transparent); color: var(--status-bad); }
+.status.info { background: var(--md-sys-color-surface-container-highest); color: var(--md-sys-color-on-surface-variant); }
+
+/* ── Buttons ─────────────────────────────────────────────────────────── */
+.btn {
+  appearance: none; border: none; cursor: pointer; text-decoration: none;
+  height: 40px; padding: 0 24px; border-radius: var(--md-sys-shape-full);
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  font: 500 var(--ts-label-large); white-space: nowrap;
+  background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary);
+  transition: background-color var(--md-dur-short) var(--md-ease-standard),
+              box-shadow var(--md-dur-short) var(--md-ease-standard);
+}
+.btn.with-icon { padding: 0 16px 0 12px; }
+.btn.tonal { background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container); }
+.btn.outlined { background: transparent; color: var(--md-sys-color-primary); border: 1px solid var(--md-sys-color-outline); }
+.btn.text { background: transparent; color: var(--md-sys-color-primary); padding: 0 12px; }
+.btn.elevated { background: var(--md-sys-color-surface-container-low); color: var(--md-sys-color-primary); box-shadow: var(--md-elev-1); }
+.btn.danger { background: var(--md-sys-color-error); color: var(--md-sys-color-on-error); }
+.btn.text.danger { background: transparent; color: var(--md-sys-color-error); }
+.btn[disabled] { pointer-events: none;
+  background: color-mix(in srgb, var(--md-sys-color-on-surface) var(--md-sys-state-disabled-container), transparent);
+  color: color-mix(in srgb, var(--md-sys-color-on-surface) var(--md-sys-state-disabled-content), transparent); }
+.btn.text[disabled], .btn.outlined[disabled] { background: transparent; }
+.btn.sm { height: 32px; padding: 0 14px; font: 500 var(--ts-label-medium); }
+.btn.sm.with-icon { padding: 0 12px 0 8px; }
+
+/* Extended FAB — главное действие экрана */
+.fab-ext {
+  appearance: none; border: none; cursor: pointer; height: 56px; padding: 0 20px;
+  border-radius: var(--md-sys-shape-corner-large); min-width: 96px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 12px;
+  font: 500 var(--ts-title-medium);
+  background: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container);
+  box-shadow: var(--md-elev-3);
+  transition: background-color var(--md-dur-short) var(--md-ease-standard),
+              box-shadow var(--md-dur-short) var(--md-ease-standard);
+}
+.fab-ext.stop { background: var(--md-sys-color-error-container); color: var(--md-sys-color-on-error-container); }
+
+/* ── Segmented buttons (single select) ───────────────────────────────── */
+.segmented { display: flex; height: 40px; border: 1px solid var(--md-sys-color-outline);
+  border-radius: var(--md-sys-shape-full); overflow: hidden; }
+.segmented .seg {
+  appearance: none; border: none; background: transparent; cursor: pointer; flex: 1;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  font: 500 var(--ts-label-large); color: var(--md-sys-color-on-surface);
+  border-right: 1px solid var(--md-sys-color-outline); padding: 0 8px;
+}
+.segmented .seg:last-child { border-right: none; }
+.segmented .seg .check { width: 0; overflow: hidden;
+  transition: width var(--md-dur-short) var(--md-ease-emphasized); }
+.segmented .seg.on { background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container); }
+.segmented .seg.on .check { width: 18px; }
+
+/* ── M3 switch: трек 52×32, handle 16→24 ─────────────────────────────── */
+.switch {
+  appearance: none; -webkit-appearance: none; position: relative; cursor: pointer;
+  width: 52px; height: 32px; flex: 0 0 52px;
+  border: 2px solid var(--md-sys-color-outline); border-radius: var(--md-sys-shape-full);
+  background: var(--md-sys-color-surface-container-highest);
+  transition: background-color var(--md-dur-short) var(--md-ease-emphasized),
+              border-color var(--md-dur-short) var(--md-ease-emphasized);
+}
+.switch::before {
+  content: ""; position: absolute; top: 50%; left: 6px; width: 16px; height: 16px;
+  border-radius: 50%; background: var(--md-sys-color-outline); transform: translateY(-50%);
+  transition: all var(--md-dur-short) var(--md-ease-emphasized);
+}
+.switch:checked { background: var(--md-sys-color-primary); border-color: var(--md-sys-color-primary); }
+.switch:checked::before { left: 22px; width: 24px; height: 24px; background: var(--md-sys-color-on-primary); }
+.switch:hover { border-color: var(--md-sys-color-on-surface); }
+.switch[disabled] { opacity: var(--md-sys-state-disabled-content); pointer-events: none; }
+
+/* ── M3 checkbox 18dp ────────────────────────────────────────────────── */
+.checkbox {
+  appearance: none; -webkit-appearance: none; position: relative; cursor: pointer;
+  width: 18px; height: 18px; flex: 0 0 18px;
+  border: 2px solid var(--md-sys-color-on-surface-variant);
+  border-radius: var(--md-sys-shape-corner-extra-small); background: transparent;
+  transition: background-color var(--md-dur-extra-short) var(--md-ease-standard),
+              border-color var(--md-dur-extra-short) var(--md-ease-standard);
+}
+.checkbox:checked { background: var(--md-sys-color-primary); border-color: var(--md-sys-color-primary); }
+.checkbox:checked::after {
+  content: ""; position: absolute; inset: -1px; background: var(--md-sys-color-on-primary);
+  clip-path: polygon(36% 62%, 48% 76%, 76% 36%, 86% 44%, 50% 88%, 26% 68%);
+}
+
+/* ── List items (56 / 72 dp) ─────────────────────────────────────────── */
+.list { display: flex; flex-direction: column; }
+.list.divider > .list-item + .list-item { border-top: 1px solid var(--md-sys-color-outline-variant); }
+.list-item {
+  display: flex; align-items: center; gap: 16px; min-height: 56px; padding: 8px 4px;
+  appearance: none; border: none; background: transparent; text-align: left;
+  color: var(--md-sys-color-on-surface); border-radius: var(--md-sys-shape-corner-small);
+}
+.list-item.two-line { min-height: 72px; }
+.list-item.clickable { cursor: pointer; }
+.list-item .li-icon { width: 24px; height: 24px; flex: none; color: var(--md-sys-color-on-surface-variant); }
+.list-item .li-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.list-item .li-primary { font: 400 var(--ts-body-large); }
+.list-item .li-secondary { font: 400 var(--ts-body-medium); color: var(--md-sys-color-on-surface-variant);
+  word-break: break-word; }
+.list-item .li-mono { font-family: var(--md-font-code); font-size: 13px; }
+.list-item .li-trail { flex: none; display: flex; align-items: center; gap: 8px;
+  color: var(--md-sys-color-on-surface-variant); font: 500 var(--ts-label-large); }
+.list-item.selected { background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container); }
+.list-item.selected .li-secondary { color: inherit; opacity: .8; }
+
+/* ── Text fields (filled) ────────────────────────────────────────────── */
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field > label { font: 500 var(--ts-label-small); color: var(--md-sys-color-on-surface-variant); padding-left: 4px; }
+.field .control { position: relative; display: flex; align-items: center; }
+.field .control > .lead { position: absolute; left: 12px; display: flex; color: var(--md-sys-color-on-surface-variant); pointer-events: none; }
+.field .control > .trail { position: absolute; right: 8px; display: flex; align-items: center; color: var(--md-sys-color-on-surface-variant); pointer-events: none; }
+.field input, .field select, .field textarea {
+  width: 100%; height: 48px; padding: 0 16px;
+  background: var(--md-sys-color-surface-container-highest); color: var(--md-sys-color-on-surface);
+  border: none; border-bottom: 1px solid var(--md-sys-color-on-surface-variant);
+  border-top-left-radius: var(--md-sys-shape-corner-extra-small);
+  border-top-right-radius: var(--md-sys-shape-corner-extra-small);
+  font: 400 var(--ts-body-large); outline: none; appearance: none; -webkit-appearance: none;
+  transition: border-color var(--md-dur-short) var(--md-ease-standard),
+              background-color var(--md-dur-short) var(--md-ease-standard);
+}
+.field .control.has-lead input, .field .control.has-lead textarea { padding-left: 44px; }
+.field .control.has-trail select, .field .control.has-trail input { padding-right: 44px; }
+.field input:focus, .field select:focus, .field textarea:focus {
+  border-bottom: 2px solid var(--md-sys-color-primary);
+  background: color-mix(in srgb, var(--md-sys-color-primary) 6%, var(--md-sys-color-surface-container-highest));
+}
+.field select { cursor: pointer; }
+.field .helper { font: 400 var(--ts-body-small); color: var(--md-sys-color-on-surface-variant); padding-left: 4px; }
+.field .helper.err { color: var(--md-sys-color-error); }
+.field.num input { text-align: center; }
+.field ::placeholder { color: var(--md-sys-color-on-surface-variant); opacity: .7; }
+textarea.mono {
+  font-family: var(--md-font-code); font-size: 13px; line-height: 1.55;
+  height: auto; min-height: 170px; padding: 12px 16px; resize: vertical; cursor: pointer;
+  white-space: pre; overflow: auto;
+}
+
+/* ── Code / logs ─────────────────────────────────────────────────────── */
+.code-block {
+  background: var(--md-sys-color-surface-container-lowest);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-small); padding: 12px;
+  overflow: auto; max-height: 46vh;
+  font: 400 12px/1.55 var(--md-font-code); color: var(--md-sys-color-on-surface-variant);
+  white-space: pre-wrap; word-break: break-word;
+}
+.log-view {
+  background: var(--md-sys-color-surface-container-lowest);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-small); padding: 12px;
+  overflow: auto; min-height: 40vh; max-height: 60vh;
+  font: 400 12px/1.55 var(--md-font-code); color: var(--md-sys-color-on-surface-variant);
+  white-space: pre-wrap; word-break: break-word;
+}
+
+/* ── Progress indicators ─────────────────────────────────────────────── */
+.progress-linear { position: relative; height: 4px; overflow: hidden;
+  border-radius: var(--md-sys-shape-full);
+  background: color-mix(in srgb, var(--md-sys-color-primary) 20%, transparent); }
+.progress-linear .bar { position: absolute; top: 0; bottom: 0; width: 40%;
+  border-radius: var(--md-sys-shape-full); background: var(--md-sys-color-primary);
+  animation: indeterminate 1.8s var(--md-ease-emphasized) infinite; }
+@keyframes indeterminate { 0% { left: -45%; } 60% { left: 55%; } 100% { left: 105%; } }
+.progress-top { position: fixed; top: calc(var(--top-inset) + var(--appbar-height)); left: 0; right: 0; z-index: 26; }
+.spinner { width: 18px; height: 18px; flex: none; border-radius: 50%;
+  border: 2px solid color-mix(in srgb, currentColor 28%, transparent); border-top-color: currentColor;
+  animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Modal bottom sheet ──────────────────────────────────────────────── */
+.sheet {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; margin: 0 auto;
+  max-width: var(--content-max);
+  background: var(--md-sys-color-surface-container-low); color: var(--md-sys-color-on-surface);
+  border-radius: var(--md-sys-shape-corner-extra-large) var(--md-sys-shape-corner-extra-large) 0 0;
+  box-shadow: var(--md-elev-3); padding: 12px var(--gutter) calc(20px + var(--bottom-inset));
+  display: flex; flex-direction: column; gap: 16px;
+  max-height: 86vh; overflow-y: auto; transform: translateY(102%);
+  transition: transform var(--md-dur-medium-long) var(--md-ease-emphasized-decelerate);
+}
+.sheet.open { transform: translateY(0); }
+.sheet .handle { width: 32px; height: 4px; align-self: center; opacity: .4;
+  border-radius: var(--md-sys-shape-full); background: var(--md-sys-color-on-surface-variant); }
+.sheet-title { font: 400 var(--ts-title-large); }
+
+/* ── Full-screen dialog (редактор) ───────────────────────────────────── */
+.fs-dialog {
+  position: fixed; inset: 0; z-index: 70; background: var(--md-sys-color-surface-container-lowest);
+  display: flex; flex-direction: column; transform: translateY(100%);
+  transition: transform var(--md-dur-medium-long) var(--md-ease-emphasized-decelerate);
+}
+.fs-dialog.open { transform: translateY(0); }
+.fs-bar { min-height: calc(var(--top-inset) + var(--appbar-height)); padding: var(--top-inset) 8px 0;
+  display: flex; align-items: center; gap: 8px; background: var(--md-sys-color-surface-container);
+  color: var(--md-sys-color-on-surface); }
+.fs-bar .fs-title { flex: 1; min-width: 0; font: 400 var(--ts-title-large); }
+.fs-body { flex: 1; display: flex; flex-direction: column; gap: 8px;
+  padding: 8px var(--gutter) calc(8px + var(--bottom-inset)); }
+.fs-body textarea {
+  flex: 1; width: 100%; height: 100%; min-height: 0;
+  background: var(--md-sys-color-surface-container-low); border: none; outline: none; resize: none;
+  border-radius: var(--md-sys-shape-corner-medium); padding: 16px;
+  font: 400 13px/1.6 var(--md-font-code); color: var(--md-sys-color-on-surface);
+  white-space: pre; overflow: auto;
+}
+
+/* ── Basic dialog ────────────────────────────────────────────────────── */
+.dialog-wrap { position: fixed; inset: 0; z-index: 80; display: none;
+  align-items: center; justify-content: center; padding: 24px var(--gutter); }
+.dialog-wrap.open { display: flex; }
+.dialog-wrap .dialog-scrim { position: absolute; inset: 0; background: var(--md-sys-color-scrim);
+  animation: fadeIn var(--md-dur-short) var(--md-ease-standard); }
+.dialog {
+  position: relative; width: 100%; max-width: 420px;
+  background: var(--md-sys-color-surface-container-high); color: var(--md-sys-color-on-surface);
+  border-radius: var(--md-sys-shape-corner-extra-large); padding: 24px;
+  display: flex; flex-direction: column; gap: 16px; box-shadow: var(--md-elev-5);
+  animation: dialogIn var(--md-dur-medium) var(--md-ease-emphasized-decelerate);
+}
+@keyframes dialogIn { from { opacity: 0; transform: scale(.86); } to { opacity: 1; transform: none; } }
+.dialog .d-icon { width: 56px; height: 56px; border-radius: var(--md-sys-shape-corner-large);
+  background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container);
+  display: flex; align-items: center; justify-content: center; }
+.dialog .d-icon.danger { background: var(--md-sys-color-error-container); color: var(--md-sys-color-on-error-container); }
+.dialog .d-title { font: 400 var(--ts-headline-small); }
+.dialog .d-body { font: 400 var(--ts-body-medium); color: var(--md-sys-color-on-surface-variant); }
+.dialog .d-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* ── Snackbar ────────────────────────────────────────────────────────── */
+.snackbar {
+  position: fixed; left: var(--gutter); right: var(--gutter);
+  bottom: calc(var(--bottom-inset) + 16px); z-index: 90; margin: 0 auto;
+  max-width: calc(var(--content-max) - var(--gutter) * 2);
+  min-height: 48px; padding: 12px 16px; display: flex; align-items: center; gap: 12px;
+  background: var(--md-sys-color-inverse-surface); color: var(--md-sys-color-inverse-on-surface);
+  border-radius: var(--md-sys-shape-corner-small); box-shadow: var(--md-elev-3);
+  font: 400 var(--ts-body-medium);
+  opacity: 0; transform: translateY(24px); pointer-events: none;
+  transition: opacity var(--md-dur-medium) var(--md-ease-standard),
+              transform var(--md-dur-medium) var(--md-ease-emphasized-decelerate);
+}
+.snackbar.show { opacity: 1; transform: none; pointer-events: auto; }
+.snackbar .snack-msg { flex: 1; min-width: 0; word-break: break-word; }
+.snackbar .btn.text { color: var(--md-sys-color-inverse-primary); }
+
+/* ── Palette (theme sheet) ───────────────────────────────────────────── */
+.palette { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.swatch { appearance: none; border: 2px solid transparent; cursor: pointer; height: 56px;
+  border-radius: var(--md-sys-shape-corner-medium);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  font: 500 var(--ts-label-small); }
+.swatch[aria-pressed="true"] { border-color: var(--md-sys-color-on-surface); }
+.hex-group { display: flex; align-items: center; gap: 8px; width: 100%; height: 48px;
+  padding-right: 8px; background: var(--md-sys-color-surface-container-highest);
+  border-radius: var(--md-sys-shape-corner-extra-small); }
+.hex-swatch { width: 36px; height: 36px; flex: none; position: relative; overflow: hidden; cursor: pointer;
+  border-radius: var(--md-sys-shape-corner-small); border: 1px solid var(--md-sys-color-outline); }
+.hex-swatch input[type="color"] { position: absolute; inset: -8px; width: calc(100% + 16px);
+  height: calc(100% + 16px); opacity: 0; border: none; cursor: pointer; }
+.hex-group .pfx { font: 500 var(--ts-title-medium); color: var(--md-sys-color-on-surface-variant); }
+.hex-group input.hex { flex: 1; min-width: 0; height: 100%; padding: 0; border: none; outline: none;
+  background: transparent; font: 500 var(--ts-title-medium); text-transform: uppercase;
+  color: var(--md-sys-color-on-surface); }
+
+@media (min-width: 720px) {
+  :root { --gutter: 24px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; }
+}
+</style>
+</head>
+<body>
+<!-- ═══ Иконки: инлайновый набор 24dp (stroke, стиль Material Symbols) ═══
+     Локальные path'ы — WebUI не зависит от сети (модуль работает без DPI-обхода) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+<symbol id="i-menu" viewBox="0 0 24 24"><path d="M3.5 6.5h17M3.5 12h17M3.5 17.5h17"/></symbol>
+<symbol id="i-close" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M4.5 12.5l5 5 10-11"/></symbol>
+<symbol id="i-play" viewBox="0 0 24 24"><path d="M7.5 5v14l11-7z"/></symbol>
+<symbol id="i-stop" viewBox="0 0 24 24"><path d="M7 7h10v10H7z"/></symbol>
+<symbol id="i-restart" viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-3-6M19.5 4.5v5h-5"/></symbol>
+<symbol id="i-add" viewBox="0 0 24 24"><path d="M12 5.5v13M5.5 12h13"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><path d="M11 4.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM15.8 15.8L20 20"/></symbol>
+<symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3.2l7 2.6v5.2c0 4.3-2.9 8.3-7 9.3-4.1-1-7-5-7-9.3V5.8z"/></symbol>
+<symbol id="i-list" viewBox="0 0 24 24"><path d="M8.5 6.5h11M8.5 12h11M8.5 17.5h11M4.5 6.5h.01M4.5 12h.01M4.5 17.5h.01"/></symbol>
+<symbol id="i-apps" viewBox="0 0 24 24"><path d="M4.5 6.5h5.5v5.5H4.5zM14 6.5h5.5v4H14zM4.5 15.5H10v4H4.5zM14 14.5h5.5v5H14z"/></symbol>
+<symbol id="i-config" viewBox="0 0 24 24"><path d="M6.5 3.5h8l4 4v13h-12zM14.5 3.5v4h4M9 12.5h6M9 16.5h4"/></symbol>
+<symbol id="i-logs" viewBox="0 0 24 24"><path d="M5.5 4.5h13v15h-13zM8.5 8.5h7M8.5 12h7M8.5 15.5h4.5"/></symbol>
+<symbol id="i-test" viewBox="0 0 24 24"><path d="M3 12.5h3.5l3-7.5 4 14 3-6.5H21"/></symbol>
+<symbol id="i-palette" viewBox="0 0 24 24"><path d="M12 3.5c-4.7 0-8.5 3.8-8.5 8.5s3.8 8.5 8.5 8.5c1.6 0 2-1.1 1.3-2.1-.8-1.1 0-2.2 1.3-2.2h1.5c2.1 0 3.9-1.7 3.9-3.9 0-4.1-3.7-6.8-8-6.8zM7.5 11h.01M11 8h.01M15 8.5h.01"/></symbol>
+<symbol id="i-theme" viewBox="0 0 24 24"><path d="M12 3v2.2M12 18.8V21M4.9 4.9l1.6 1.6M17.5 17.5l1.6 1.6M3 12h2.2M18.8 12H21M4.9 19.1l1.6-1.6M17.5 6.5l1.6-1.6M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z"/></symbol>
+<symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13.5 2.5L5.5 14h5l-1 7.5L18.5 10h-5z"/></symbol>
+<symbol id="i-wifi" viewBox="0 0 24 24"><path d="M2.8 8.6a13.5 13.5 0 0 1 18.4 0M6.2 12.4a8.7 8.7 0 0 1 11.6 0M9.5 16.2a4 4 0 0 1 5 0M12 20h.01"/></symbol>
+<symbol id="i-refresh" viewBox="0 0 24 24"><path d="M19.5 11a7.5 7.5 0 0 0-12.9-4.6L4.5 8.5M4.5 4.2v4.3h4.3M4.5 13a7.5 7.5 0 0 0 12.9 4.6l2.1-2.1M19.5 19.8v-4.3h-4.3"/></symbol>
+<symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v10M8 11l4 4 4-4M4.5 19.5h15"/></symbol>
+<symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 20V9M8 12l4-4 4 4M4.5 4.5h15"/></symbol>
+<symbol id="i-trash" viewBox="0 0 24 24"><path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 12.5h9L17.5 7M10.5 11v5M13.5 11v5"/></symbol>
+<symbol id="i-edit" viewBox="0 0 24 24"><path d="M4.5 19.5h4L20 8l-4-4L4.5 15.5zM14.5 6.5l3.5 3.5"/></symbol>
+<symbol id="i-expand" viewBox="0 0 24 24"><path d="M4.5 9.5V4.5H9.5M19.5 9.5V4.5H14.5M4.5 14.5v5H9.5M19.5 14.5v5H14.5"/></symbol>
+<symbol id="i-info" viewBox="0 0 24 24"><path d="M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17zM12 11v5.5M12 7.8h.01"/></symbol>
+<symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 3.8L20.8 19H3.2zM12 10v4.4M12 16.8h.01"/></symbol>
+<symbol id="i-error" viewBox="0 0 24 24"><path d="M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17zM9.2 9.2l5.6 5.6M14.8 9.2l-5.6 5.6"/></symbol>
+<symbol id="i-terminal" viewBox="0 0 24 24"><path d="M4.5 4.5h15v15h-15zM8 10l2.8 2L8 14M13 14.5h4"/></symbol>
+<symbol id="i-traffic" viewBox="0 0 24 24"><path d="M12 3.2v4M12 10v4M12 16.8v4M7 5.2h10M7 12h10M7 18.8h10"/></symbol>
+<symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3.5H6.5v17h11V7zM14 3.5V7h4"/></symbol>
+</defs></svg>
+
+<!-- ═══ Small top app bar ════════════════════════════════════════════════ -->
+<header class="app-bar" id="app-bar">
+  <button class="icon-btn state" id="menu-btn" aria-label="Открыть меню навигации" aria-expanded="false" aria-controls="drawer">
+    <svg class="icon"><use href="#i-menu"/></svg>
+  </button>
+  <h1 class="title truncate">nfqws2 <span class="ver" id="header-version">v1.3.1</span></h1>
+  <span class="status-pill" id="hs" aria-live="polite"><span class="dot"></span><span id="hs-text">…</span></span>
+  <button class="icon-btn state" onclick="openMonetModal()" aria-label="Настройки темы">
+    <svg class="icon"><use href="#i-palette"/></svg>
+  </button>
+</header>
+
+<div class="progress-top" id="progress-top" hidden><div class="progress-linear"><div class="bar"></div></div></div>
+
+<!-- ═══ Modal navigation drawer: 6 destinations → drawer per M3 ══════════ -->
+<div class="scrim" id="drawer-scrim" onclick="closeDrawer()" aria-hidden="true"></div>
+<nav class="nav-drawer" id="drawer" aria-label="Навигация модуля">
+  <div class="drawer-head">
+    <span class="mark"><svg class="icon"><use href="#i-shield"/></svg></span>
+    <div>
+      <div class="t-title-medium">nfqws2</div>
+      <div class="drawer-subtitle">Обход блокировок DPI</div>
+    </div>
+  </div>
+  <div class="drawer-label">Управление</div>
+  <button class="nav-item state active" data-page="control" aria-current="page">
+    <svg class="icon nav-icon"><use href="#i-traffic"/></svg><span class="nav-text">Состояние</span>
+  </button>
+  <button class="nav-item state" data-page="lists">
+    <svg class="icon nav-icon"><use href="#i-list"/></svg><span class="nav-text">Списки доменов</span>
+  </button>
+  <button class="nav-item state" data-page="apps">
+    <svg class="icon nav-icon"><use href="#i-apps"/></svg><span class="nav-text">Приложения</span>
+    <span class="nav-badge" id="nav-apps-badge" hidden>0</span>
+  </button>
+  <div class="drawer-label">Расширенное</div>
+  <button class="nav-item state" data-page="config">
+    <svg class="icon nav-icon"><use href="#i-config"/></svg><span class="nav-text">Конфигурация</span>
+  </button>
+  <button class="nav-item state" data-page="logs">
+    <svg class="icon nav-icon"><use href="#i-logs"/></svg><span class="nav-text">Журналы</span>
+  </button>
+  <button class="nav-item state" data-page="test">
+    <svg class="icon nav-icon"><use href="#i-test"/></svg><span class="nav-text">Тестирование</span>
+  </button>
+</nav>
+
+<main class="content" id="content">
+
+  <!-- 1. СОСТОЯНИЕ -->
+  <section class="page active" data-page="control" aria-label="Состояние службы">
+    <div class="hero" id="hero-status">
+      <div class="hero-label">СЛУЖБА</div>
+      <div class="hero-state" id="st">Опрос службы…</div>
+      <div class="hero-sub" id="sub">—</div>
+      <div class="hero-metrics">
+        <div class="metric"><span class="m-label">Аптайм</span><span class="m-value" id="upt">—</span></div>
+        <div class="metric"><span class="m-label">Очередь</span><span class="m-value" id="queue-num">—</span></div>
+        <div class="metric"><span class="m-label">Сброс пакетов</span><span class="m-value" id="qdrop-num">0</span></div>
+      </div>
+      <div class="chips" id="cnt"></div>
+      <div class="row">
+        <button class="fab-ext state" id="bt" onclick="toggle()">
+          <svg class="icon"><use href="#i-play"/></svg><span>Запустить</span>
+        </button>
+        <span class="spacer"></span>
+        <button class="btn tonal with-icon state" onclick="act('restart')">
+          <svg class="icon s18"><use href="#i-restart"/></svg>Перезапуск
+        </button>
+      </div>
+    </div>
+
+    <div id="warn" class="stack"></div>
+
+    <div class="card filled">
+      <div class="card-head">
+        <span class="card-icon"><svg class="icon s20"><use href="#i-bolt"/></svg></span>
+        <div class="card-title">Готовые стратегии</div>
+      </div>
+      <div class="card-desc">Стратегия под вашего провайдера: конфиг будет перезаписан, служба перезапущена.</div>
+      <div class="field">
+        <label for="strategy-sel">Пресет</label>
+        <div class="control has-trail">
+          <select id="strategy-sel" onchange="onStrategySelectChange()"></select>
+          <span class="trail"><svg class="icon s20"><use href="#i-expand"/></svg></span>
+        </div>
+        <div class="helper" id="strategy-desc">—</div>
+      </div>
+      <div class="row">
+        <button class="btn with-icon state" onclick="applySelectedStrategy()">
+          <svg class="icon s18"><use href="#i-check"/></svg>Применить и перезапустить
+        </button>
+      </div>
+    </div>
+
+    <div class="card filled">
+      <div class="card-head">
+        <span class="card-icon"><svg class="icon s20"><use href="#i-config"/></svg></span>
+        <div class="card-title">Параметры ядра и сети</div>
+      </div>
+      <div class="list divider" id="sws"></div>
+      <div class="divider"></div>
+      <div class="row">
+        <div class="field num" style="flex:1 1 132px;">
+          <label for="pkout">Исходящие пакеты</label>
+          <div class="control"><input type="number" id="pkout" min="1" max="15" inputmode="numeric"
+            onchange="setp('PKT_LIMIT_OUT',this.value)"></div>
+          <div class="helper">на соединение, 1–15</div>
+        </div>
+        <div class="field num" style="flex:1 1 132px;">
+          <label for="pkin">Входящие пакеты</label>
+          <div class="control"><input type="number" id="pkin" min="1" max="15" inputmode="numeric"
+            onchange="setp('PKT_LIMIT_IN',this.value)"></div>
+          <div class="helper">только при xt_connbytes</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card filled">
+      <div class="card-head">
+        <span class="card-icon"><svg class="icon s20"><use href="#i-info"/></svg></span>
+        <div class="card-title">Диагностика</div>
+      </div>
+      <div class="row">
+        <button class="btn tonal with-icon state" onclick="doctor()">
+          <svg class="icon s18"><use href="#i-shield"/></svg>Проверить ядро и правила
+        </button>
+        <button class="btn text with-icon state" onclick="showArgs()">
+          <svg class="icon s18"><use href="#i-terminal"/></svg>Аргументы запуска
+        </button>
+      </div>
+      <div class="list" id="doc"></div>
+      <pre class="code-block" id="args" hidden></pre>
+    </div>
+  </section>
+
+  <!-- 2. СПИСКИ -->
+  <section class="page" data-page="lists" aria-label="Списки доменов">
+    <div class="card filled">
+      <div class="card-head">
+        <span class="card-icon"><svg class="icon s20"><use href="#i-traffic"/></svg></span>
+        <div class="card-title">Режим обработки доменов</div>
+      </div>
+      <div class="segmented" id="mode" role="group" aria-label="Режим обработки"></div>
+      <div class="card-desc">auto — автообучение; list — строго user.list; all — всё, кроме exclude.</div>
+    </div>
+
+    <div class="card filled">
+      <div class="card-head">
+        <span class="card-icon"><svg class="icon s20"><use href="#i-add"/></svg></span>
+        <div class="card-title">Быстрое добавление в user.list</div>
+      </div>
+      <div class="field">
+        <div class="control has-trail">
+          <input type="text" id="dom" placeholder="например, youtube.com" autocapitalize="off" autocorrect="off"
+                 spellcheck="false" onkeydown="if(event.key==='Enter')addDom()" aria-label="Домен для добавления">
+          <span class="trail">
+            <button class="icon-btn state tone-primary" style="width:36px;height:36px;" aria-label="Добавить домен" onclick="addDom()">
+              <svg class="icon s20"><use href="#i-add"/></svg>
+            </button>
+          </span>
+        </div>
+        <div class="helper">Домен нормализуется на устройстве и попадает в user.list.</div>
+      </div>
+    </div>
+
+    <div class="card filled">
+      <div class="card-head">
+        <span class="card-icon"><svg class="icon s20"><use href="#i-list"/></svg></span>
+        <div class="card-title">Редактор списков</div>
+      </div>
+      <div class="field">
+        <label for="lsel">Файл</label>
+        <div class="control has-trail">
+          <select id="lsel" onchange="loadList()"></select>
+          <span class="trail"><svg class="icon s20"><use href="#i-expand"/></svg></span>
+        </div>
+      </div>
+      <textarea id="ltx" class="mono" spellcheck="false" onclick="openSlideEditor('list')"
+                readonly aria-label="Содержимое списка"></textarea>
+      <div class="row">
+        <button class="btn with-icon state" onclick="openSlideEditor('list')">
+          <svg class="icon s18"><use href="#i-edit"/></svg>Открыть во весь экран
+        </button>
+        <button class="btn text state" onclick="clearAuto()">Очистить auto</button>
+        <button class="btn text danger state" onclick="resetLists()">Сброс списков</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. ПРИЛОЖЕНИЯ -->
+  <section class="page" data-page="apps" aria-label="Фильтр по приложениям">
+    <div class="card filled">
+      <div class="card-head">
+        <span class="card-icon"><svg class="icon s20"><use href="#i-apps"/></svg></span>
+        <div class="card-title">Фильтрация по приложениям</div>
+      </div>
+      <div class="field">
+        <label for="amode">Режим фильтра</label>
+        <div class="control has-trail">
+          <select id="amode">
+            <option value="off">Выключен — обрабатывается весь трафик</option>
+            <option value="include">Только выбранные приложения</option>
+            <option value="exclude">Все, кроме выбранных</option>
+          </select>
+          <span class="trail"><svg class="icon s20"><use href="#i-expand"/></svg></span>
+        </div>
+        <div class="helper">В режиме «только выбранные» трафик hotspot не обрабатывается. Изменения применяются сразу, без перезапуска службы.</div>
+      </div>
+      <div class="row">
+        <button class="btn with-icon state" onclick="saveApps()">
+          <svg class="icon s18"><use href="#i-check"/></svg>Сохранить и применить
+        </button>
+        <button class="btn tonal with-icon state" onclick="loadPk()">
+          <svg class="icon s18"><use href="#i-search"/></svg>Выбрать из установленных
+        </button>
+        <button class="btn text state" onclick="openSlideEditor('apps')">Вручную (пакеты)</button>
+      </div>
+      <div class="divider"></div>
+      <div class="list-item">
+        <span class="li-icon"><svg class="icon s20"><use href="#i-info"/></svg></span>
+        <span class="li-text"><span class="li-secondary" id="apps-info">Фильтр не активен</span></span>
+      </div>
+    </div>
+
+    <div class="card filled" id="pk-card" hidden>
+      <div class="card-head">
+        <span class="card-icon"><svg class="icon s20"><use href="#i-search"/></svg></span>
+        <div class="card-title">Установленные приложения</div>
+      </div>
+      <div class="field">
+        <div class="control has-lead">
+          <span class="lead"><svg class="icon s20"><use href="#i-search"/></svg></span>
+          <input type="search" id="pf" placeholder="Поиск пакета…" autocapitalize="off" spellcheck="false" oninput="drawPk()">
+        </div>
+        <div class="helper" id="pk-count"></div>
+      </div>
+      <div class="list divider" id="pk" style="max-height:46vh; overflow-y:auto;"></div>
+    </div>
+  </section>
+
+  <!-- 4. КОНФИГУРАЦИЯ -->
+  <section class="page" data-page="config" aria-label="Конфигурация">
+    <div class="card filled">
+      <div class="card-head">
+        <span class="card-icon"><svg class="icon s20"><use href="#i-config"/></svg></span>
+        <div class="card-title truncate">nfqws2.conf</div>
+      </div>
+      <textarea id="ctx" class="mono" spellcheck="false" onclick="openSlideEditor('conf')" readonly
+                aria-label="Текст конфигурации"></textarea>
+      <div class="row">
+        <button class="btn with-icon state" onclick="openSlideEditor('conf')">
+          <svg class="icon s18"><use href="#i-edit"/></svg>Редактировать во весь экран
+        </button>
+        <button class="btn text danger state" onclick="resetConf()">Сбросить конфиг</button>
+      </div>
+    </div>
+
+    <div class="card filled">
+      <div class="card-head">
+        <span class="card-icon"><svg class="icon s20"><use href="#i-upload"/></svg></span>
+        <div class="card-title">Импорт пресетов Keenetic</div>
+      </div>
+      <div class="card-desc">Можно выбрать сразу несколько файлов (.txt/.conf/.bat/.ini). Клик по имени — переименование.</div>
+      <input type="file" id="impFile" multiple hidden accept=".txt,.conf,.ini,.cfg,.list,.bat" onchange="importFiles(this.files)">
+      <div class="row">
+        <button class="btn tonal with-icon state" onclick="$('impFile').click()">
+          <svg class="icon s18"><use href="#i-file"/></svg>Импортировать файлы…
+        </button>
+        <button class="btn text with-icon state" onclick="importPaste()">
+          <svg class="icon s18"><use href="#i-edit"/></svg>Вставить текст…
+        </button>
+      </div>
+      <div class="helper" id="impMsg"></div>
+      <div class="list divider" id="impList"></div>
+    </div>
+  </section>
+
+  <!-- 5. ЖУРНАЛЫ -->
+  <section class="page" data-page="logs" aria-label="Журналы">
+    <div class="card filled">
+      <div class="card-head">
+        <span class="card-icon"><svg class="icon s20"><use href="#i-logs"/></svg></span>
+        <div class="card-title">Журналы</div>
+      </div>
+      <div class="row">
+        <div class="field" style="flex:1 1 220px;">
+          <label for="lt">Источник</label>
+          <div class="control has-trail">
+            <select id="lt" onchange="loadLog()">
+              <option value="service">Служба (service.log)</option>
+              <option value="nfqws">Процесс (nfqws2.log)</option>
+              <option value="auto">Автообучение (auto.log)</option>
+              <option value="debug">Отладка (debug.log)</option>
+            </select>
+            <span class="trail"><svg class="icon s20"><use href="#i-expand"/></svg></span>
+          </div>
+        </div>
+        <div class="field" style="width:108px; flex:none;">
+          <label for="ln">Строк</label>
+          <div class="control">
+            <select id="ln" onchange="loadLog()"><option>100</option><option>300</option><option>1000</option></select>
+          </div>
+        </div>
+      </div>
+      <pre class="log-view" id="lg">Загрузка…</pre>
+      <div class="row">
+        <button class="btn tonal with-icon state" onclick="loadLog()">
+          <svg class="icon s18"><use href="#i-refresh"/></svg>Обновить
+        </button>
+        <button class="btn text with-icon state" onclick="exportLogs()">
+          <svg class="icon s18"><use href="#i-download"/></svg>Экспорт в Download
+        </button>
+        <button class="btn text danger state" onclick="clearLogs()">Очистить</button>
+      </div>
+      <div class="divider"></div>
+      <div class="list-item two-line">
+        <span class="li-icon"><svg class="icon s20"><use href="#i-bolt"/></svg></span>
+        <span class="li-text">
+          <span class="li-primary">Подробный Debug-лог</span>
+          <span class="li-secondary">Замедляет nfqws2, требуется перезапуск</span>
+        </span>
+        <span class="li-trail">
+          <input type="checkbox" class="switch" role="switch" id="dbg" aria-label="Подробный debug-лог"
+                 onchange="setp('LOG_LEVEL',this.checked?1:0)">
+        </span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6. ТЕСТИРОВАНИЕ -->
+  <section class="page" data-page="test" aria-label="Тестирование доступности">
+    <div class="card filled">
+      <div class="card-head">
+        <span class="card-icon"><svg class="icon s20"><use href="#i-wifi"/></svg></span>
+        <div class="card-title">Проверка доступности ресурсов</div>
+      </div>
+      <div class="card-desc">Прямой опрос fetch: 3 попытки без кэша. Список адресов — probe_hosts.list.</div>
+      <div class="row">
+        <button class="btn with-icon state" id="tb" onclick="runTest()">
+          <svg class="icon s18"><use href="#i-play"/></svg>Запустить тест связи
+        </button>
+      </div>
+      <div class="list divider" id="tr"></div>
+    </div>
+  </section>
+</main>
+
+<!-- ═══ Full-screen dialog: редактор конфига и списков ═══════════════════ -->
+<div class="fs-dialog" id="editor-panel" role="dialog" aria-modal="true" aria-labelledby="panel-title-text">
+  <div class="fs-bar">
+    <button class="icon-btn state tone-on" onclick="closeSlideEditor()" aria-label="Закрыть редактор">
+      <svg class="icon"><use href="#i-close"/></svg>
+    </button>
+    <span class="fs-title truncate" id="panel-title-text">Редактор</span>
+    <button class="btn with-icon state" id="panel-save-btn">
+      <svg class="icon s18"><use href="#i-check"/></svg>Сохранить
+    </button>
+  </div>
+  <div class="fs-body">
+    <textarea id="panel-editor-text" spellcheck="false" autocapitalize="off" autocorrect="off"
+              placeholder="# Конфигурация…" aria-label="Полноэкранный редактор"></textarea>
+    <div class="helper" id="panel-hint">Значения валидируются на устройстве: при ошибке сохранение отклоняется.</div>
+  </div>
+</div>
+
+<!-- ═══ Modal bottom sheet: тема оформления ══════════════════════════════ -->
+<div class="scrim" id="theme-scrim" onclick="closeMonetModal()" aria-hidden="true"></div>
+<div class="sheet" id="monet-modal" role="dialog" aria-modal="true" aria-label="Настройки темы">
+  <span class="handle"></span>
+  <div class="sheet-title">Тема оформления</div>
+
+  <div class="stack">
+    <div class="drawer-label" style="padding:0 0 8px;">Режим цвета</div>
+    <div class="segmented" id="theme-mode" role="group" aria-label="Режим цвета"></div>
+  </div>
+
+  <div class="list-item">
+    <span class="li-icon"><svg class="icon s20"><use href="#i-theme"/></svg></span>
+    <span class="li-text">
+      <span class="li-primary">AMOLED</span>
+      <span class="li-secondary">Глубокий чёрный фон в тёмной схеме</span>
+    </span>
+    <span class="li-trail">
+      <input type="checkbox" class="switch" role="switch" id="amoled-toggle" aria-label="Режим AMOLED"
+             onchange="toggleAmoled(this.checked)">
+    </span>
+  </div>
+
+  <div class="stack">
+    <div class="drawer-label" style="padding:0 0 8px;">Готовые палитры</div>
+    <div class="palette" id="palette-grid"></div>
+  </div>
+
+  <div class="field">
+    <label for="custom-hex-input">Свой цвет (seed)</label>
+    <div class="control">
+      <div class="hex-group">
+        <label class="hex-swatch" id="custom-swatch" title="Выбрать цвет из системной палитры">
+          <input type="color" id="native-color-picker" oninput="onNativeColorPick(this.value)">
+        </label>
+        <span class="pfx">#</span>
+        <input type="text" class="hex" id="custom-hex-input" maxlength="6" placeholder="6750A4"
+               autocapitalize="characters" spellcheck="false" oninput="onHexInput(this.value)">
+      </div>
+    </div>
+    <div class="helper">Из seed строятся все роли M3: primary, container, surface, outline.</div>
+  </div>
+
+  <div class="row">
+    <button class="btn with-icon state" onclick="applyCustomHex()">
+      <svg class="icon s18"><use href="#i-check"/></svg>Применить цвет
+    </button>
+    <button class="btn tonal with-icon state" onclick="detectSystemMonet(true)">
+      <svg class="icon s18"><use href="#i-refresh"/></svg>С обоями
+    </button>
+    <button class="btn text state" onclick="resetTheme()">Сбросить тему</button>
+  </div>
+</div>
+
+<!-- ═══ Basic dialog (замена native confirm/prompt) ══════════════════════ -->
+<div class="dialog-wrap" id="dialog-wrap" role="presentation">
+  <div class="dialog-scrim" onclick="dialogResolve(false)"></div>
+  <div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="d-title" aria-describedby="d-body">
+    <span class="d-icon" id="d-icon"><svg class="icon"><use href="#i-warn"/></svg></span>
+    <div class="d-title" id="d-title">Заголовок</div>
+    <div class="d-body" id="d-body">Текст</div>
+    <div class="field" id="d-field" hidden>
+      <label for="d-input">Значение</label>
+      <div class="control"><input type="text" id="d-input" spellcheck="false" autocomplete="off"></div>
+    </div>
+    <div class="d-actions">
+      <button class="btn text state" id="d-cancel" onclick="dialogResolve(false)">Отмена</button>
+      <button class="btn text state" id="d-ok">ОК</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Snackbar ═════════════════════════════════════════════════════════ -->
+<div class="snackbar" id="prompt-container" role="status" aria-live="polite">
+  <span class="snack-msg" id="prompt-msg"></span>
+  <button class="btn text sm state" id="prompt-action" hidden>ОТМЕНИТЬ</button>
+</div>
+<script>
+/* ══════════════════════════════════════════════════════════════════════════
+   nfqws2 WebUI · Material Design 3
+   Данные берутся только из bin/nfqws2-ctl; UI деградирует мягко, если моста нет.
+   ══════════════════════════════════════════════════════════════════════════ */
+const MOD = '/data/adb/modules/nfqws2-android', CTL = MOD + '/bin/nfqws2-ctl';
+const $ = id => document.getElementById(id);
+let S = {}, seq = 0, pkgs = [], currentEditorTarget = '';
+const q = s => "'" + String(s).replace(/'/g, "'\\''") + "'";
+const b64 = s => btoa(unescape(encodeURIComponent(s)));
+const unb64 = s => { try { return decodeURIComponent(escape(atob(s))); } catch(e) { return atob(s); } };
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+const icon = (name, cls) => '<svg class="icon ' + (cls || 's20') + '"><use href="#i-' + name + '"/></svg>';
+
+/* ── Мост к модулю ─────────────────────────────────────────────────────── */
+function sh(cmd, ms = 15000){
+  return new Promise(res => {
+    const k = window.ksu;
+    if(!k || !k.exec){ res({code: 1, out: '', err: 'Нет моста ksu.exec'}); return; }
+    const id = '__cb' + (++seq); let done = 0;
+    const fin = (c, o, e) => { if(done) return; done = 1; clearTimeout(tm); delete window[id]; res({code: +c || 0, out: String(o || ''), err: String(e || '')}); };
+    const tm = setTimeout(() => fin(-1, '', 'Таймаут'), ms);
+    window[id] = fin;
+    try { k.exec(cmd, '{}', id); } catch(e) { try { k.exec(cmd, id); } catch(e2) { fin(1, '', String(e2)); } }
+  });
+}
+async function ctl(a, ms){
+  const r = await sh('sh ' + q(CTL) + ' ' + a.map(q).join(' '), ms);
+  if(r.code && r.err && !r.out) toast(r.err.slice(0, 160));
+  return r.out + (r.code && r.err ? '\n' + r.err : '');
+}
+async function ctlx(a, ms){ return await sh('sh ' + q(CTL) + ' ' + a.map(q).join(' '), ms); }
+
+/* ── Snackbar: M3 (label + optional text action, 4s / 8s с действием) ──── */
+let snackAction = null;
+function toast(m, action){
+  $('prompt-msg').textContent = m;
+  const b = $('prompt-action');
+  snackAction = action || null;
+  b.hidden = !action;
+  if(action) b.textContent = action.label || 'ПОВТОРИТЬ';
+  const pc = $('prompt-container');
+  pc.classList.add('show');
+  clearTimeout(pc._t);
+  pc._t = setTimeout(() => pc.classList.remove('show'), action ? 8000 : 3500);
+}
+$('prompt-action').onclick = () => {
+  $('prompt-container').classList.remove('show');
+  const a = snackAction; snackAction = null;
+  if(a && a.fn) a.fn();
+};
+
+/* ── Индикатор занятости (linear progress под app bar) ─────────────────── */
+let busyCount = 0;
+function busy(on){
+  busyCount = Math.max(0, busyCount + (on ? 1 : -1));
+  $('progress-top').hidden = busyCount === 0;
+}
+async function withBusy(a, ms){
+  busy(true);
+  try { return await ctlx(a, ms); } finally { busy(false); }
+}
+
+/* ── Basic dialog вместо native confirm/prompt ────────────────────────── */
+let dialogCb = null;
+function dialogResolve(val){
+  const cb = dialogCb; dialogCb = null;
+  $('dialog-wrap').classList.remove('open');
+  if(cb) cb(val);
+}
+function mdDialog(opts){
+  return new Promise(res => {
+    dialogCb = res;
+    $('d-title').textContent = opts.title || '';
+    $('d-body').textContent = opts.text || '';
+    const ic = $('d-icon');
+    ic.className = 'd-icon' + (opts.danger ? ' danger' : '');
+    ic.innerHTML = icon(opts.danger ? 'error' : 'warn');
+    const ok = $('d-ok');
+    ok.className = 'btn text state' + (opts.danger ? ' danger' : '');
+    ok.textContent = opts.ok || 'ОК';
+    const cancel = $('d-cancel');
+    cancel.hidden = opts.cancel === false;
+    cancel.textContent = typeof opts.cancel === 'string' ? opts.cancel : 'Отмена';
+    const f = $('d-field');
+    f.hidden = !opts.input;
+    if(opts.input){ $('d-input').value = opts.input.value || ''; $('d-input').placeholder = opts.input.placeholder || ''; }
+    $('dialog-wrap').classList.add('open');
+    if(opts.input) setTimeout(() => $('d-input').focus(), 80);
+  });
+}
+const mdConfirm = (title, text, o) => mdDialog(Object.assign({title, text}, o || {})).then(v => !!v);
+async function mdPrompt(title, text, value, placeholder){
+  return mdDialog({title, text, ok: 'Сохранить', input: {value, placeholder}})
+    .then(v => (v === false ? null : v));
+}
+$('d-ok').onclick = () => dialogResolve($('d-field').hidden ? true : $('d-input').value.trim());
+$('d-input').onkeydown = e => { if(e.key === 'Enter') dialogResolve($('d-input').value.trim()); };
+
+/* ── Navigation drawer ────────────────────────────────────────────────── */
+function drawerOpen(){ return $('drawer').classList.contains('open'); }
+function openDrawer(){ $('drawer').classList.add('open'); $('drawer-scrim').classList.add('show'); $('menu-btn').setAttribute('aria-expanded', 'true'); }
+function closeDrawer(){ $('drawer').classList.remove('open'); $('drawer-scrim').classList.remove('show'); $('menu-btn').setAttribute('aria-expanded', 'false'); }
+$('menu-btn').onclick = () => drawerOpen() ? closeDrawer() : openDrawer();
+
+document.querySelectorAll('.nav-item').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('.nav-item').forEach(b => { b.classList.remove('active'); b.removeAttribute('aria-current'); });
+    btn.classList.add('active');
+    btn.setAttribute('aria-current', 'page');
+    const page = btn.getAttribute('data-page');
+    document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.getAttribute('data-page') === page));
+    closeDrawer();
+    scrollTo(0, 0);
+    ({control: stat, lists: listsInit, apps: appsInit, config: confInit, logs: loadLog}[page] || (() => {}))();
+  };
+});
+
+/* elevation on scroll: surface → surface-container */
+addEventListener('scroll', () => $('app-bar').classList.toggle('scrolled', scrollY > 8), {passive: true});
+
+/* config.json: backInterceptor = javascript */
+window.onBackKeyPressed = function(){
+  if($('dialog-wrap').classList.contains('open')) return dialogResolve(false);
+  if($('editor-panel').classList.contains('open')) return closeSlideEditor();
+  if($('monet-modal').classList.contains('open')) return closeMonetModal();
+  if(drawerOpen()) return closeDrawer();
+  const active = document.querySelector('.page.active');
+  if(active && active.getAttribute('data-page') !== 'control'){
+    const home = document.querySelector('.nav-item[data-page="control"]');
+    if(home) home.click();
+    return;
+  }
+  try { window.ksu && window.ksu.exit && window.ksu.exit(); } catch(e) {}
+};
+document.addEventListener('keydown', e => {
+  if(e.key !== 'Escape') return;
+  if($('dialog-wrap').classList.contains('open')) return dialogResolve(false);
+  if($('editor-panel').classList.contains('open')) return closeSlideEditor();
+  if($('monet-modal').classList.contains('open')) return closeMonetModal();
+  if(drawerOpen()) closeDrawer();
+});
+
+/* ── Аптайм: tabular-nums, тик раз в секунду ──────────────────────────── */
+let uptTimer = null;
+function fmtUptime(sec){
+  sec = Math.max(0, Math.floor(sec));
+  const d = Math.floor(sec / 86400); sec -= d * 86400;
+  const h = Math.floor(sec / 3600); sec -= h * 3600;
+  const m = Math.floor(sec / 60); sec -= m * 60;
+  const p = n => String(n).padStart(2, '0');
+  if(d > 0) return d + ' д ' + p(h) + ':' + p(m) + ':' + p(sec);
+  if(h > 0) return p(h) + ':' + p(m) + ':' + p(sec);
+  return p(m) + ':' + p(sec);
+}
+function stopUptTimer(){ if(uptTimer){ clearInterval(uptTimer); uptTimer = null; } $('upt').textContent = '—'; }
+function startUptTimer(baseSec){
+  stopUptTimer();
+  let cur = Math.max(0, Math.floor(baseSec));
+  const tick = () => { $('upt').textContent = fmtUptime(cur++); };
+  tick();
+  uptTimer = setInterval(tick, 1000);
+}
+
+/* ══ Готовые стратегии ═══════════════════════════════════════════════════ */
+const STRATEGY_INFO = {
+  'default': 'Стандартная конфигурация nfqws2 с круговым перебором (circular).',
+  'alt': 'Flowseal ALT: Fake STUN + Google TLS + fakedsplit с отрицательным ACK.',
+  'alt2': 'Flowseal ALT2: Чистый multisplit (pos=2) с seqovl подменой (tls_google).',
+  'alt3': 'Flowseal ALT3: Fake ya.ru + hostfakesplit подмену доменов с tcp_ts.',
+  'alt4': 'Flowseal ALT4: Легковесный fake STUN + Google + базовый multisplit.',
+  'alt4_mod': 'Flowseal ALT4 Mod: Модифицированный ALT4 с hostfakesplit mail.ru.',
+  'alt5': 'Flowseal ALT5: Пейлоад в SYN (syndata) + multidisorder для обхода продвинутых ТСПУ.',
+  'alt6': 'Flowseal ALT6: Прицельный multisplit с полным перекрытием seqovl=681.',
+  'alt7': 'Flowseal ALT7: Двойной multisplit на границе SNI (pos=2, sniext+1).',
+  'alt8': 'Flowseal ALT8: Классический фейк fake_default_tls с badseq фулингом.',
+  'alt9': 'Flowseal ALT9: Hostfakesplit ozon.ru с подписью tcp_md5 и tcp_ts_up.',
+  'alt10': 'Flowseal ALT10: Чистый фейк (STUN + 4pda) без фрагментации — минимальная нагрузка на CPU.',
+  'alt11': 'Flowseal ALT11: Двойной фейк STUN2 + max_ru с multisplit seqovl=664.',
+  'alt12': 'Flowseal ALT12: Популярная стратегия для YouTube: fake max_ru + multisplit seqovl=664.',
+  'alt13': 'Flowseal ALT13: Двойной фейк (Sochi + STUN2) + hostfakesplit mail.ru.',
+  'fake_tls_auto': 'Flowseal FAKE TLS AUTO: Двойной фейк (нули + default) + multidisorder.',
+  'fake_tls_auto_alt': 'Flowseal FAKE TLS AUTO ALT: Фейк default_tls + fakedsplit (pos=1).',
+  'fake_tls_auto_alt2': 'Flowseal FAKE TLS AUTO ALT2: Фейк default_tls + multisplit seqovl=681.',
+  'fake_tls_auto_alt3': 'Flowseal FAKE TLS AUTO ALT3: Фейк default_tls с tcp_ts=-600000 + multisplit.',
+  'simple_fake': 'Flowseal SIMPLE FAKE: Легкий фейк Google + max_ru без фрагментации.',
+  'simple_fake_alt': 'Flowseal SIMPLE FAKE ALT: Фейк STUN2 + Google + max_ru.',
+  'simple_fake_alt2': 'Flowseal SIMPLE FAKE ALT2: Фейк STUN2 + max_ru (без google).',
+  'hardcorp74': 'Hardcorp74: 5-уровневый круговой перебор (Sochi, STUN, Ozon, RZD) + YouTube кастом.',
+  'krushaaa': 'Krushaaa: Lordfilm фейк + STUN2 + двойной multisplit.',
+  'MartinBacker': 'MartinBacker: Мощный 10-уровневый перебор + выделенные профили под Googlevideo/Discord.',
+  'Uvvi2': 'Uvvi2: Сток nfqws2-keenetic с прицельным профилем под войс Discord.',
+  'eduncey': 'Eduncey: 4 стратегии (fonts.google, ozon, www.google) + STUN кастом.',
+  'exp': 'EXP: Экспериментальный профиль STUN2 + max_ru с защитой Discord/unknown.'
+};
+
+async function initStrategySelector(){
+  const strats = (await ctl(['list-strategies'])).trim().split('\n').filter(Boolean);
+  const cur = (await ctl(['get-strategy'])).trim() || 'default';
+  const options = ['default', ...strats.filter(s => s !== 'default')];
+  $('strategy-sel').innerHTML = options.map(s =>
+    '<option value="' + esc(s) + '"' + (s === cur ? ' selected' : '') + '>' +
+    (s === 'default' ? 'По умолчанию (nfqws2.conf)' : esc(s)) + '</option>').join('');
+  onStrategySelectChange();
+}
+function onStrategySelectChange(){
+  $('strategy-desc').textContent = STRATEGY_INFO[$('strategy-sel').value] || 'Пользовательская конфигурация стратегии.';
+}
+async function applySelectedStrategy(){
+  const val = $('strategy-sel').value;
+  const ok = await mdConfirm('Применить стратегию «' + val + '»?',
+    'Действующий nfqws2.conf сохранится как .bak, затем служба перезапустится.', {ok: 'Применить'});
+  if(!ok) return;
+  const r = await withBusy(['set-strategy', val]);
+  if(r.code){ toast((r.err || 'Ошибка применения стратегии').trim()); return; }
+  toast(r.out.trim() || 'Стратегия применена');
+  await act('restart');
+}
+
+/* ══ 1. СОСТОЯНИЕ ════════════════════════════════════════════════════════ */
+const SW = [
+  ['AUTOSTART', 'Автозапуск при загрузке', 'Запуск службы из service.sh после boot_completed'],
+  ['WATCHDOG', 'Контроль работы', 'Перезапуск процесса и восстановление правил iptables'],
+  ['IPV6_ENABLED', 'Обрабатывать IPv6', 'Дублирует правила в ip6tables, если они доступны'],
+  ['BLOCK_QUIC', 'Блокировать QUIC', 'DROP UDP/443 — браузеры переходят на TCP/TLS']
+];
+const KEY = {AUTOSTART: 'autostart', WATCHDOG: 'watchdog', IPV6_ENABLED: 'ipv6', BLOCK_QUIC: 'block_quic'};
+
+function banner(kind, ic, text){
+  return '<div class="banner' + (kind ? ' ' + kind : '') + '">' + icon(ic) +
+    '<span class="grow">' + esc(text) + '</span></div>';
+}
+
+async function stat(){
+  busy(true);
+  const raw = await ctl(['json-status']);
+  busy(false);
+  let j = null, a = raw.indexOf('{'), b = raw.lastIndexOf('}');
+  if(a >= 0 && b > a){ try { j = JSON.parse(raw.slice(a, b + 1)); } catch(e) {} }
+  if(!j){
+    $('st').textContent = 'Нет связи с модулем';
+    $('sub').textContent = 'Проверьте root-доступ и наличие ' + CTL;
+    $('hs').className = 'status-pill';
+    $('hs-text').textContent = 'нет связи';
+    $('warn').innerHTML = banner('danger', 'error', 'json-status: ' + (raw.trim() || '(пустой ответ)').slice(0, 200));
+    stopUptTimer();
+    return;
+  }
+  S = j;
+  $('header-version').textContent = j.version || 'v1.3.1';
+  $('hero-status').className = 'hero' + (j.running ? ' running' : '');
+  $('st').textContent = j.running ? 'Служба запущена' : 'Служба остановлена';
+  $('hs').className = 'status-pill' + (j.running ? ' on' : '');
+  $('hs-text').textContent = j.running ? 'PID ' + j.pid : 'выкл';
+  const lim = {connbytes: 'лимит на обе стороны', connmark_out: 'лимит только на исходящие'}[j.limiter] || '';
+  $('sub').textContent = 'Режим: ' + (j.mode || '—') +
+    (j.strategy ? ' · пресет ' + j.strategy : '') + (j.running && lim ? ' · ' + lim : '');
+  $('queue-num').textContent = j.running ? (j.queue || '—') : '—';
+  $('qdrop-num').textContent = j.qdrop || 0;
+
+  if(j.running) startUptTimer(j.uptime || 0); else stopUptTimer();
+
+  $('bt').className = 'fab-ext state' + (j.running ? ' stop' : '');
+  $('bt').innerHTML = icon(j.running ? 'stop' : 'play') +
+    '<span>' + (j.running ? 'Остановить' : 'Запустить') + '</span>';
+
+  const c = j.counts || {};
+  const chips = [['user', c.user], ['auto', c.auto], ['exclude', c.exclude],
+                 ['ipset', c.ipset], ['ipset_excl', c.ipset_exclude], ['apps', c.apps]];
+  if(j.app_uids > 0) chips.push(['uid', j.app_uids]);
+  $('cnt').innerHTML = chips.filter(x => x[1] != null)
+    .map(x => '<span class="chip mono">' + esc(x[0]) + ' ' + esc(x[1]) + '</span>').join('');
+
+  $('sws').innerHTML = SW.map(s =>
+    '<div class="list-item two-line">' +
+      '<span class="li-text">' +
+        '<span class="li-primary">' + esc(s[1]) + '</span>' +
+        '<span class="li-secondary">' + esc(s[2]) + '</span>' +
+      '</span>' +
+      '<span class="li-trail"><input type="checkbox" class="switch" role="switch" aria-label="' + esc(s[1]) + '"' +
+        (j[KEY[s[0]]] == 1 ? ' checked' : '') + ' onchange="setp(\'' + s[0] + '\', this.checked ? 1 : 0)"></span>' +
+    '</div>').join('');
+
+  $('dbg').checked = (j.log_level == 1);
+  $('pkout').value = j.pkt_limit_out;
+  $('pkin').value = j.pkt_limit_in;
+
+  const badge = $('nav-apps-badge');
+  badge.hidden = !(j.app_uids > 0);
+  badge.textContent = j.app_uids;
+
+  let w = '';
+  if(j.qdrop > 0) w += banner('danger', 'warn',
+    'Ядро сбросило ' + j.qdrop + ' пакетов: nfqws2 не успевает обрабатывать очередь ' + j.queue + '.');
+  if(j.log_level == 1) w += banner('', 'info', 'Подробный debug-лог включён — обработка заметно медленнее.');
+  $('warn').innerHTML = w;
+}
+
+async function setp(k, v){
+  const r = await withBusy(['set', k, String(v)]);
+  const msg = r.code ? r.err.trim() : (r.out.trim().split('\n').pop() || 'OK');
+  toast(msg, {label: 'ОБНОВИТЬ', fn: stat});
+  stat();
+}
+async function act(a){
+  const r = await withBusy([a], 40000);
+  toast(((r.out || '') + (r.err || '')).trim().split('\n').pop() || 'Готово');
+  stat();
+}
+function toggle(){ stopUptTimer(); act(S.running ? 'stop' : 'start'); }
+
+async function doctor(){
+  $('doc').innerHTML = '<div class="list-item"><span class="spinner"></span>' +
+    '<span class="li-text"><span class="li-secondary">Проверка ядра и правил…</span></span></div>';
+  const t = await ctl(['doctor'], 30000);
+  const map = {ok: ['ok', 'check'], warn: ['warn', 'warn'], fail: ['bad', 'error'], info: ['info', 'info']};
+  $('doc').innerHTML = t.trim().split('\n').filter(Boolean).map(l => l.split('\t')).map(([s, n, d]) => {
+    const m = map[s] || map.info;
+    return '<div class="list-item two-line">' +
+      '<span class="status ' + m[0] + '">' + icon(m[1], 's16') + '</span>' +
+      '<span class="li-text"><span class="li-primary">' + esc(n || '') + '</span>' +
+      '<span class="li-secondary">' + esc(d || '') + '</span></span></div>';
+  }).join('') || '<div class="list-item"><span class="li-text"><span class="li-secondary">Нет данных</span></span></div>';
+}
+async function showArgs(){
+  const e = $('args');
+  e.hidden = !e.hidden;
+  if(!e.hidden) e.textContent = await ctl(['get-logs', 'args', '5']);
+}
+
+/* ══ 2. СПИСКИ ═══════════════════════════════════════════════════════════ */
+const LISTS = [
+  ['auto', 'auto.list — выучено'],
+  ['user', 'user.list — обходить'],
+  ['exclude', 'exclude.list — не трогать'],
+  ['ipset', 'ipset.list — IP для обхода'],
+  ['ipset_exclude', 'ipset_exclude.list — IP-исключения'],
+  ['probe_hosts', 'probe_hosts — для проверки']
+];
+$('lsel').innerHTML = LISTS.map(l => '<option value="' + l[0] + '">' + l[1] + '</option>').join('');
+
+async function listsInit(){
+  await stat();
+  $('mode').innerHTML = ['auto', 'list', 'all'].map(m =>
+    '<button class="seg state' + (S.mode === m ? ' on' : '') + '" aria-pressed="' + (S.mode === m) + '"' +
+    ' onclick="setMode(\'' + m + '\')"><span class="check">' + icon('check', 's18') + '</span>' + m + '</button>').join('');
+  loadList();
+}
+async function setMode(m){ await withBusy(['set-mode', m]); toast('Режим: ' + m); listsInit(); }
+async function loadList(){ $('ltx').value = await ctl(['get-list', $('lsel').value]); }
+async function clearAuto(){ await withBusy(['clear-auto']); toast('auto.list очищен'); loadList(); stat(); }
+async function addDom(){
+  const d = $('dom').value.trim();
+  if(!d) return;
+  const r = await withBusy(['add-domain', d]);
+  toast((r.out + r.err).trim());
+  $('dom').value = '';
+  if($('lsel').value === 'user') loadList();
+  stat();
+}
+async function resetLists(){
+  const ok = await mdConfirm('Вернуть списки к стандартным?',
+    'Правки в user / exclude / ipset / probe_hosts будут удалены.', {ok: 'Сбросить', danger: true});
+  if(!ok) return;
+  await withBusy(['reset-lists']); toast('Списки сброшены'); loadList(); stat();
+}
+
+/* ══ 3. ПРИЛОЖЕНИЯ ═══════════════════════════════════════════════════════ */
+async function appsInit(){
+  await stat();
+  $('amode').value = S.app_mode || 'off';
+  $('apps-info').textContent = (S.app_uids > 0)
+    ? 'Фильтр активен · UID разрешено: ' + S.app_uids + ' · пакетов в apps.list: ' + ((S.counts || {}).apps || 0)
+    : 'Фильтр не активен (APP_MODE = ' + (S.app_mode || 'off') + ')';
+}
+async function loadPk(){
+  $('pk-card').hidden = false;
+  $('pk').innerHTML = '<div class="list-item"><span class="spinner"></span>' +
+    '<span class="li-text"><span class="li-secondary">Загрузка списка пакетов…</span></span></div>';
+  pkgs = (await ctl(['list-apps'], 30000)).trim().split('\n').filter(Boolean);
+  $('pf').value = '';
+  await drawPk();
+  $('pk-card').scrollIntoView({behavior: 'smooth', block: 'start'});
+}
+async function getAppsList(){
+  return new Set((await ctl(['get-list', 'apps'])).split('\n').map(s => s.trim()).filter(s => s && s[0] !== '#'));
+}
+async function drawPk(){
+  const f = $('pf').value.toLowerCase();
+  const s = await getAppsList();
+  const shown = pkgs.filter(p => p.toLowerCase().includes(f));
+  $('pk-count').textContent = shown.length + ' из ' + pkgs.length + ' · выбрано ' + s.size +
+    (shown.length > 120 ? ' · показаны первые 120' : '');
+  $('pk').innerHTML = shown.slice(0, 120).map(p =>
+    '<label class="list-item clickable state' + (s.has(p) ? ' selected' : '') + '">' +
+      '<input type="checkbox" class="checkbox" data-pkg="' + esc(p) + '"' + (s.has(p) ? ' checked' : '') + '>' +
+      '<span class="li-text"><span class="li-primary li-mono">' + esc(p) + '</span></span>' +
+    '</label>').join('') ||
+    '<div class="list-item"><span class="li-text"><span class="li-secondary">Ничего не найдено</span></span></div>';
+  $('pk').querySelectorAll('input[data-pkg]').forEach(cb => {
+    cb.onchange = () => togglePkg(cb.getAttribute('data-pkg'), cb.checked);
+  });
+}
+async function togglePkg(p, want){
+  const s = await getAppsList();
+  if(want === undefined){ s.has(p) ? s.delete(p) : s.add(p); } else { want ? s.add(p) : s.delete(p); }
+  const r = await withBusy(['save-list-b64', 'apps', b64([...s].join('\n'))], 30000);
+  if(r.code && r.err) toast(r.err.trim(), {label: 'ПОВТОРИТЬ', fn: () => togglePkg(p, want)});
+  else toast((s.has(p) ? 'Добавлено: ' : 'Убрано: ') + p);
+  await drawPk();
+  stat();
+}
+async function saveApps(){
+  const r = await withBusy(['set', 'APP_MODE', $('amode').value], 30000);
+  toast(((r.out || '') + (r.err ? ' | ' + r.err : '')).trim() || 'Сохранено');
+  stat();
+}
+
+/* ══ 4. КОНФИГУРАЦИЯ И ИМПОРТ ════════════════════════════════════════════ */
+async function confInit(){ await loadConf(); await loadImports(); }
+async function loadConf(){ $('ctx').value = await ctl(['get-conf']); }
+async function resetConf(){
+  const ok = await mdConfirm('Сбросить конфиг к стандартному?',
+    'Действующий nfqws2.conf сохранится как .bak.', {ok: 'Сбросить', danger: true});
+  if(!ok) return;
+  await withBusy(['reset-conf']); toast('Конфиг сброшен'); loadConf(); stat();
+}
+async function loadImports(){
+  const names = (await ctl(['list-imports'])).trim().split('\n').filter(Boolean);
+  $('impList').innerHTML = names.length ? names.map(n =>
+    '<div class="list-item two-line">' +
+      '<span class="li-icon">' + icon('file') + '</span>' +
+      '<span class="li-text"><span class="li-primary li-mono clickable truncate" title="Нажмите для переименования"' +
+        ' onclick="renameImportStart(this,\'' + esc(n) + '\')">' + esc(n) + '</span></span>' +
+      '<span class="li-trail">' +
+        '<button class="btn text sm state" onclick="loadImport(\'' + esc(n) + '\')">Выбрать</button>' +
+        '<button class="icon-btn state" style="width:36px;height:36px;" aria-label="Удалить импорт"' +
+          ' onclick="delImport(\'' + esc(n) + '\')">' + icon('trash') + '</button>' +
+      '</span>' +
+    '</div>').join('')
+    : '<div class="list-item"><span class="li-text"><span class="li-secondary">Пока пусто</span></span></div>';
+}
+function renameImportStart(el, oldName){
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = oldName;
+  input.style.cssText = 'flex:1;height:36px;padding:0 10px;font-size:13px;' +
+    'border-radius:var(--md-sys-shape-corner-small);border:1px solid var(--md-sys-color-outline);' +
+    'background:var(--md-sys-color-surface-container-high);color:var(--md-sys-color-on-surface);outline:none;';
+  input.onclick = e => e.stopPropagation();
+  input.onkeydown = e => { if(e.key === 'Enter') input.blur(); if(e.key === 'Escape'){ input.value = oldName; input.blur(); } };
+  input.onblur = async () => {
+    const n = input.value.trim();
+    if(!n || n === oldName){ loadImports(); return; }
+    const r = await withBusy(['rename-import', oldName, n]);
+    if(r.code) toast((r.err || 'Не удалось переименовать').trim());
+    loadImports();
+  };
+  el.replaceWith(input);
+  input.focus();
+  input.select();
+}
+async function importFiles(files){
+  if(!files || !files.length) return;
+  let ok = 0, fail = 0, lastErr = '';
+  for(const f of files){
+    const text = await f.text();
+    const name = f.name.replace(/\.[^.]+$/, '');
+    const r = await withBusy(['import-add-b64', b64(name), b64(text)]);
+    if(!r.code) ok++; else { fail++; lastErr = (r.err || '').trim(); }
+  }
+  $('impFile').value = '';
+  $('impMsg').textContent = lastErr;
+  $('impMsg').className = 'helper' + (lastErr ? ' err' : '');
+  toast('Импортировано: ' + ok + (fail ? ', отклонено: ' + fail : ''));
+  loadImports();
+}
+async function importPaste(){
+  const t = await mdPrompt('Вставьте конфиг nfqws2-keenetic',
+    'Текст пройдёт валидатор на устройстве.', '', 'NFQWS_BASE_ARGS=…');
+  if(!t || !t.trim()) return;
+  const name = await mdPrompt('Имя конфига',
+    'Латиница, цифры, дефисы и подчёркивания.', 'import', 'import');
+  if(!name) return;
+  const r = await withBusy(['import-add-b64', b64(name), b64(t)]);
+  if(r.code){
+    $('impMsg').textContent = (r.err || 'Файл отклонён').trim();
+    $('impMsg').className = 'helper err';
+    toast('Файл отклонён');
+  } else toast('Импортировано');
+  loadImports();
+}
+async function loadImport(name){
+  const r = await withBusy(['get-import-merged-b64', name]);
+  if(r.code){ toast((r.err || 'Импорт не найден').trim()); return; }
+  $('ctx').value = unb64(r.out.trim());
+  toast('Подставлено в редактор', {label: 'ОТКРЫТЬ', fn: () => openSlideEditor('conf')});
+}
+async function delImport(name){
+  if(!await mdConfirm('Удалить импорт «' + name + '»?', 'Файл будет удалён безвозвратно.', {ok: 'Удалить', danger: true})) return;
+  await withBusy(['delete-import', name]);
+  loadImports();
+}
+
+/* ══ Full-screen dialog: редактор ════════════════════════════════════════ */
+async function openSlideEditor(type){
+  currentEditorTarget = type;
+  const t = $('panel-editor-text');
+  if(type === 'conf'){
+    $('panel-title-text').textContent = 'nfqws2.conf';
+    $('panel-hint').textContent = 'Конфиг валидируется на устройстве; при ошибке сохранение отклоняется. Применится после перезапуска службы.';
+    t.value = await ctl(['get-conf']);
+  } else if(type === 'list'){
+    const key = $('lsel').value;
+    $('panel-title-text').textContent = key + '.list';
+    $('panel-hint').textContent = 'По строке на домен или IP; строки с # игнорируются. Список перечитывается автоматически.';
+    t.value = await ctl(['get-list', key]);
+  } else if(type === 'apps'){
+    $('panel-title-text').textContent = 'apps.list (пакеты)';
+    $('panel-hint').textContent = 'Имена пакетов по строке на пакет (com.example.app). UID разрешаются на устройстве.';
+    t.value = await ctl(['get-list', 'apps']);
+  }
+  $('editor-panel').classList.add('open');
+  t.focus();
+}
+function closeSlideEditor(){ $('editor-panel').classList.remove('open'); }
+$('panel-save-btn').onclick = async () => {
+  const val = $('panel-editor-text').value;
+  if(currentEditorTarget === 'conf'){
+    const r = await withBusy(['save-conf-b64', b64(val)]);
+    toast(r.code ? (r.err || 'Конфиг отклонён').trim() : 'Конфиг сохранён');
+    if(!r.code) loadConf();
+  } else if(currentEditorTarget === 'list'){
+    const key = $('lsel').value;
+    const r = await withBusy(['save-list-b64', key, b64(val)], 30000);
+    toast(r.code ? (r.err || 'Ошибка сохранения').trim() : 'Список сохранён');
+    if(!r.code) loadList();
+  } else if(currentEditorTarget === 'apps'){
+    const r = await withBusy(['save-list-b64', 'apps', b64(val)], 30000);
+    toast(r.code ? (r.err || 'Ошибка сохранения').trim() : 'Список приложений сохранён');
+  }
+  closeSlideEditor();
+  stat();
+};
+
+/* ══ 5. ЖУРНАЛЫ ══════════════════════════════════════════════════════════ */
+async function loadLog(){
+  $('lg').textContent = await ctl(['get-logs', $('lt').value, $('ln').value], 30000);
+  $('lg').scrollTop = $('lg').scrollHeight;
+}
+async function exportLogs(){
+  const r = await withBusy(['export-logs'], 30000);
+  toast((r.out + r.err).trim() || 'Экспорт завершён');
+}
+async function clearLogs(){
+  if(!await mdConfirm('Очистить журналы?', 'service.log, nfqws2.log, debug и auto будут обнулены.', {ok: 'Очистить', danger: true})) return;
+  await withBusy(['clear-logs']);
+  toast('Журналы очищены');
+  loadLog();
+}
+
+/* ══ 6. ТЕСТИРОВАНИЕ ═════════════════════════════════════════════════════ */
+async function probe(u){
+  const t0 = performance.now(), c = new AbortController(), m = setTimeout(() => c.abort(), 6000);
+  try {
+    await fetch('https://' + u + (u.includes('?') ? '&' : '?') + '_=' + Date.now(),
+      {mode: 'no-cors', cache: 'no-store', signal: c.signal});
+    return performance.now() - t0;
+  } catch(e) { return null; } finally { clearTimeout(m); }
+}
+async function runTest(){
+  $('tb').disabled = true;
+  $('tb').innerHTML = '<span class="spinner"></span>Тест идёт';
+  const hosts = (await ctl(['get-list', 'probe_hosts'])).split('\n')
+    .map(s => s.trim()).filter(s => s && s[0] !== '#');
+  $('tr').innerHTML = hosts.map((h, i) =>
+    '<div class="list-item">' +
+      '<span class="status info" id="ti' + i + '"><span class="spinner" style="width:14px;height:14px;"></span></span>' +
+      '<span class="li-text"><span class="li-primary li-mono truncate">' + esc(h) + '</span></span>' +
+      '<span class="li-trail" id="tr' + i + '">…</span>' +
+    '</div>').join('') ||
+    '<div class="list-item"><span class="li-text"><span class="li-secondary">probe_hosts пуст</span></span></div>';
+  await Promise.all(hosts.map(async (h, i) => {
+    let ok = 0, sum = 0;
+    for(let k = 0; k < 3; k++){ const t = await probe(h); if(t != null){ ok++; sum += t; } }
+    const badge = $('ti' + i);
+    badge.className = 'status ' + (ok === 3 ? 'ok' : (ok > 0 ? 'warn' : 'bad'));
+    badge.innerHTML = icon(ok === 3 ? 'check' : (ok > 0 ? 'warn' : 'close'), 's16');
+    $('tr' + i).textContent = ok + '/3' + (ok ? ' · ' + Math.round(sum / ok) + ' мс' : '');
+  }));
+  $('tb').disabled = false;
+  $('tb').innerHTML = icon('play', 's18') + 'Запустить тест связи';
+}
+
+/* ══ Тема: генератор цветовых ролей M3 из seed ═══════════════════════════ */
+function hexToRgb(hex){
+  hex = String(hex).replace('#', '');
+  if(hex.length === 3) hex = hex.split('').map(x => x + x).join('');
+  return [parseInt(hex.substr(0, 2), 16), parseInt(hex.substr(2, 2), 16), parseInt(hex.substr(4, 2), 16)];
+}
+function rgbToHex(r, g, b){
+  const p = x => Math.max(0, Math.min(255, Math.round(x))).toString(16).padStart(2, '0');
+  return '#' + p(r) + p(g) + p(b);
+}
+function hexToHsl(hex){
+  const c = hexToRgb(hex), r = c[0] / 255, g = c[1] / 255, b = c[2] / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h = 0, s = 0; const l = (max + min) / 2;
+  if(max !== min){
+    const d = max - min;
+    s = l > .5 ? d / (2 - max - min) : d / (max + min);
+    if(max === r) h = (g - b) / d + (g < b ? 6 : 0);
+    else if(max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h /= 6;
+  }
+  return [h * 360, s, l];
+}
+function hslToHex(h, s, l){
+  h = ((h % 360) + 360) % 360; s = Math.max(0, Math.min(1, s)); l = Math.max(0, Math.min(1, l)); h /= 360;
+  if(s === 0){ const v = l * 255; return rgbToHex(v, v, v); }
+  const q = l < .5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q;
+  const hue = t => {
+    if(t < 0) t += 1; if(t > 1) t -= 1;
+    if(t < 1 / 6) return p + (q - p) * 6 * t;
+    if(t < 1 / 2) return q;
+    if(t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+    return p;
+  };
+  return rgbToHex(hue(h + 1 / 3) * 255, hue(h) * 255, hue(h - 1 / 3) * 255);
+}
+/* Тональная точка: tone 0..100 → lightness, chroma — насыщенность роли */
+function tone(h, chroma, t){ return hslToHex(h, chroma, t / 100); }
+
+const PALETTES = [
+  ['Сирень', '#deb0da'], ['Лаванда', '#d0bcff'], ['Pixel Blue', '#a8c7fa'], ['Сакура', '#f4b5d2'],
+  ['Циан', '#7bd0ff'], ['Изумруд', '#6dd58c'], ['Янтарь', '#f3c774'], ['Коралл', '#ffb4ab']
+];
+const ERROR_HUE = 8;
+let currentSeed = '#6750a4', currentMode = 'auto';
+
+/* KSU подставляет динамические цвета через colors.css — читаем --primary */
+function systemSeed(){
+  const raw = getComputedStyle(document.documentElement).getPropertyValue('--primary').trim();
+  if(!raw) return '#6750a4';
+  if(raw.charAt(0) === '#') return raw.length >= 7 ? raw.slice(0, 7).toLowerCase() : '#6750a4';
+  const m = raw.match(/(\d+)\D+(\d+)\D+(\d+)/);
+  return m ? rgbToHex(+m[1], +m[2], +m[3]) : '#6750a4';
+}
+function isDark(){
+  if(currentMode === 'light') return false;
+  if(currentMode === 'dark') return true;
+  return matchMedia('(prefers-color-scheme: dark)').matches;
+}
+function roles(seedHex, dark, amoled){
+  const hsl = hexToHsl(seedHex), h = hsl[0], s = Math.min(hsl[1], .72);
+  const n = s * .09, ns = Math.max(s * .28, .03);
+  const R = {};
+  if(dark){
+    R.primary = tone(h, s * .78, 84); R.onPrimary = tone(h, s * .6, 20);
+    R.primaryContainer = tone(h, s * .58, 34); R.onPrimaryContainer = tone(h, s * .5, 92);
+    R.secondary = tone(h, ns, 82); R.onSecondary = tone(h, ns, 20);
+    R.secondaryContainer = tone(h, ns, 34); R.onSecondaryContainer = tone(h, ns, 92);
+    R.tertiary = tone(h + 60, s * .5, 82); R.onTertiary = tone(h + 60, s * .4, 20);
+    R.tertiaryContainer = tone(h + 60, s * .4, 34); R.onTertiaryContainer = tone(h + 60, s * .35, 92);
+    R.error = tone(ERROR_HUE, .7, 82); R.onError = tone(ERROR_HUE, .6, 18);
+    R.errorContainer = tone(ERROR_HUE, .6, 32); R.onErrorContainer = tone(ERROR_HUE, .4, 92);
+    const bg = amoled ? 0 : 8;
+    R.background = tone(h, n, bg); R.onBackground = tone(h, n, 92);
+    R.surface = tone(h, n, bg); R.onSurface = tone(h, n, 92);
+    R.surfaceVariant = tone(h, n * 2.4, 32); R.onSurfaceVariant = tone(h, n * 2.4, 82);
+    R.surfaceDim = tone(h, n, amoled ? 0 : 6); R.surfaceBright = tone(h, n, 30);
+    R.surfaceContainerLowest = tone(h, n, amoled ? 0 : 4);
+    R.surfaceContainerLow = tone(h, n, amoled ? 3 : 12);
+    R.surfaceContainer = tone(h, n, amoled ? 8 : 17);
+    R.surfaceContainerHigh = tone(h, n, amoled ? 12 : 22);
+    R.surfaceContainerHighest = tone(h, n, amoled ? 16 : 27);
+    R.outline = tone(h, n * 1.6, 62); R.outlineVariant = tone(h, n * 2, 32);
+    R.inverseSurface = tone(h, n, 92); R.inverseOnSurface = tone(h, n, 20);
+    R.inversePrimary = tone(h, s * .7, 45);
+    R.statusOk = '#6dd58c'; R.statusWarn = '#f0c14b'; R.statusBad = '#ffb4ab';
+  } else {
+    R.primary = tone(h, s * .7, 42); R.onPrimary = tone(h, s * .3, 100);
+    R.primaryContainer = tone(h, s * .55, 92); R.onPrimaryContainer = tone(h, s * .6, 18);
+    R.secondary = tone(h, ns, 40); R.onSecondary = tone(h, ns * .3, 100);
+    R.secondaryContainer = tone(h, ns, 92); R.onSecondaryContainer = tone(h, ns, 18);
+    R.tertiary = tone(h + 60, s * .45, 42); R.onTertiary = tone(h + 60, s * .2, 100);
+    R.tertiaryContainer = tone(h + 60, s * .4, 92); R.onTertiaryContainer = tone(h + 60, s * .4, 20);
+    R.error = tone(ERROR_HUE, .75, 40); R.onError = tone(ERROR_HUE, .3, 100);
+    R.errorContainer = tone(ERROR_HUE, .6, 94); R.onErrorContainer = tone(ERROR_HUE, .6, 22);
+    R.background = tone(h, n, 99); R.onBackground = tone(h, n, 12);
+    R.surface = tone(h, n, 99); R.onSurface = tone(h, n, 12);
+    R.surfaceVariant = tone(h, n * 3, 92); R.onSurfaceVariant = tone(h, n * 3, 32);
+    R.surfaceDim = tone(h, n, 88); R.surfaceBright = tone(h, n, 100);
+    R.surfaceContainerLowest = tone(h, n, 100);
+    R.surfaceContainerLow = tone(h, n, 97);
+    R.surfaceContainer = tone(h, n, 95);
+    R.surfaceContainerHigh = tone(h, n, 93);
+    R.surfaceContainerHighest = tone(h, n, 91);
+    R.outline = tone(h, n * 2, 50); R.outlineVariant = tone(h, n * 2.4, 82);
+    R.inverseSurface = tone(h, n, 22); R.inverseOnSurface = tone(h, n, 95);
+    R.inversePrimary = tone(h, s * .6, 84);
+    R.statusOk = '#166a33'; R.statusWarn = '#6b5000'; R.statusBad = '#a01811';
+  }
+  return R;
+}
+const ROLE_VAR = {
+  primary: '--md-sys-color-primary', onPrimary: '--md-sys-color-on-primary',
+  primaryContainer: '--md-sys-color-primary-container', onPrimaryContainer: '--md-sys-color-on-primary-container',
+  secondary: '--md-sys-color-secondary', onSecondary: '--md-sys-color-on-secondary',
+  secondaryContainer: '--md-sys-color-secondary-container', onSecondaryContainer: '--md-sys-color-on-secondary-container',
+  tertiary: '--md-sys-color-tertiary', onTertiary: '--md-sys-color-on-tertiary',
+  tertiaryContainer: '--md-sys-color-tertiary-container', onTertiaryContainer: '--md-sys-color-on-tertiary-container',
+  error: '--md-sys-color-error', onError: '--md-sys-color-on-error',
+  errorContainer: '--md-sys-color-error-container', onErrorContainer: '--md-sys-color-on-error-container',
+  background: '--md-sys-color-background', onBackground: '--md-sys-color-on-background',
+  surface: '--md-sys-color-surface', onSurface: '--md-sys-color-on-surface',
+  surfaceVariant: '--md-sys-color-surface-variant', onSurfaceVariant: '--md-sys-color-on-surface-variant',
+  surfaceDim: '--md-sys-color-surface-dim', surfaceBright: '--md-sys-color-surface-bright',
+  surfaceContainerLowest: '--md-sys-color-surface-container-lowest',
+  surfaceContainerLow: '--md-sys-color-surface-container-low',
+  surfaceContainer: '--md-sys-color-surface-container',
+  surfaceContainerHigh: '--md-sys-color-surface-container-high',
+  surfaceContainerHighest: '--md-sys-color-surface-container-highest',
+  outline: '--md-sys-color-outline', outlineVariant: '--md-sys-color-outline-variant',
+  inverseSurface: '--md-sys-color-inverse-surface', inverseOnSurface: '--md-sys-color-inverse-on-surface',
+  inversePrimary: '--md-sys-color-inverse-primary'
+};
+function applyTheme(){
+  const dark = isDark();
+  const amoled = localStorage.getItem('m3_amoled') === 'true' && dark;
+  const R = roles(currentSeed, dark, amoled), st = document.documentElement.style;
+  for(const k in ROLE_VAR) st.setProperty(ROLE_VAR[k], R[k]);
+  st.setProperty('--status-ok', R.statusOk);
+  st.setProperty('--status-warn', R.statusWarn);
+  st.setProperty('--status-bad', R.statusBad);
+  document.documentElement.setAttribute('data-mode', dark ? 'dark' : 'light');
+  document.documentElement.setAttribute('data-amoled', amoled ? 'true' : 'false');
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if(meta) meta.setAttribute('content', R.background);
+  drawThemeUI();
+}
+function drawThemeUI(){
+  $('theme-mode').innerHTML = [['auto', 'Авто'], ['light', 'Светлая'], ['dark', 'Тёмная']].map(m =>
+    '<button class="seg state' + (currentMode === m[0] ? ' on' : '') + '" aria-pressed="' + (currentMode === m[0]) +
+    '" onclick="setThemeMode(\'' + m[0] + '\')"><span class="check">' + icon('check', 's18') + '</span>' + m[1] + '</button>').join('');
+  const dark = isDark();
+  $('palette-grid').innerHTML = PALETTES.map(p => {
+    const hsl = hexToHsl(p[1]), h = hsl[0], c = Math.min(hsl[1], .72) * .6;
+    return '<button class="swatch state" style="background:' + tone(h, c, dark ? 42 : 92) + ';color:' + tone(h, c * .8, dark ? 92 : 22) + '"' +
+      ' aria-pressed="' + (p[1].toLowerCase() === currentSeed) + '"' +
+      ' onclick="applyMonet(\'' + p[1] + '\')">' + p[0] + '</button>';
+  }).join('');
+  $('amoled-toggle').checked = localStorage.getItem('m3_amoled') === 'true';
+  $('amoled-toggle').disabled = !dark;
+  $('custom-hex-input').value = currentSeed.replace('#', '').toUpperCase();
+  $('custom-swatch').style.background = currentSeed;
+  try { $('native-color-picker').value = currentSeed; } catch(e) {}
+}
+function setThemeMode(m){
+  currentMode = m;
+  localStorage.setItem('m3_mode', m);
+  applyTheme();
+}
+function applyMonet(seedHex, quiet){
+  if(!/^#[0-9a-fA-F]{6}$/.test(seedHex)) return;
+  currentSeed = seedHex.toLowerCase();
+  localStorage.setItem('m3_seed', currentSeed);
+  applyTheme();
+  if(!quiet) closeMonetModal();
+}
+function toggleAmoled(on){
+  localStorage.setItem('m3_amoled', on ? 'true' : 'false');
+  applyTheme();
+}
+function onNativeColorPick(hex){
+  $('custom-hex-input').value = hex.replace('#', '').toUpperCase();
+  $('custom-swatch').style.background = hex;
+}
+function onHexInput(val){
+  const clean = val.replace(/[^0-9a-fA-F]/g, '').slice(0, 6);
+  $('custom-hex-input').value = clean;
+  if(clean.length !== 6) return;
+  $('custom-swatch').style.background = '#' + clean;
+  currentSeed = '#' + clean.toLowerCase();
+  applyTheme();
+}
+function applyCustomHex(){
+  let val = $('custom-hex-input').value.trim().replace('#', '');
+  if(val.length === 3) val = val.split('').map(x => x + x).join('');
+  if(!/^[0-9a-fA-F]{6}$/.test(val)){ toast('Введите 6-значный HEX'); return; }
+  applyMonet('#' + val, true);
+  toast('Цвет применён: #' + val.toUpperCase());
+}
+function resetTheme(){
+  ['m3_seed', 'm3_mode', 'm3_amoled'].forEach(k => localStorage.removeItem(k));
+  currentMode = 'auto';
+  currentSeed = systemSeed();
+  applyTheme();
+  toast('Тема сброшена к системной');
+}
+async function detectSystemMonet(showToastNotice){
+  const r = await sh(`
+    dumpsys wallpaper 2>/dev/null | grep -iE "Color\\(" | tail -n 4
+    settings get secure theme_customization_overlay_packages 2>/dev/null
+    dumpsys activity service com.android.systemui/.theme.ThemeOverlayController 2>/dev/null | grep -iE "color|accent|mMain" | tail -n 4
+  `);
+  const out = r.out || '';
+  let hex = '';
+  for(const m of Array.from(out.matchAll(/Color\(\s*(-?\d{5,12})/gi)).reverse()){
+    const val = parseInt(m[1], 10);
+    if(isNaN(val) || val === 0 || val === -1) continue;
+    const rawHex = ((val >>> 0) & 0xFFFFFF).toString(16).padStart(6, '0');
+    if(rawHex !== '000000' && rawHex !== 'ffffff' && rawHex !== 'e2e2e9' && rawHex !== '111318'){ hex = '#' + rawHex; break; }
+  }
+  if(!hex){
+    for(const m of Array.from(out.matchAll(/Color\(\s*([\d.]+),\s*([\d.]+),\s*([\d.]+)/gi)).reverse()){
+      const to2 = v => { const x = parseFloat(v); return Math.round(x <= 1 ? x * 255 : x).toString(16).padStart(2, '0'); };
+      const c = '#' + to2(m[1]) + to2(m[2]) + to2(m[3]);
+      if(c !== '#000000' && c !== '#ffffff' && c !== '#e2e2e9'){ hex = c; break; }
+    }
+  }
+  if(!hex){
+    for(const m of Array.from(out.matchAll(/(?:_|[#"'])([0-9a-fA-F]{6})/g)).reverse()){
+      const c = ('#' + m[1]).toLowerCase();
+      if(c !== '#e2e2e9' && c !== '#000000' && c !== '#ffffff'){ hex = c; break; }
+    }
+  }
+  if(!hex) hex = systemSeed();
+  applyMonet(hex, true);
+  if(showToastNotice) toast('Акцент с обоев: ' + hex.toUpperCase());
+}
+function openMonetModal(){
+  drawThemeUI();
+  $('monet-modal').classList.add('open');
+  $('theme-scrim').classList.add('show');
+}
+function closeMonetModal(){
+  $('monet-modal').classList.remove('open');
+  $('theme-scrim').classList.remove('show');
+}
+
+/* ══ Init ════════════════════════════════════════════════════════════════ */
+currentMode = localStorage.getItem('m3_mode') || 'auto';
+const savedSeed = (localStorage.getItem('m3_seed') || '').toLowerCase();
+currentSeed = /^#[0-9a-f]{6}$/.test(savedSeed) ? savedSeed : systemSeed();
+applyTheme();
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if(currentMode === 'auto') applyTheme(); });
+stat();
+initStrategySelector();
+</script>
+</body>
+</html>
