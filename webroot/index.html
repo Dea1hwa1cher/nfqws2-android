@@ -491,7 +491,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--md-sys-color-pri
                     <option value="include">Только выбранные приложения</option>
                     <option value="exclude">Все, кроме выбранных</option>
                 </select>
-                <div class="mu">В режиме «только выбранные» трафик раздачи (hotspot) не обрабатывается.</div>
+                <div class="mu">В режиме «только выбранные» трафик раздачи (hotspot) не обрабатывается. Изменения применяются сразу, без перезапуска службы.</div>
                 <div class="row" style="margin-top:6px;">
                     <button class="btn-m3 tonal" onclick="openSlideEditor('apps')">Ввести вручную (пакеты)</button>
                     <button class="btn-m3 tonal" onclick="loadPk()">Выбрать из установленных</button>
@@ -789,8 +789,9 @@ async function stat(){
   $('bt').className = 'btn-m3 ' + (j.running ? 'danger' : 'primary') + ' grow';
 
   const c = j.counts || {};
-  $('cnt').innerHTML = [['user', c.user], ['auto', c.auto], ['exclude', c.exclude], ['ipset', c.ipset], ['apps', c.apps]]
-    .map(x => `<span class="chip">${x[0]}: ${x[1]}</span>`).join('');
+  const chips = [['user', c.user], ['auto', c.auto], ['exclude', c.exclude], ['ipset', c.ipset], ['apps', c.apps]];
+  if(j.app_uids > 0) chips.push(['app uid', j.app_uids]);
+  $('cnt').innerHTML = chips.map(x => `<span class="chip">${x[0]}: ${x[1]}</span>`).join('');
 
   $('sws').innerHTML = SW.map(s => `
     <div class="row" style="padding: 4px 0;">
@@ -882,12 +883,14 @@ async function drawPk(){
 async function togglePkg(p){
   const s = await getAppsList();
   s.has(p) ? s.delete(p) : s.add(p);
-  await ctlx(['save-list-b64', 'apps', b64([...s].join('\n'))]);
-  drawPk();
+  const r = await ctlx(['save-list-b64', 'apps', b64([...s].join('\n'))], 30000);
+  if(r.code && r.err) toast(r.err.trim());
+  drawPk(); stat();
 }
 async function saveApps(){
-  await ctl(['set', 'APP_MODE', $('amode').value]);
-  if(S.running) await act('restart'); else toast('Сохранено');
+  const r = await ctlx(['set', 'APP_MODE', $('amode').value], 30000);
+  toast(((r.out || '') + (r.err ? ' | ' + r.err : '')).trim() || 'Сохранено');
+  stat();
 }
 
 // 4. КОНФИГУРАЦИЯ & ИМПОРТ

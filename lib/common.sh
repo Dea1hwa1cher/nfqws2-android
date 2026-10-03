@@ -20,6 +20,7 @@ WD_PIDFILE="$STATE_DIR/watchdog.pid"
 DESIRED_FILE="$STATE_DIR/desired"
 ARGS_FILE="$STATE_DIR/last.args"
 CAPS_FILE="$STATE_DIR/caps"
+APP_UIDS_FILE="$STATE_DIR/app_uids"
 SERVICE_LOG="$LOG_DIR/service.log"
 NFQWS_LOG="$LOG_DIR/nfqws2.log"
 
@@ -31,6 +32,10 @@ IPT_GROUP_POST="nfqws_post"
 IPT_GROUP_PRE="nfqws_pre"
 IPT_GROUP_NAT="nfqws_nat"
 IPT_GROUP_QOUT="nfqws_qout"
+IPT_GROUP_APP="nfqws_app"
+
+# xt_owner принимает не более 128 диапазонов в одном правиле
+APP_UID_MAX=128
 
 CNT_OUT_MASK=0x0f000000
 CNT_OUT_STEP=16777216
@@ -48,7 +53,7 @@ set_defaults() {
   : "${LOG_LEVEL:=0}"
   : "${AUTOSTART:=1}"
   : "${WATCHDOG:=1}"
-  : "${BLOCK_QUIC:=0}"
+  : "${BLOCK_QUIC:=1}"
   : "${NAT_FIX:=1}"
   : "${STRATEGY_TLS:=auto}"
   : "${STRATEGY_UDP:=auto}"
@@ -209,6 +214,88 @@ apply_strategy() {
     }
     { printf "%s ", $0 }' | sed 's/ $//'
   set +f
+}
+
+app_mode_active() {
+  case "$APP_MODE" in include|exclude) return 0 ;; *) return 1 ;; esac
+}
+
+# apps.list (имена пакетов) -> список UID из pm
+resolve_app_uids() {
+  local f="$CONFDIR/apps.list" pkgs PM=pm
+  [ -f "$f" ] || return 0
+  # WebUI/root-шелл не всегда имеет /system/bin в PATH
+  command -v pm >/dev/null 2>&1 || PM=/system/bin/pm
+  command -v "$PM" >/dev/null 2>&1 || return 0
+  pkgs=$(grep -hv -e '^[[:space:]]*$' -e '^[[:space:]]*#' "$f" 2>/dev/null | tr -d '\r\t ' | tr 'A-Z' 'a-z')
+  [ -n "$pkgs" ] || return 0
+  "$PM" list packages -U 2>/dev/null | awk -v want="$pkgs" '
+    BEGIN { n = split(want, a, "\n"); for (i = 1; i <= n; i++) if (a[i] != "") w[a[i]] = 1 }
+    $1 ~ /^package:/ {
+      p = substr($1, 9); u = $2; sub(/^uid:/, "", u)
+      if ((p in w) && u ~ /^[0-9]+$/) print u
+    }' | sort -n -u | awk '{ printf "%s%s", (NR > 1 ? "," : ""), $0 }'
+}
+
+app_features_ok() {
+  has_ipt_feature "$1" -m owner --uid-owner 0 -j RETURN &&
+  has_ipt_feature "$1" -m connmark --mark 0x1/0x1 -j RETURN &&
+  has_ipt_feature "$1" -j CONNMARK --set-xmark 0x1/0x1
+}
+
+app_uid_count() {
+  local n
+  [ -f "$APP_UIDS_FILE" ] || { printf 0; return; }
+  n=$(tr ',' '\n' < "$APP_UIDS_FILE" 2>/dev/null | grep -cE '^[0-9]+$')
+  printf '%s' "${n:-0}"
+}
+
+# Возвращает 0, если фильтр по приложениям установлен, 1 — если выключен/неприменим, 2 — с ошибкой
+app_rules() {
+  local CMD="$1" uids n chunk mark
+  if ! app_mode_active; then
+    $CMD -w -t mangle -F $IPT_GROUP_APP 2>/dev/null
+    $CMD -w -t mangle -X $IPT_GROUP_APP 2>/dev/null
+    rm -f "$APP_UIDS_FILE"
+    return 1
+  fi
+  if ! app_features_ok "$CMD"; then
+    [ "$CMD" = "iptables" ] && log_msg "Нет xt_owner/xt_CONNMARK — фильтр по приложениям не применяется"
+    return 2
+  fi
+  uids=$(resolve_app_uids)
+  n=$(printf '%s\n' "$uids" | tr ',' '\n' | grep -cE '^[0-9]+$')
+  if [ "$CMD" = "iptables" ]; then
+    printf '%s\n' "$uids" > "$APP_UIDS_FILE"
+    n=$(app_uid_count)
+  fi
+  if [ "$n" = "0" ]; then
+    log_msg "apps.list: ни один пакет не сопоставлен с UID — фильтр по приложениям ($APP_MODE) не действует"
+    return 2
+  fi
+
+  # В PREROUTING у пакета нет сокета, поэтому -m owner там не работает:
+  # решение по UID принимается в POSTROUTING, а для ответных пакетов используется метка соединения.
+  mark="$MARK_INCLUDE"
+  [ "$APP_MODE" = "exclude" ] && mark="$MARK_EXCLUDE"
+  $CMD -w -t mangle -N $IPT_GROUP_APP 2>/dev/null
+  $CMD -w -t mangle -F $IPT_GROUP_APP
+  printf '%s\n' "$uids" | tr ',' '\n' | grep -E '^[0-9]+$' | sort -n -u | awk -v mx="$APP_UID_MAX" '
+      { b = int((NR - 1) / mx); a[b] = (b in a ? a[b] "," $0 : $0) }
+      END { for (i = 0; i <= b; i++) if (i in a) print a[i] }' | while IFS= read -r chunk; do
+    [ -n "$chunk" ] || continue
+    $CMD -w -t mangle -A $IPT_GROUP_APP -m owner --uid-owner "$chunk" -j CONNMARK --set-xmark "$mark"
+  done
+  $CMD -w -t mangle -A $IPT_GROUP_POST -j $IPT_GROUP_APP
+  if [ "$APP_MODE" = "exclude" ]; then
+    $CMD -w -t mangle -A $IPT_GROUP_POST -m connmark --mark "$MARK_EXCLUDE" -j RETURN
+    [ "$LIMITER" = "connbytes" ] && $CMD -w -t mangle -A $IPT_GROUP_PRE -m connmark --mark "$MARK_EXCLUDE" -j RETURN
+  else
+    $CMD -w -t mangle -A $IPT_GROUP_POST -m connmark ! --mark "$MARK_INCLUDE" -j RETURN
+    [ "$LIMITER" = "connbytes" ] && $CMD -w -t mangle -A $IPT_GROUP_PRE -m connmark ! --mark "$MARK_INCLUDE" -j RETURN
+  fi
+  log_msg "Фильтр по приложениям ($APP_MODE): $n UID"
+  return 0
 }
 
 port_list_without() {
@@ -385,6 +472,8 @@ _firewall_start() {
     done
   fi
 
+  app_rules "$CMD"
+
   if [ "$BLOCK_QUIC" = "1" ]; then
     $CMD -w -t mangle -A $IPT_GROUP_POST -p udp --dport 443 -j DROP
   fi
@@ -411,6 +500,7 @@ _firewall_stop() {
   $CMD -w -t mangle -F $IPT_GROUP_POST 2>/dev/null; $CMD -w -t mangle -X $IPT_GROUP_POST 2>/dev/null
   $CMD -w -t mangle -F $IPT_GROUP_PRE 2>/dev/null;  $CMD -w -t mangle -X $IPT_GROUP_PRE 2>/dev/null
   $CMD -w -t mangle -F $IPT_GROUP_QOUT 2>/dev/null; $CMD -w -t mangle -X $IPT_GROUP_QOUT 2>/dev/null
+  $CMD -w -t mangle -F $IPT_GROUP_APP 2>/dev/null; $CMD -w -t mangle -X $IPT_GROUP_APP 2>/dev/null
   if [ "$CMD" = "iptables" ]; then
     while $CMD -w -t nat -D POSTROUTING -j $IPT_GROUP_NAT 2>/dev/null; do :; done
     $CMD -w -t nat -F $IPT_GROUP_NAT 2>/dev/null; $CMD -w -t nat -X $IPT_GROUP_NAT 2>/dev/null

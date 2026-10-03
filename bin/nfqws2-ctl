@@ -10,8 +10,7 @@ SERVICE="$MODDIR/service.sh"
 
 STRATEGIES_DIR="$MODDIR/strategies"
 USER_STRATEGIES_DIR="$CONFDIR/strategies"
-IMPORTS_DIR="$CONFDIR/imports"
-mkdir -p "$USER_STRATEGIES_DIR" "$STATE_DIR" "$IMPORTS_DIR" 2>/dev/null
+mkdir -p "$USER_STRATEGIES_DIR" "$STATE_DIR" 2>/dev/null
 
 b64d() {
   if command -v base64 >/dev/null 2>&1; then printf '%s' "$1" | base64 -d 2>/dev/null
@@ -45,8 +44,6 @@ current_mode() {
   grep -m1 '^NFQWS_EXTRA_ARGS=' "$CONFFILE" 2>/dev/null | grep -o 'MODE_[A-Z]*' | head -n1 | sed 's/MODE_//' | tr 'A-Z' 'a-z'
 }
 
-json_str() { printf '%s' "$1" | tr -d '"\\'; }
-
 need_restart_note() { is_running && echo "Изменения применятся после перезапуска службы"; }
 
 list_strategies() {
@@ -63,7 +60,6 @@ get_current_strategy() {
 set_strategy() {
   local name="$1"
   if [ "$name" = "default" ] || [ -z "$name" ]; then
-    cp -f "$CONFFILE" "$CONFFILE.bak" 2>/dev/null
     cp -f "$MODDIR/defaults/nfqws2.conf" "$CONFFILE"
     echo "default" > "$STATE_DIR/active_strategy"
     echo "Применена стратегия: default"
@@ -113,17 +109,14 @@ cmd_json_status() {
   fi
   local ver strat_tls strat_udp cur_strat
   ver=$(sed -n 's/^version=//p' "$MODDIR/module.prop" | head -n1)
-  strat_tls=$(norm_args "$NFQWS_ARGS" | tr ' ' '\n' | grep -o 'strategy=[0-9]*' | sort -u | sed 's/strategy=//' | sort -n | tr '\n' ',' | sed 's/,$//')
-  strat_udp=$(norm_args "$NFQWS_ARGS_UDP" | tr ' ' '\n' | grep -o 'strategy=[0-9]*' | sort -u | sed 's/strategy=//' | sort -n | tr '\n' ',' | sed 's/,$//')
+  strat_tls=$(norm_args "$NFQWS_ARGS" | tr ' ' '\n' | grep -o 'strategy=[0-9]*' | sort -u | tr -d 'strategy=' | sort -n | tr '\n' ',' | sed 's/,$//')
+  strat_udp=$(norm_args "$NFQWS_ARGS_UDP" | tr ' ' '\n' | grep -o 'strategy=[0-9]*' | sort -u | tr -d 'strategy=' | sort -n | tr '\n' ',' | sed 's/,$//')
   cur_strat=$(get_current_strategy)
-  local qdrop
-  qdrop=$(awk -v q="$NFQUEUE_NUM" '$1 == q { print $6 + $7; f = 1 } END { if (!f) print 0 }' /proc/net/netfilter/nfnetlink_queue 2>/dev/null)
-  case "$qdrop" in ''|*[!0-9]*) qdrop=0 ;; esac
   cat <<JSON
-{"running":$run,"pid":"$pid","uptime":$uptime,"strategy":"$(json_str "$cur_strat")","version":"$(json_str "$ver")","mode":"$(json_str "$(current_mode)")",
-"strategy_tls":"$(json_str "$STRATEGY_TLS")","strategy_udp":"$(json_str "$STRATEGY_UDP")","tls_strategies":"$(json_str "$strat_tls")","udp_strategies":"$(json_str "$strat_udp")",
-"preset":"$(json_str "$PRESET_TCP")","limiter":"$(json_str "$(cat "$STATE_DIR/limiter" 2>/dev/null)")","pkt_limit_out":${PKT_LIMIT_OUT:-15},"block_quic":${BLOCK_QUIC:-0},"app_mode":"$(json_str "$APP_MODE")","autostart":${AUTOSTART:-1},"watchdog":${WATCHDOG:-1},
-"ipv6":${IPV6_ENABLED:-1},"log_level":${LOG_LEVEL:-0},"qdrop":$qdrop,"queue":${NFQUEUE_NUM:-300},
+{"running":$run,"pid":"$pid","uptime":$uptime,"strategy":"$cur_strat","version":"$ver","mode":"$(current_mode)",
+"strategy_tls":"$STRATEGY_TLS","strategy_udp":"$STRATEGY_UDP","tls_strategies":"$strat_tls","udp_strategies":"$strat_udp",
+"preset":"$PRESET_TCP","limiter":"$(cat "$STATE_DIR/limiter" 2>/dev/null)","pkt_limit_out":${PKT_LIMIT_OUT:-15},"block_quic":${BLOCK_QUIC:-0},"app_mode":"$APP_MODE","autostart":${AUTOSTART:-1},"watchdog":${WATCHDOG:-1},
+"ipv6":${IPV6_ENABLED:-1},"log_level":${LOG_LEVEL:-0},"qdrop":$(awk -v q="$NFQUEUE_NUM" '$1 == q { print $6 + $7; f = 1 } END { if (!f) print 0 }' /proc/net/netfilter/nfnetlink_queue 2>/dev/null),"queue":${NFQUEUE_NUM:-300},"app_uids":$(app_uid_count),
 "counts":{"user":$(list_count "$LISTS_DIR/user.list"),"auto":$(list_count "$LISTS_DIR/auto.list"),"exclude":$(list_count "$LISTS_DIR/exclude.list"),"ipset":$(list_count "$LISTS_DIR/ipset.list"),"ipset_exclude":$(list_count "$LISTS_DIR/ipset_exclude.list"),"apps":$(list_count "$CONFDIR/apps.list")}}
 JSON
 }
@@ -157,6 +150,16 @@ cmd_doctor() {
   esac
   has_ipt_feature iptables -m owner --uid-owner 0 -j RETURN \
     && row ok owner "фильтр приложений доступен" || row warn owner "нет xt_owner — фильтр приложений не сработает"
+  if app_mode_active; then
+    local n=$(app_uid_count)
+    if [ "$n" = "0" ]; then
+      row warn apps "режим $APP_MODE, но apps.list не разрешился в UID ($(list_count "$CONFDIR/apps.list") пакетов)"
+    else
+      row ok apps "режим $APP_MODE, $n UID"
+    fi
+  else
+    row info apps "фильтр по приложениям выключен (APP_MODE=off)"
+  fi
   [ -e /proc/sys/net/netfilter/nf_conntrack_checksum ] && row ok conntrack "sysctl доступны" || row warn conntrack "нет nf_conntrack sysctl"
   is_running && row ok process "nfqws2 PID $(cat "$PIDFILE" 2>/dev/null)" || row info process "не запущен"
   if is_running; then
@@ -176,6 +179,32 @@ cmd_doctor() {
   fi
   [ "$LOG_LEVEL" = "1" ] && row warn debug "включён подробный лог nfqws2 — работает заметно медленнее, выключите после диагностики"
   [ -f "$LOG_DIR/rollback-diag.txt" ] && row warn rollback "есть след последнего автоотката — см. Логи → export, файл rollback-diag.txt"
+}
+
+cmd_apply_apps() {
+  [ -f "$SERVICE" ] || { echo "Не найден $SERVICE" >&2; return 1; }
+  if ! app_mode_active; then
+    rm -f "$APP_UIDS_FILE"
+    is_running && sh "$SERVICE" firewall_apply >/dev/null 2>&1
+    echo "Фильтр по приложениям выключен"
+    return 0
+  fi
+  if ! app_features_ok iptables; then
+    echo "Ядро не поддерживает xt_owner/xt_CONNMARK — фильтр по приложениям невозможен" >&2
+    return 1
+  fi
+  printf '%s\n' "$(resolve_app_uids)" > "$APP_UIDS_FILE"
+  local n=$(app_uid_count)
+  if [ "$n" = "0" ]; then
+    echo "Ни один пакет из apps.list не сопоставлен с UID (проверьте имена пакетов)" >&2
+    return 1
+  fi
+  if is_running; then
+    sh "$SERVICE" firewall_apply >/dev/null 2>&1 || { echo "Не удалось применить правила iptables" >&2; return 1; }
+    echo "Фильтр по приложениям ($APP_MODE): $n UID"
+  else
+    echo "Фильтр по приложениям ($APP_MODE): $n UID — правила применятся при запуске службы"
+  fi
 }
 
 cmd_import_add() { # $1 = имя, $2 = путь к файлу с содержимым
@@ -277,7 +306,9 @@ case "$1" in
     [ -f "$f" ] || cp -f "$MODDIR/defaults/lists/${f##*/}" "$f" 2>/dev/null
     [ -f "$f" ] && cat "$f" ;;
   save-list-b64) f=$(list_file "$2") || { echo "Неизвестный список" >&2; exit 1; }
-    b64d "$3" | tr -d '\r' > "$f.tmp" && mv -f "$f.tmp" "$f"; chmod 0644 "$f"; is_running && [ "$2" != "apps" ] && sh "$SERVICE" reload >/dev/null 2>&1; echo OK ;;
+    b64d "$3" | tr -d '\r' > "$f.tmp" && mv -f "$f.tmp" "$f"; chmod 0644 "$f"
+    if [ "$2" = "apps" ]; then cmd_apply_apps; exit $?; fi
+    is_running && sh "$SERVICE" reload >/dev/null 2>&1; echo OK ;;
   add-domain)
     d=$(printf '%s' "$2" | tr 'A-Z' 'a-z' | sed 's#^[a-z]*://##; s#/.*##; s/^www\.//')
     case "$d" in ''|*[!a-z0-9.-]*) echo "Некорректный домен" >&2; exit 1 ;; esac
@@ -294,17 +325,19 @@ case "$1" in
       APP_MODE) case "$3" in off|include|exclude) ;; *) echo "off|include|exclude" >&2; exit 1 ;; esac ;;
       *) echo "Параметр $2 нельзя менять этой командой" >&2; exit 1 ;;
     esac
-    set_conf_param "$2" "$3"; echo OK; need_restart_note ;;
+    set_conf_param "$2" "$3"; echo OK
+    if [ "$2" = "APP_MODE" ]; then load_conf >/dev/null 2>&1; cmd_apply_apps; else need_restart_note; fi ;;
   set-mode)
     case "$2" in list|auto|all) set_conf_param NFQWS_EXTRA_ARGS "\$MODE_$(printf '%s' "$2" | tr a-z A-Z)"; echo OK; need_restart_note ;;
       *) echo "list|auto|all" >&2; exit 1 ;; esac ;;
   list-apps) cmd_list_apps ;;
+  apply-apps) cmd_apply_apps ;;
   get-logs) cmd_get_logs "$2" "$3" ;;
   export-logs) cmd_export_logs ;;
   clear-logs) : > "$SERVICE_LOG"; : > "$NFQWS_LOG"; rm -f "$LOG_DIR/nfqws2-debug.log" "$LOG_DIR/auto.log"; echo OK ;;
   *)
     echo "Команды: status json-status is-running start stop restart reload doctor get-conf save-conf-b64 reset-conf" >&2
     echo "         list-strategies get-strategy set-strategy import-add-b64 list-imports get-import-merged-b64 rename-import delete-import" >&2
-    echo "         get-list save-list-b64 add-domain clear-auto reset-lists set set-mode list-apps get-logs export-logs clear-logs" >&2
+    echo "         get-list save-list-b64 add-domain clear-auto reset-lists set set-mode list-apps apply-apps get-logs export-logs clear-logs" >&2
     exit 1 ;;
 esac
