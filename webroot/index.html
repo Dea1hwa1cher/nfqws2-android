@@ -5,18 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#171217">
 <title>nfqws2</title>
-<!-- Внешние системные цвета KernelSU (если доступны онлайн) -->
 <link rel="stylesheet" href="https://mui.kernelsu.org/internal/insets.css" type="text/css">
 <link rel="stylesheet" href="https://mui.kernelsu.org/internal/colors.css" type="text/css">
 <style>
-/* ==============================================================================
-   MATERIAL 3 DESIGN SYSTEM & SLOPRET ARCHITECTURE (INLINE & BULLETPROOF)
-   ============================================================================== */
+/* MATERIAL 3 DESIGN SYSTEM */
 :root {
   --top-inset: var(--window-inset-top, env(safe-area-inset-top, 0px));
   --bottom-inset: var(--window-inset-bottom, env(safe-area-inset-bottom, 0px));
 
-  /* Динамическая палитра Monet (по умолчанию HyperOS Сирень #deb0da) */
   --md-source-color: #deb0da;
   --md-sys-color-primary: var(--primary, #eeb8e8);
   --md-sys-color-on-primary: var(--onPrimary, #472146);
@@ -144,7 +140,7 @@ html, body {
 .row > * { flex: 1; min-width: 100px; }
 .divider { height: 1px; background: var(--md-sys-color-outline-variant); margin: 6px 0; }
 
-/* Slopret Hero Card */
+/* Hero Card */
 .hero-card {
   border-radius: var(--radius-xl); padding: 20px;
   display: flex; flex-direction: column; gap: 14px;
@@ -221,7 +217,6 @@ html, body {
 .seg-btn.on { background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container); font-weight: 600; }
 
 /* Switches */
-/* Официальный Material 3 Switch (52 x 32 px) */
 .switch-m3 {
   appearance: none;
   -webkit-appearance: none;
@@ -238,7 +233,6 @@ html, body {
   box-sizing: border-box;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
-
 .switch-m3:after {
   content: "";
   position: absolute;
@@ -250,12 +244,10 @@ html, body {
   background: var(--md-sys-color-outline);
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
-
 .switch-m3:checked {
   background: var(--md-sys-color-primary);
   border-color: var(--md-sys-color-primary);
 }
-
 .switch-m3:checked:after {
   left: 24px;
   top: 2px;
@@ -279,7 +271,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--md-sys-color-pri
   overflow: auto; max-height: 52vh; white-space: pre-wrap; word-break: break-all;
 }
 
-/* Slopret Fullscreen Slide Panel */
+/* Fullscreen Slide Panel */
 .slide-panel {
   position: fixed; inset: 0; z-index: 50;
   background: var(--md-sys-color-background);
@@ -374,7 +366,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--md-sys-color-pri
         </button>
         <div class="header-title-box">
             <h1 id="title">nfqws2</h1>
-            <small id="header-version">v1.2.2</small>
+            <small id="header-version">v1.3.0</small>
         </div>
         <button class="btn-m3 icon-btn" onclick="openMonetModal()" title="Палитра темы">🎨</button>
         <span class="badge" id="hs">…</span>
@@ -404,6 +396,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--md-sys-color-pri
 
         <!-- 1. УПРАВЛЕНИЕ -->
         <div class="page-view active" data-page="control">
+            <!-- Hero Card -->
             <div class="hero-card" id="hero-status">
                 <div class="hero-label">Состояние службы</div>
                 <div class="hero-state" id="st">Опрос службы...</div>
@@ -417,7 +410,19 @@ input:focus, select:focus, textarea:focus { border-color: var(--md-sys-color-pri
             </div>
             <div id="warn" style="margin-top: 8px;"></div>
 
+            <!-- КАРТОЧКА: ВЫБОР СТРАТЕГИИ (ПРЕСЕТЫ FLOWSEAL И ДР.) -->
             <div class="card" style="margin-top: 10px;">
+                <div class="card-title">Готовые стратегии (Пресеты)</div>
+                <div class="mu">Выберите стратегию под вашего провайдера:</div>
+                <select id="strategy-sel" onchange="onStrategySelectChange()"></select>
+                <div class="mu" id="strategy-desc" style="padding: 4px 2px; font-style: italic;"></div>
+                <div class="row" style="margin-top: 4px;">
+                    <button class="btn-m3 primary grow" onclick="applySelectedStrategy()">Применить и перезапустить</button>
+                </div>
+            </div>
+
+            <!-- ПАРАМЕТРЫ ЯДРА -->
+            <div class="card">
                 <div class="card-title">Параметры ядра и сети</div>
                 <div id="sws"></div>
                 <div class="divider"></div>
@@ -426,17 +431,18 @@ input:focus, select:focus, textarea:focus { border-color: var(--md-sys-color-pri
                         <b style="font-size:13.5px;">Лимит исходящих пакетов</b>
                         <div class="mu">Пакетов на соединение (1–15)</div>
                     </div>
-                    <input type="number" id="pkout" min="1" max="15" style="width:72px; text-align:center; flex:none;" onchange="setp('PKT_LIMIT_OUT',this.value)">
+                    <input type="number" id="pkout" min="1" max="15" style="width:72px !important; min-width:72px !important; flex:0 0 72px !important; text-align:center;" onchange="setp('PKT_LIMIT_OUT',this.value)">
                 </div>
                 <div class="row" style="margin-top: 6px;">
                     <div style="flex:1;">
                         <b style="font-size:13.5px;">Лимит входящих пакетов</b>
                         <div class="mu">Действует только при xt_connbytes</div>
                     </div>
-                    <input type="number" id="pkin" min="1" max="15" style="width:72px; text-align:center; flex:none;" onchange="setp('PKT_LIMIT_IN',this.value)">
+                    <input type="number" id="pkin" min="1" max="15" style="width:72px !important; min-width:72px !important; flex:0 0 72px !important; text-align:center;" onchange="setp('PKT_LIMIT_IN',this.value)">
                 </div>
             </div>
 
+            <!-- ДИАГНОСТИКА -->
             <div class="card">
                 <div class="card-title">Диагностика</div>
                 <div class="row">
@@ -500,7 +506,6 @@ input:focus, select:focus, textarea:focus { border-color: var(--md-sys-color-pri
         <div class="page-view" data-page="config">
             <div class="card">
                 <div class="card-title">nfqws2.conf</div>
-                <!-- Клик по рамке разворачивает полноэкранный редактор Slide Panel -->
                 <textarea id="ctx" spellcheck="false" style="min-height:220px; cursor:pointer;" onclick="openSlideEditor('conf')" title="Нажмите на рамку для редактирования во весь экран" readonly></textarea>
                 <div class="row">
                     <button class="btn-m3 primary" onclick="openSlideEditor('conf')">Редактировать во весь экран ⛶</button>
@@ -566,7 +571,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--md-sys-color-pri
         </div>
     </div>
 
-    <!-- Полноэкранный редактор Slide Panel (Slopret M3 Panel 100dvh) -->
+    <!-- Полноэкранный редактор Slide Panel -->
     <div class="slide-panel" id="editor-panel">
         <div class="panel-header">
             <button class="btn-m3 icon-btn" onclick="closeSlideEditor()" title="Закрыть">✕</button>
@@ -585,7 +590,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--md-sys-color-pri
         <span id="prompt-msg"></span>
     </div>
 
-    <!-- Модальное окно темы Monet с M3 HEX Палитрой -->
+    <!-- Модальное окно темы Monet -->
     <div id="monet-modal" onclick="if(event.target===this)closeMonetModal()">
         <div class="monet-sheet">
             <h2 style="font-size:16px; color:var(--md-sys-color-primary);">Динамическая тема (Monet)</h2>
@@ -697,6 +702,69 @@ function startUptTimer(baseSec){
   tick(); uptTimer = setInterval(tick, 1000);
 }
 
+// ==============================================================================
+// ОПИСАНИЯ И МЕНЕДЖЕР СТРАТЕГИЙ
+// ==============================================================================
+const STRATEGY_INFO = {
+  'default': 'Стандартная конфигурация nfqws2 с круговым перебором (circular).',
+  'alt': 'Flowseal ALT: Fake STUN + Google TLS + fakedsplit с отрицательным ACK.',
+  'alt2': 'Flowseal ALT2: Чистый multisplit (pos=2) с seqovl подменой (tls_google).',
+  'alt3': 'Flowseal ALT3: Fake ya.ru + hostfakesplit подмену доменов с tcp_ts.',
+  'alt4': 'Flowseal ALT4: Легковесный fake STUN + Google + базовый multisplit.',
+  'alt4_mod': 'Flowseal ALT4 Mod: Модифицированный ALT4 с hostfakesplit mail.ru.',
+  'alt5': 'Flowseal ALT5: Пейлоад в SYN (syndata) + multidisorder для обхода продвинутых ТСПУ.',
+  'alt6': 'Flowseal ALT6: Прицельный multisplit с полным перекрытием seqovl=681.',
+  'alt7': 'Flowseal ALT7: Двойной multisplit на границе SNI (pos=2, sniext+1).',
+  'alt8': 'Flowseal ALT8: Классический фейк fake_default_tls с badseq фулингом.',
+  'alt9': 'Flowseal ALT9: Hostfakesplit ozon.ru с подписью tcp_md5 и tcp_ts_up.',
+  'alt10': 'Flowseal ALT10: Чистый фейк (STUN + 4pda) без фрагментации — минимальная нагрузка на CPU.',
+  'alt11': 'Flowseal ALT11: Двойной фейк STUN2 + max_ru с multisplit seqovl=664.',
+  'alt12': 'Flowseal ALT12: Популярная стратегия для YouTube: fake max_ru + multisplit seqovl=664.',
+  'alt13': 'Flowseal ALT13: Двойной фейк (Sochi + STUN2) + hostfakesplit mail.ru.',
+  'fake_tls_auto': 'Flowseal FAKE TLS AUTO: Двойной фейк (нули + default) + multidisorder.',
+  'fake_tls_auto_alt': 'Flowseal FAKE TLS AUTO ALT: Фейк default_tls + fakedsplit (pos=1).',
+  'fake_tls_auto_alt2': 'Flowseal FAKE TLS AUTO ALT2: Фейк default_tls + multisplit seqovl=681.',
+  'fake_tls_auto_alt3': 'Flowseal FAKE TLS AUTO ALT3: Фейк default_tls с tcp_ts=-600000 + multisplit.',
+  'simple_fake': 'Flowseal SIMPLE FAKE: Легкий фейк Google + max_ru без фрагментации.',
+  'simple_fake_alt': 'Flowseal SIMPLE FAKE ALT: Фейк STUN2 + Google + max_ru.',
+  'simple_fake_alt2': 'Flowseal SIMPLE FAKE ALT2: Фейк STUN2 + max_ru (без google).',
+  'hardcorp74': 'Hardcorp74: 5-уровневый круговой перебор (Sochi, STUN, Ozon, RZD) + YouTube кастом.',
+  'krushaaa': 'Krushaaa: Lordfilm фейк + STUN2 + двойной multisplit.',
+  'MartinBacker': 'MartinBacker: Мощный 10-уровневый перебор + выделенные профили под Googlevideo/Discord.',
+  'Uvvi2': 'Uvvi2: Сток nfqws2-keenetic с прицельным профилем под войс Discord.',
+  'eduncey': 'Eduncey: 4 стратегии (fonts.google, ozon, www.google) + STUN кастом.',
+  'exp': 'EXP: Экспериментальный профиль STUN2 + max_ru с защитой Discord/unknown.'
+};
+
+async function initStrategySelector(){
+  const strats = (await ctl(['list-strategies'])).trim().split('\n').filter(Boolean);
+  const cur = (await ctl(['get-strategy'])).trim() || 'default';
+  
+  const options = ['default', ...strats.filter(s => s !== 'default')];
+  $('strategy-sel').innerHTML = options.map(s => `
+    <option value="${s}" ${s === cur ? 'selected' : ''}>
+      ${s === 'default' ? 'По умолчанию (nfqws2.conf)' : s}
+    </option>
+  `).join('');
+
+  onStrategySelectChange();
+}
+
+function onStrategySelectChange(){
+  const val = $('strategy-sel').value;
+  $('strategy-desc').textContent = STRATEGY_INFO[val] || 'Пользовательская конфигурация стратегии.';
+}
+
+async function applySelectedStrategy(){
+  const val = $('strategy-sel').value;
+  if(confirm(`Применить стратегию «${val}» и перезапустить службу?`)){
+    toast('Применение стратегии...');
+    const r = await ctlx(['set-strategy', val]);
+    toast(r.code ? (r.err || 'Ошибка').trim() : r.out.trim());
+    await act('restart');
+  }
+}
+
 // 1. УПРАВЛЕНИЕ / СТАТУС
 const SW = [
   ['AUTOSTART','Автозапуск при загрузке'],
@@ -709,11 +777,11 @@ const KEY = {AUTOSTART:'autostart', WATCHDOG:'watchdog', IPV6_ENABLED:'ipv6', BL
 async function stat(){
   let j; try{ j = JSON.parse(await ctl(['json-status'])); }catch(e){ $('st').textContent = 'Нет связи с модулем'; return; }
   S = j;
-  $('header-version').textContent = j.version || 'v1.2.2';
+  $('header-version').textContent = j.version || 'v1.3.0';
   $('hero-status').className = 'hero-card ' + (j.running ? 'running' : '');
   $('st').textContent = j.running ? 'Служба запущена' : 'Служба остановлена';
   $('hs').textContent = j.running ? 'PID ' + j.pid : 'выкл';
-  $('sub').textContent = 'Режим: ' + j.mode + (j.running && j.limiter ? ' · ' + ({connbytes:'обе стороны', connmark_out:'только исх., лимит ' + j.pkt_limit_out}[j.limiter] || j.limiter) : '');
+  $('sub').textContent = 'Режим: ' + j.mode + (j.strategy ? ' · пресет ' + j.strategy : '') + (j.running && j.limiter ? ' · ' + ({connbytes:'обе стороны', connmark_out:'только исх., лимит ' + j.pkt_limit_out}[j.limiter] || j.limiter) : '');
 
   if(j.running){ startUptTimer(j.uptime || 0); } else { stopUptTimer(); }
 
@@ -949,7 +1017,7 @@ async function runTest(){
 }
 
 // ==============================================================================
-// ADVANCED MATERIAL 3 / MONET (HYPEROS / ANDROID 14-16)
+// ADVANCED MATERIAL 3
 // ==============================================================================
 function hexToHsl(hex){
   hex = hex.replace('#','');
@@ -1148,6 +1216,7 @@ function closeMonetModal(){ $('monet-modal').classList.remove('show'); }
 // Инициализация при открытии WebUI
 detectSystemMonet();
 stat();
+initStrategySelector();
 </script>
 </body>
 </html>
