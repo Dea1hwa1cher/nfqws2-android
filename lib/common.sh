@@ -1,18 +1,15 @@
 #!/system/bin/sh
 [ -n "$MODDIR" ] || { echo "MODDIR is not set" >&2; return 1 2>/dev/null || exit 1; }
 
-: "${CONFDIR:=/data/adb/modules/nfqws2-android}"
+: "${CONFDIR:=/data/adb/nfqws2}"
 CONFFILE="$CONFDIR/nfqws2.conf"
 LISTS_DIR="$CONFDIR/lists"
 STATE_DIR="$CONFDIR/state"
 LOG_DIR="$CONFDIR/logs"
-USER_PRESETS_DIR="$CONFDIR/presets"
-STRATEGIES_DIR="$MODDIR/strategies"
-USER_STRATEGIES_DIR="$CONFDIR/strategies"
+STRATEGIES_DIR="$CONFDIR/strategies"
 
 LUA_DIR="$MODDIR/lua"
 BLOBS_DIR="$MODDIR/blobs"
-PRESETS_DIR="$MODDIR/presets"
 NFQWS_BIN="$MODDIR/bin/nfqws2"
 
 PIDFILE="$STATE_DIR/nfqws2.pid"

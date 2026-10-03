@@ -3,4 +3,4 @@ name=nfqws2 for Android
 version=v1.3.0
 versionCode=1030
 author=port of nfqws/nfqws2-keenetic (MIT) + bol-van/zapret2
-description=Обход DPI на базе nfqws2. Конфиг и стратегии совместимы с nfqws2-keenetic: circular, автообучение доменов, QUIC/UDP, раздача, фильтр приложений, WebUI.
+description=Обход DPI на базе nfqws2.
