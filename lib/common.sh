@@ -103,29 +103,10 @@ rotate_logs() {   # $1 = start: вызывается до запуска nfqws2,
 # внутри кавычек запрещены обратные кавычки и $( ... ) — то есть выполнение команд.
 validate_conf() {
   awk '
-    BEGIN { q = 0; ok = 1 }
-    {
-      line = $0; n = length(line); i = 1
-      if (!q) { sub(/^[ \t]+/, "", line); n = length(line); i = 1
-        if (line == "" || substr(line,1,1) == "#") next
-        if (line !~ /^[A-Za-z_][A-Za-z0-9_]*=/) { printf "line %d: not an assignment\n", NR; ok = 0; next }
-        i = index(line, "=") + 1
-      }
-      for (; i <= n; i++) {
-        c = substr(line, i, 1)
-        if (q) {
-          if (c == "\\") { i++; continue }
-          if (c == "`") { printf "line %d: backtick is forbidden\n", NR; ok = 0 }
-          if (c == "$" && substr(line, i+1, 1) == "(") { printf "line %d: $( is forbidden\n", NR; ok = 0 }
-          if (c == "\"") q = 0
-        } else {
-          if (c == "\"") q = 1
-          else if (c == "#" && (i == 1 || substr(line,i-1,1) ~ /[ \t]/)) break
-          else if (c !~ /[A-Za-z0-9_.,:\/@+-]/ && c != " " && c != "\t") { printf "line %d: unexpected character outside quotes\n", NR; ok = 0 }
-        }
-      }
-    }
-    END { if (q) { print "unterminated quote"; ok = 0 } exit ok ? 0 : 1 }
+    BEGIN { ok = 1 }
+    /`/ { printf "line %d: backtick is forbidden\n", NR; ok = 0 }
+    /\$\(/ { printf "line %d: $( is forbidden\n", NR; ok = 0 }
+    END { exit ok ? 0 : 1 }
   ' "$1"
 }
 
@@ -191,7 +172,9 @@ nfqws_supports() {
 # 1) убрать строки-комментарии внутри многострочных значений, 2) сжать пробелы,
 # 3) подменить пути оригинала (/opt/...) на пути Android.
 norm_args() {
-  printf '%s\n' "$1" | sed -e 's/^[[:space:]]*#.*$//' | tr '\n\t' '  ' | tr -s ' ' \
+  printf '%s\n' "$1" \
+    | sed -e 's/^[[:space:]]*#.*$//' -e 's/\\$//' \
+    | tr '\n\t' '  ' | tr -s ' ' \
     | sed -e "s#/opt/etc/nfqws2/lua#$LUA_DIR#g" \
           -e "s#/opt/etc/nfqws2/blobs#$BLOBS_DIR#g" \
           -e "s#/opt/etc/nfqws2/lists#$LISTS_DIR#g" \

@@ -1,5 +1,4 @@
 #!/system/bin/sh
-# nfqws2-ctl — CLI и мост для WebUI.  Использование: nfqws2-ctl <команда> [аргументы]
 umask 077
 SELF="${0%/*}"
 case "$SELF" in /*) ;; *) SELF="$(cd "$SELF" 2>/dev/null && pwd)" ;; esac
@@ -8,6 +7,10 @@ MODDIR="${SELF%/bin}"
 . "$MODDIR/lib/common.sh"
 load_conf >/dev/null 2>&1
 SERVICE="$MODDIR/service.sh"
+
+STRATEGIES_DIR="$MODDIR/strategies"
+USER_STRATEGIES_DIR="$CONFDIR/strategies"
+mkdir -p "$USER_STRATEGIES_DIR" "$STATE_DIR" 2>/dev/null
 
 b64d() {
   if command -v base64 >/dev/null 2>&1; then printf '%s' "$1" | base64 -d 2>/dev/null
@@ -43,6 +46,55 @@ current_mode() {
 
 need_restart_note() { is_running && echo "Изменения применятся после перезапуска службы"; }
 
+list_strategies() {
+  for f in "$STRATEGIES_DIR"/*.conf "$USER_STRATEGIES_DIR"/*.conf; do
+    [ -f "$f" ] || continue
+    basename "$f" .conf
+  done | sort -u
+}
+
+get_current_strategy() {
+  cat "$STATE_DIR/active_strategy" 2>/dev/null || echo "default"
+}
+
+set_strategy() {
+  local name="$1"
+  if [ "$name" = "default" ] || [ -z "$name" ]; then
+    cp -f "$MODDIR/defaults/nfqws2.conf" "$CONFFILE"
+    echo "default" > "$STATE_DIR/active_strategy"
+    echo "Применена стратегия: default"
+    return 0
+  fi
+
+  local src="$STRATEGIES_DIR/$name.conf"
+  [ -f "$src" ] || src="$USER_STRATEGIES_DIR/$name.conf"
+  if [ ! -f "$src" ]; then
+    echo "Стратегия '$name' не найдена" >&2
+    return 1
+  fi
+
+  local tmp="$STATE_DIR/strat_apply.tmp"
+  sed -e "s#/opt/etc/nfqws2/lua#$LUA_DIR#g" \
+      -e "s#/opt/etc/nfqws2/blobs#$BLOBS_DIR#g" \
+      -e "s#/opt/etc/nfqws2/lists#$LISTS_DIR#g" \
+      -e "s#/opt/etc/nfqws2#$CONFDIR#g" \
+      -e "s#/opt/var/log#$LOG_DIR#g" \
+      -e 's#^[[:space:]]*ISP_INTERFACE=.*#ISP_INTERFACE=""#' \
+      -e 's#^[[:space:]]*USER=.*#NFQWS_USER=root#' "$src" > "$tmp"
+
+  if validate_conf "$tmp" >/dev/null 2>&1; then
+    cp -f "$CONFFILE" "$CONFFILE.bak" 2>/dev/null
+    mv -f "$tmp" "$CONFFILE"
+    chmod 0644 "$CONFFILE"
+    echo "$name" > "$STATE_DIR/active_strategy"
+    echo "Применена стратегия: $name"
+  else
+    echo "Ошибка валидации стратегии '$name'" >&2
+    rm -f "$tmp"
+    return 1
+  fi
+}
+
 cmd_json_status() {
   local run=false pid="" uptime=0
   if is_running; then
@@ -55,12 +107,13 @@ cmd_json_status() {
       [ "$uptime" -ge 0 ] 2>/dev/null || uptime=0
     fi
   fi
-  local ver strat_tls strat_udp
+  local ver strat_tls strat_udp cur_strat
   ver=$(sed -n 's/^version=//p' "$MODDIR/module.prop" | head -n1)
   strat_tls=$(norm_args "$NFQWS_ARGS" | tr ' ' '\n' | grep -o 'strategy=[0-9]*' | sort -u | tr -d 'strategy=' | sort -n | tr '\n' ',' | sed 's/,$//')
   strat_udp=$(norm_args "$NFQWS_ARGS_UDP" | tr ' ' '\n' | grep -o 'strategy=[0-9]*' | sort -u | tr -d 'strategy=' | sort -n | tr '\n' ',' | sed 's/,$//')
+  cur_strat=$(get_current_strategy)
   cat <<JSON
-{"running":$run,"pid":"$pid","uptime":$uptime,"version":"$ver","mode":"$(current_mode)",
+{"running":$run,"pid":"$pid","uptime":$uptime,"strategy":"$cur_strat","version":"$ver","mode":"$(current_mode)",
 "strategy_tls":"$STRATEGY_TLS","strategy_udp":"$STRATEGY_UDP","tls_strategies":"$strat_tls","udp_strategies":"$strat_udp",
 "preset":"$PRESET_TCP","limiter":"$(cat "$STATE_DIR/limiter" 2>/dev/null)","pkt_limit_out":${PKT_LIMIT_OUT:-15},"block_quic":${BLOCK_QUIC:-0},"app_mode":"$APP_MODE","autostart":${AUTOSTART:-1},"watchdog":${WATCHDOG:-1},
 "ipv6":${IPV6_ENABLED:-1},"log_level":${LOG_LEVEL:-0},"qdrop":$(awk -v q="$NFQUEUE_NUM" '$1 == q { print $6 + $7; f = 1 } END { if (!f) print 0 }' /proc/net/netfilter/nfnetlink_queue 2>/dev/null),"queue":${NFQUEUE_NUM:-300},
@@ -71,7 +124,7 @@ JSON
 cmd_status() {
   status_line=$(sh "$SERVICE" status)
   echo "$status_line"
-  echo "Режим: $(current_mode) | QUIC-блок: $BLOCK_QUIC | Приложения: $APP_MODE"
+  echo "Режим: $(current_mode) | Пресет: $(get_current_strategy) | QUIC-блок: $BLOCK_QUIC | Приложения: $APP_MODE"
   echo "user=$(list_count "$LISTS_DIR/user.list") auto=$(list_count "$LISTS_DIR/auto.list") exclude=$(list_count "$LISTS_DIR/exclude.list") ipset=$(list_count "$LISTS_DIR/ipset.list")"
   is_running && { firewall_ok && echo "Правила iptables: активны" || echo "Правила iptables: ОТСУТСТВУЮТ"; }
 }
@@ -92,13 +145,13 @@ cmd_doctor() {
   local lim
   lim=$(detect_limiter iptables)
   case "$lim" in
-    connbytes)    row ok limiter "есть connbytes: обе стороны, лимит исх. $PKT_LIMIT_OUT / вх. $PKT_LIMIT_IN пак. на соединение" ;;
-    connmark_out) row warn limiter "нет connbytes: входящий поток данных не перехватывается (только RST/FIN/SYN,ACK); исходящий ограничен $PKT_LIMIT_OUT пак. на соединение, сбрасывается раз в 30 сек" ;;
+    connbytes)   row ok limiter "есть connbytes: обе стороны, лимит исх. $PKT_LIMIT_OUT / вх. $PKT_LIMIT_IN пак. на соединение" ;;
+    connmark_out) row warn limiter "нет connbytes: входящий поток данных не перехватывается; исходящий ограничен $PKT_LIMIT_OUT пак. на соединение (CONNMARK)" ;;
   esac
   has_ipt_feature iptables -m owner --uid-owner 0 -j RETURN \
     && row ok owner "фильтр приложений доступен" || row warn owner "нет xt_owner — фильтр приложений не сработает"
   [ -e /proc/sys/net/netfilter/nf_conntrack_checksum ] && row ok conntrack "sysctl доступны" || row warn conntrack "нет nf_conntrack sysctl"
-  is_running && row ok process "nfqws2 PID $(cat "$PIDFILE")" || row info process "не запущен"
+  is_running && row ok process "nfqws2 PID $(cat "$PIDFILE" 2>/dev/null)" || row info process "не запущен"
   if is_running; then
     local qn
     qn=$(cat /proc/net/netfilter/nfnetlink_queue 2>/dev/null | awk -v q="$NFQUEUE_NUM" '$1 == q { print }')
@@ -115,15 +168,10 @@ cmd_doctor() {
     firewall_ok && row ok rules "правила iptables на месте" || row fail rules "правила iptables отсутствуют"
   fi
   [ "$LOG_LEVEL" = "1" ] && row warn debug "включён подробный лог nfqws2 — работает заметно медленнее, выключите после диагностики"
-  [ -f "$LOG_DIR/rollback-diag.txt" ] && row warn rollback "есть след последнего автооткота — см. Логи → export, файл rollback-diag.txt"
+  [ -f "$LOG_DIR/rollback-diag.txt" ] && row warn rollback "есть след последнего автоотката — см. Логи → export, файл rollback-diag.txt"
 }
 
-# ---- Импорт конфигов пачками (flowseal и т.п.) -----------------------------------------------
-# Исходники хранятся в imports/ БЕЗ изменений (validate_conf проверяет только безопасность,
-# не переписывает файл). Подстановка путей и Настроек Android происходит "на лету" в
-# render_import_merged — только когда пользователь выбирает конфиг в редакторе, поэтому смена
-# Android-параметров сразу видна на всех импортированных конфигах, а не только на новых.
-cmd_import_add() {   # $1 = имя (может быть пустым — тогда по дате), $2 = путь к файлу с содержимым
+cmd_import_add() { # $1 = имя, $2 = путь к файлу с содержимым
   local name="$1" src="$2" safe
   [ -f "$src" ] || { echo "Нет данных для импорта" >&2; return 1; }
   tr -d '\r' < "$src" > "$src.n" && mv -f "$src.n" "$src"
@@ -166,7 +214,7 @@ cmd_export_logs() {
   echo "Логи сохранены в $d"
 }
 
-cmd_list_apps() {   # установленные сторонние приложения: пакет
+cmd_list_apps() {
   pm list packages -3 2>/dev/null | sed 's/^package://' | sort
 }
 
@@ -187,22 +235,26 @@ case "$1" in
       cp -f "$CONFFILE" "$CONFFILE.bak" 2>/dev/null; mv -f "$t" "$CONFFILE"; chmod 0644 "$CONFFILE"; echo OK; need_restart_note
     else echo "Конфиг отклонён: $err" >&2; rm -f "$t"; exit 1; fi ;;
   reset-conf)
-    cp -f "$CONFFILE" "$CONFFILE.bak" 2>/dev/null; cp -f "$MODDIR/defaults/nfqws2.conf" "$CONFFILE"; echo OK ;;
+    cp -f "$CONFFILE" "$CONFFILE.bak" 2>/dev/null; cp -f "$MODDIR/defaults/nfqws2.conf" "$CONFFILE"; echo "default" > "$STATE_DIR/active_strategy"; echo OK ;;
 
-  import-add-b64)   # $2 = имя (b64, может быть пустым ""), $3 = содержимое файла (b64)
+  list-strategies) list_strategies ;;
+  get-strategy) get_current_strategy ;;
+  set-strategy) set_strategy "$2" ;;
+
+  import-add-b64)
     t="$STATE_DIR/imp.in"; b64d "$3" > "$t"
     cmd_import_add "$(b64d "$2")" "$t"; rc=$?; rm -f "$t"; exit $rc ;;
   list-imports) list_imports ;;
-  get-import-merged-b64)   # $2 = имя импорта
-    case "$2" in ''|*/*|*'`'*|*'\$'*|*'"'*|*"'"*|*'\\'*) echo "Некорректное имя" >&2; exit 1 ;; esac
+  get-import-merged-b64)
+    case "$2" in ''|*/*|*'`'*|*'$'*|*'"'*|*\'*|*'\\'*) echo "Некорректное имя" >&2; exit 1 ;; esac
     f="$IMPORTS_DIR/$2.conf"
     [ -f "$f" ] || { echo "Импорт не найден" >&2; exit 1; }
     render_import_merged "$f" | { command -v base64 >/dev/null 2>&1 && base64 || busybox base64; } ;;
   delete-import)
-    case "$2" in ''|*/*|*'`'*|*'\$'*|*'"'*|*"'"*|*'\\'*) echo "Некорректное имя" >&2; exit 1 ;; esac
+    case "$2" in ''|*/*|*'`'*|*'$'*|*'"'*|*\'*|*'\\'*) echo "Некорректное имя" >&2; exit 1 ;; esac
     rm -f "$IMPORTS_DIR/$2.conf"; echo OK ;;
-  rename-import)   # $2 = текущее имя, $3 = новое (как есть, не b64 — пробелы передаются в кавычках)
-    case "$2" in ''|*/*|*'`'*|*'\$'*|*'"'*|*"'"*|*'\\'*) echo "Некорректное текущее имя" >&2; exit 1 ;; esac
+  rename-import)
+    case "$2" in ''|*/*|*'`'*|*'$'*|*'"'*|*\'*|*'\\'*) echo "Некорректное текущее имя" >&2; exit 1 ;; esac
     src="$IMPORTS_DIR/$2.conf"
     [ -f "$src" ] || { echo "Импорт не найден" >&2; exit 1; }
     newname=$(import_safe_name "$3")
@@ -245,7 +297,7 @@ case "$1" in
   clear-logs) : > "$SERVICE_LOG"; : > "$NFQWS_LOG"; rm -f "$LOG_DIR/nfqws2-debug.log" "$LOG_DIR/auto.log"; echo OK ;;
   *)
     echo "Команды: status json-status is-running start stop restart reload doctor get-conf save-conf-b64 reset-conf" >&2
-    echo "         import-add-b64 list-imports get-import-merged-b64 rename-import delete-import" >&2
+    echo "         list-strategies get-strategy set-strategy import-add-b64 list-imports get-import-merged-b64 rename-import delete-import" >&2
     echo "         get-list save-list-b64 add-domain clear-auto reset-lists set set-mode list-apps get-logs export-logs clear-logs" >&2
     exit 1 ;;
 esac
