@@ -36,7 +36,7 @@ else
   ui_print "- Создан конфиг: $CONF/nfqws2.conf"
 fi
 for f in user exclude ipset ipset_exclude auto probe_hosts; do
-  [ -f "$CONF/lists/$f.list" ] || cp -f "$MODPATH/defaults/lists/$f.list" "$CONF/lists/$f.list"
+  [ -f "$CONF/lists/$f.list" ] || cp -f "$MODPATH/lists/$f.list" "$CONF/lists/$f.list"
 done
 [ -f "$CONF/apps.list" ] || echo "# Пакеты для фильтра приложений (APP_MODE=include|exclude), по одному на строку" > "$CONF/apps.list"
 rm -f "$CONF/state/caps"
