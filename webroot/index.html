@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#1c1b1f">
 <title>nfqws2</title>
 <link rel="stylesheet" href="https://mui.kernelsu.org/internal/insets.css" type="text/css">
@@ -46,7 +46,7 @@
   --shape-medium: 12px;
   --shape-large: 16px;
   --shape-extra-large: 28px;
-  --shape-card: 20px;
+  --shape-card: 12px;          /* M3: радиус карточек 12dp */
   --shape-full: 9999px;
   --shape-inner: 8px;          /* split button / stacked list inner corners */
   /* Алиасы старых имён: инлайновые стили из JS их тоже используют */
@@ -218,13 +218,12 @@ html, body {
 }
 body { overflow-x: hidden; overscroll-behavior-y: none; }
 button, input, select, textarea { font-family: inherit; font-size: inherit; color: inherit; }
-svg.icon { width: 24px; height: 24px; flex: none; fill: none; stroke: currentColor;
-  stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; display: block; }
+/* Material Symbols — заливные глифы: stroke не используется */
+svg.icon { width: 24px; height: 24px; flex: none; fill: currentColor; display: block; }
 svg.icon.s16 { width: 16px; height: 16px; }
 svg.icon.s18 { width: 18px; height: 18px; }
 svg.icon.s20 { width: 20px; height: 20px; }
 svg.icon.s24 { width: 24px; height: 24px; }
-svg.icon.fill { fill: currentColor; stroke: none; }
 :where(button, a, input, select, textarea, label.clickable, [tabindex]):focus-visible {
   outline: 2px solid var(--md-sys-color-primary); outline-offset: 2px;
 }
@@ -302,7 +301,7 @@ svg.icon.fill { fill: currentColor; stroke: none; }
 .scrim.show { opacity: 1; pointer-events: auto; }
 .nav-drawer {
   position: fixed; top: 0; bottom: 0; left: 0; z-index: 50;
-  width: min(320px, 86vw);
+  width: min(360px, 88vw);     /* M3: modal drawer 360dp; 88vw — чтобы не занимал весь узкий экран */
   padding: calc(var(--top-inset) + 12px) 12px calc(var(--bottom-inset) + 12px);
   background: var(--md-sys-color-surface-container-low); color: var(--md-sys-color-on-surface);
   border-start-end-radius: var(--shape-extra-large);
@@ -393,48 +392,43 @@ svg.icon.fill { fill: currentColor; stroke: none; }
 }
 .banner.danger { background: var(--md-sys-color-error-container); color: var(--md-sys-color-on-error-container); }
 
-/* ── Hero: карточка 204dp, метрики послоены справа ───────────────────── */
+/* ── Hero: карточка состояния 204dp ───────────────────────────────────── */
 .hero {
   --hero-bg: var(--md-sys-color-surface-container-highest);
   border-radius: var(--shape-card); padding: 20px; min-height: 204px;
-  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 0;
+  display: flex; flex-direction: column; gap: 2px;
   background: var(--hero-bg); color: var(--md-sys-color-on-surface);
   transition: background-color var(--dur-medium-long) var(--standard), color var(--dur-medium-long) var(--standard);
 }
 .hero.running { --hero-bg: var(--md-sys-color-primary-container);
   color: var(--md-sys-color-on-primary-container); box-shadow: var(--md-elev-1); }
-.hero-top { grid-column: 1; grid-row: 1; align-self: start; min-width: 0;
-  display: flex; flex-direction: column; gap: 2px; }
+.hero-top { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .hero-label { font-size: var(--ts-label-large); line-height: var(--lh-label-large); font-weight: var(--w-emph);
   letter-spacing: .6px; opacity: .75; }
 .hero-state { font-size: var(--ts-headline-medium); line-height: var(--lh-headline-medium); font-weight: var(--w-bold); }
 .hero-sub { font-size: var(--ts-body-small); line-height: var(--lh-body-small); opacity: .85;
   word-break: break-word; }
-/* послоенный блок: последующие значения перекрывают предыдущие, градиент подсвечивает фон */
-.hero-metrics { grid-column: 2; grid-row: 1; justify-self: end; align-self: start;
-  position: relative; z-index: 2; display: flex; flex-direction: column; align-items: flex-end; gap: 3px;
-  margin-left: -34px; pointer-events: none; }
-.hero .m { display: block; white-space: nowrap; text-align: right;
+/* Строки состояния: label слева, значение инлайн — переноса нет никогда */
+.hero-line { display: flex; flex-direction: row; align-items: center; gap: 10px;
   font-size: var(--ts-metric); line-height: var(--lh-metric); font-weight: var(--w-medium); opacity: .9; }
-.hero-metrics .m { padding-left: 20px;
-  background-image: linear-gradient(to right, transparent, var(--hero-bg) 62%); }
-.hero .m b { font-weight: var(--w-bold); font-variant-numeric: tabular-nums; }
-/* строки метрик: label слева, значение справа, переноса нет никогда */
-.hero-line { grid-column: 1 / -1; display: flex; flex-direction: row; align-items: center; gap: 10px;
-  font-size: var(--ts-metric); line-height: var(--lh-metric); font-weight: var(--w-medium); opacity: .9; }
-.hero-line span:first-child { white-space: nowrap; }
+.hero-line span { white-space: nowrap; }
 .hero-line b { font-weight: var(--w-bold); font-variant-numeric: tabular-nums; }
-.hero-line .m-tail { flex: 1 1 auto; text-align: right; min-width: 0; overflow: hidden;
-  text-overflow: ellipsis; white-space: nowrap; }
-.hero-line.up    { grid-row: 2; align-self: center; margin-top: 10px; }
-.hero-line.queue { grid-row: 3; }
-.hero-line.drop  { grid-row: 4; }
-.hero-foot { grid-column: 1 / -1; grid-row: 5; display: flex; align-items: center; gap: 8px;
-  flex-wrap: wrap; margin-top: 16px; }
+.hero-line.up { margin-top: 10px; }
+.hero-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
 .hero-state-dot { width: 10px; height: 10px; border-radius: var(--shape-full); flex: none;
   background: var(--md-sys-color-primary); transition: background-color var(--dur-medium) var(--spring); }
 .hero.running .hero-state-dot { background: var(--md-sys-color-on-primary-container); }
 .hero-state-dot.off { background: var(--md-sys-color-outline); }
+
+/* ── Metrics: счётчики списков в отдельной карточке ───────────────────── */
+.metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 20px; }
+.metrics .metric { display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  min-height: 44px; padding: 8px 0;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant); }
+.metrics .metric-label { font-family: var(--md-font-code); font-size: var(--ts-body-small);
+  line-height: var(--lh-body-small); color: var(--md-sys-color-on-surface-variant); }
+.metrics .metric-value { font-size: var(--ts-title-medium); line-height: var(--lh-title-medium);
+  font-weight: var(--w-emph); font-variant-numeric: tabular-nums; }
 .hero-state-dot.busy { background: var(--md-sys-color-tertiary); animation: pulse 900ms var(--standard) infinite alternate; }
 @keyframes pulse { from { opacity: .35; } to { opacity: 1; } }
 
@@ -486,22 +480,28 @@ svg.icon.fill { fill: currentColor; stroke: none; }
   background: color-mix(in srgb, var(--md-sys-color-on-surface) calc(var(--state-disabled-container) * 100%), transparent);
   color: color-mix(in srgb, var(--md-sys-color-on-surface) calc(var(--state-disabled-content) * 100%), transparent); }
 .btn.text[disabled], .btn.outlined[disabled] { background: transparent; }
-.btn.sm { height: 32px; padding: 0 14px; font-size: var(--ts-label-medium); line-height: var(--lh-label-medium); }
+/* sm = компактные отступы; высота всё равно 40dp — минимум для кнопки в M3 */
+.btn.sm { height: 40px; padding: 0 14px; }
 .btn.sm.with-icon { padding: 0 12px 0 8px; }
 .btn.height-m { height: 48px; padding: 0 28px; }
 
-/* ── Split button (M3 Expressive, 52dp, сегменты через 2dp) ──────────── */
-.split { display: inline-flex; align-items: stretch; height: 52px; gap: 2px; }
+/* ── Split button (M3 Expressive, 56dp, сегменты через 2dp) ────────────
+   Внешние углы — ровно половина высоты, а НЕ --shape-full: при смешивании
+   9999px с малым внутренним радиусом CSS пропорционально ужимает ВСЕ радиусы
+   (сумма радиусов на стороне не может превышать длину стороны), и внутренний
+   угол схлопывался в 0. Внешний радиус = --split-r = высота / 2. */
+.split { --split-h: 56px; --split-r: calc(var(--split-h) / 2);
+  display: inline-flex; align-items: stretch; height: var(--split-h); gap: 2px; }
 .split .seg-main, .split .seg-menu {
   appearance: none; border: 0; cursor: pointer;
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary);
   font-size: var(--ts-label-large); line-height: var(--lh-label-large); font-weight: var(--w-bold);
 }
-.split .seg-main { border-radius: var(--shape-full) var(--shape-inner) var(--shape-inner) var(--shape-full);
+.split .seg-main { border-radius: var(--split-r) var(--shape-inner) var(--shape-inner) var(--split-r);
   padding: 0 24px; }
-.split .seg-menu { border-radius: var(--shape-inner) var(--shape-full) var(--shape-full) var(--shape-inner);
-  width: 52px; padding: 0; }
+.split .seg-menu { border-radius: var(--shape-inner) var(--split-r) var(--split-r) var(--shape-inner);
+  width: var(--split-h); padding: 0; }
 .split.stop .seg-main, .split.stop .seg-menu { background: var(--md-sys-color-error); color: var(--md-sys-color-on-error); }
 .split.open .seg-menu { background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container);
   border-radius: var(--shape-full); }
@@ -509,9 +509,11 @@ svg.icon.fill { fill: currentColor; stroke: none; }
 .split.open .seg-menu .caret { transform: rotate(180deg); }
 .split .btn, .split .seg-main { min-width: 0; }
 
-/* ── Menu: открывается снизу, переворачивается вверх без места ───────── */
+/* ── Menu: открывается снизу, переворачивается вверх без места ─────────
+   Ширина по M3: 112dp min / 280dp max. Радиус 16dp — вариант M3 Expressive
+   (у baseline-меню углы 4dp), проект целится в Expressive. */
 .menu {
-  position: absolute; z-index: 60; min-width: 196px; max-width: 320px;
+  position: absolute; z-index: 60; min-width: 112px; max-width: 280px;
   padding: 8px 0; border-radius: var(--shape-large);
   background: var(--md-sys-color-surface-container-high); color: var(--md-sys-color-on-surface);
   box-shadow: var(--md-elev-3); transform-origin: top left;
@@ -530,19 +532,24 @@ svg.icon.fill { fill: currentColor; stroke: none; }
 .menu .sep { height: 1px; margin: 8px 0; background: var(--md-sys-color-outline-variant); }
 .menu-back { position: fixed; inset: 0; z-index: 59; }
 
-/* ── Segmented buttons (single select) ───────────────────────────────── */
-.segmented { display: flex; gap: 3px; }
+/* ── M3 segmented button: единая группа-пилюля ──────────────────────────
+   M3: сегменты стыкуются без зазора, внешние углы полностью скруглены,
+   между сегментами 1dp-разделитель, выбранный — secondary-container без
+   собственной рамки. Раньше были отдельные «таблетки» с зазором 3dp. */
+.segmented { display: flex; gap: 0; }
 .segmented .seg {
-  appearance: none; border: 1px solid var(--md-sys-color-outline); background: transparent; cursor: pointer;
+  appearance: none; background: transparent; cursor: pointer;
   flex: 1; height: 40px; min-width: 0;
   display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 12px;
-  border-radius: var(--shape-small);
+  border: 1px solid var(--md-sys-color-outline); border-radius: 0;
   font-size: var(--ts-label-large); line-height: var(--lh-label-large); font-weight: var(--w-medium);
   color: var(--md-sys-color-on-surface);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.segmented .seg + .seg { border-start-start-radius: var(--shape-extra-small); border-end-start-radius: var(--shape-extra-small); }
-.segmented .seg:not(:last-child) { border-start-end-radius: var(--shape-extra-small); border-end-end-radius: var(--shape-extra-small); }
+/* стык вплотную: рамки соседей совпадают и дают один 1dp-разделитель */
+.segmented .seg + .seg { margin-inline-start: -1px; }
+.segmented .seg:first-child { border-start-start-radius: var(--shape-full); border-end-start-radius: var(--shape-full); }
+.segmented .seg:last-child { border-start-end-radius: var(--shape-full); border-end-end-radius: var(--shape-full); }
 .segmented .seg .check { width: 0; overflow: hidden; flex: none;
   transition: width var(--dur-short) var(--spring); }
 .segmented .seg.on { background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container);
@@ -584,12 +591,19 @@ svg.icon.fill { fill: currentColor; stroke: none; }
   clip-path: polygon(36% 62%, 48% 76%, 76% 36%, 86% 44%, 50% 88%, 26% 68%);
 }
 
-/* ── Stacked list: 3dp зазоры, 28dp внешние углы, 8dp внутренние ─────── */
+/* ── Stacked list (M3 Expressive) ───────────────────────────────────────
+   3dp зазоры; внешние углы 16dp, внутренние 4dp, выбранный элемент морфит
+   в 16dp по всем углам (shape morphing). `:where()` обнуляет специфичность,
+   чтобы правило .list-item.selected ниже выигрывало порядком. */
 .list { display: flex; flex-direction: column; gap: 3px; }
-.list > .list-item:first-child { border-start-start-radius: var(--shape-extra-large); border-start-end-radius: var(--shape-extra-large); }
-.list > .list-item:last-child { border-end-start-radius: var(--shape-extra-large); border-end-end-radius: var(--shape-extra-large); }
-.list > .list-item:not(:first-child):not(:last-child) { border-radius: var(--shape-inner); }
+.list > .list-item:where(:first-child) { border-start-start-radius: var(--shape-large); border-start-end-radius: var(--shape-large); }
+.list > .list-item:where(:last-child) { border-end-start-radius: var(--shape-large); border-end-end-radius: var(--shape-large); }
+.list > .list-item:where(:not(:first-child)):where(:not(:last-child)) { border-radius: var(--shape-extra-small); }
 .list.divider > .list-item + .list-item { border-top: 0; }
+/* Одиночный list-item, положенный прямо в .card/.sheet (мимо .list), правил
+   выше не получает и остаётся с квадратными углами внутри скруглённой
+   карточки. Задаём внешний радиус явно (дефект 2026-10-04). */
+.card > .list-item, .sheet > .list-item { border-radius: var(--shape-large); }
 .list-item {
   display: flex; align-items: center; gap: 16px; min-height: 56px; padding: 8px 16px;
   appearance: none; border: none; background: var(--md-sys-color-surface-container-low); text-align: left;
@@ -614,7 +628,8 @@ svg.icon.fill { fill: currentColor; stroke: none; }
   font-size: var(--ts-label-large); line-height: var(--lh-label-large); font-weight: var(--w-medium); }
 .list-item .li-trail .caret { display: grid; place-items: center; }
 .list-item .switch { margin-left: auto; }
-.list-item.selected { background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container); }
+.list-item.selected { background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container);
+  border-radius: var(--shape-large); }
 .list-item.selected .li-primary { color: var(--md-sys-color-on-secondary-container); }
 .list-item.selected .li-secondary { color: inherit; opacity: .8; }
 .list-item.selected .li-icon { background: color-mix(in srgb, var(--md-sys-color-on-secondary-container) 18%, transparent);
@@ -628,8 +643,9 @@ svg.icon.fill { fill: currentColor; stroke: none; }
 .field .control { position: relative; display: flex; align-items: center; }
 .field .control > .lead { position: absolute; left: 12px; display: flex; color: var(--md-sys-color-on-surface-variant); pointer-events: none; }
 .field .control > .trail { position: absolute; right: 8px; display: flex; align-items: center; color: var(--md-sys-color-on-surface-variant); pointer-events: none; }
+/* M3 filled text field: высота 56dp, верхние углы 4dp, индикатор 1dp снизу */
 .field input, .field select, .field textarea {
-  width: 100%; height: 48px; padding: 0 16px;
+  width: 100%; height: 56px; padding: 0 16px;
   background: var(--md-sys-color-surface-container-highest); color: var(--md-sys-color-on-surface);
   border: none; border-bottom: 1px solid var(--md-sys-color-outline);
   border-top-left-radius: var(--shape-extra-small);
@@ -790,23 +806,22 @@ textarea.mono {
   background: transparent; font-size: var(--ts-title-medium); line-height: var(--lh-title-medium);
   font-weight: var(--w-emph); text-transform: uppercase; color: var(--md-sys-color-on-surface); }
 
-/* ── M3 slider: трек 8dp, ручка-пилюля 8×20dp, 40dp зона касания ──────── */
+/* ── M3 slider (XS): трек 16dp со скруглением 8dp, ручка 4×44dp ───────── */
 .slider {
-  appearance: none; -webkit-appearance: none; width: 100%; height: 40px; padding: 0;
+  appearance: none; -webkit-appearance: none; width: 100%; height: 48px; padding: 0;
   background: transparent; cursor: pointer; outline: none; --track: transparent;
 }
 .slider::-webkit-slider-runnable-track {
-  height: 8px; border-radius: var(--shape-extra-small); background: var(--track);
-  box-shadow: inset 0 0 0 1px var(--md-sys-color-outline-variant);
+  height: 16px; border-radius: var(--shape-small); background: var(--track);
 }
 .slider::-webkit-slider-thumb {
-  -webkit-appearance: none; width: 8px; height: 20px; margin-top: -6px; border: none;
-  border-radius: var(--shape-extra-small); background: var(--md-sys-color-primary);
-  box-shadow: 0 0 0 2px var(--md-sys-color-surface-container-high);
+  -webkit-appearance: none; width: 4px; height: 44px; margin-top: -14px; border: none;
+  border-radius: var(--shape-full); background: var(--md-sys-color-primary);
   transition: box-shadow var(--dur-short) var(--standard);
 }
+.slider:hover::-webkit-slider-thumb,
 .slider:focus-visible::-webkit-slider-thumb {
-  box-shadow: 0 0 0 6px color-mix(in srgb, var(--md-sys-color-primary) 24%, transparent);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--md-sys-color-primary) 16%, transparent);
 }
 .cd-row { display: flex; flex-direction: column; gap: 4px; }
 .cd-row > label { font-size: var(--ts-label-medium); line-height: var(--lh-label-medium); font-weight: var(--w-emph);
@@ -871,43 +886,45 @@ textarea.mono {
 </style>
 </head>
 <body>
-<!-- ═══ Иконки: инлайновый набор 24dp (stroke, стиль Material Symbols) ═══
-     Локальные path'ы — WebUI не зависит от сети (модуль работает без DPI-обхода) -->
+<!-- ═══ Иконки: Material Symbols Outlined, инлайновый спрайт 24dp ═══════
+     path-данные из google/material-design-icons
+     (symbols/web/<name>/materialsymbolsoutlined/<name>_24px.svg).
+     Это глифы, а не штриховые иконки: рисуются заливкой (fill:currentColor),
+     поэтому stroke-свойства в CSS не нужны. Сеть не требуется. -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
-<symbol id="i-menu" viewBox="0 0 24 24"><path d="M3.5 6.5h17M3.5 12h17M3.5 17.5h17"/></symbol>
-<symbol id="i-close" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
-<symbol id="i-check" viewBox="0 0 24 24"><path d="M4.5 12.5l5 5 10-11"/></symbol>
-<symbol id="i-play" viewBox="0 0 24 24"><path d="M7.5 5v14l11-7z"/></symbol>
-<symbol id="i-stop" viewBox="0 0 24 24"><path d="M7 7h10v10H7z"/></symbol>
-<symbol id="i-restart" viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-3-6M19.5 4.5v5h-5"/></symbol>
-<symbol id="i-add" viewBox="0 0 24 24"><path d="M12 5.5v13M5.5 12h13"/></symbol>
-<symbol id="i-search" viewBox="0 0 24 24"><path d="M11 4.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM15.8 15.8L20 20"/></symbol>
-<symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3.2l7 2.6v5.2c0 4.3-2.9 8.3-7 9.3-4.1-1-7-5-7-9.3V5.8z"/></symbol>
-<symbol id="i-list" viewBox="0 0 24 24"><path d="M8.5 6.5h11M8.5 12h11M8.5 17.5h11M4.5 6.5h.01M4.5 12h.01M4.5 17.5h.01"/></symbol>
-<symbol id="i-apps" viewBox="0 0 24 24"><path d="M4.5 6.5h5.5v5.5H4.5zM14 6.5h5.5v4H14zM4.5 15.5H10v4H4.5zM14 14.5h5.5v5H14z"/></symbol>
-<symbol id="i-config" viewBox="0 0 24 24"><path d="M6.5 3.5h8l4 4v13h-12zM14.5 3.5v4h4M9 12.5h6M9 16.5h4"/></symbol>
-<symbol id="i-logs" viewBox="0 0 24 24"><path d="M5.5 4.5h13v15h-13zM8.5 8.5h7M8.5 12h7M8.5 15.5h4.5"/></symbol>
-<symbol id="i-test" viewBox="0 0 24 24"><path d="M3 12.5h3.5l3-7.5 4 14 3-6.5H21"/></symbol>
-<symbol id="i-palette" viewBox="0 0 24 24"><path d="M12 3.5c-4.7 0-8.5 3.8-8.5 8.5s3.8 8.5 8.5 8.5c1.6 0 2-1.1 1.3-2.1-.8-1.1 0-2.2 1.3-2.2h1.5c2.1 0 3.9-1.7 3.9-3.9 0-4.1-3.7-6.8-8-6.8zM7.5 11h.01M11 8h.01M15 8.5h.01"/></symbol>
-<symbol id="i-theme" viewBox="0 0 24 24"><path d="M12 3v2.2M12 18.8V21M4.9 4.9l1.6 1.6M17.5 17.5l1.6 1.6M3 12h2.2M18.8 12H21M4.9 19.1l1.6-1.6M17.5 6.5l1.6-1.6M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z"/></symbol>
-<symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13.5 2.5L5.5 14h5l-1 7.5L18.5 10h-5z"/></symbol>
-<symbol id="i-wifi" viewBox="0 0 24 24"><path d="M2.8 8.6a13.5 13.5 0 0 1 18.4 0M6.2 12.4a8.7 8.7 0 0 1 11.6 0M9.5 16.2a4 4 0 0 1 5 0M12 20h.01"/></symbol>
-<symbol id="i-refresh" viewBox="0 0 24 24"><path d="M19.5 11a7.5 7.5 0 0 0-12.9-4.6L4.5 8.5M4.5 4.2v4.3h4.3M4.5 13a7.5 7.5 0 0 0 12.9 4.6l2.1-2.1M19.5 19.8v-4.3h-4.3"/></symbol>
-<symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v10M8 11l4 4 4-4M4.5 19.5h15"/></symbol>
-<symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 20V9M8 12l4-4 4 4M4.5 4.5h15"/></symbol>
-<symbol id="i-trash" viewBox="0 0 24 24"><path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 12.5h9L17.5 7M10.5 11v5M13.5 11v5"/></symbol>
-<symbol id="i-edit" viewBox="0 0 24 24"><path d="M4.5 19.5h4L20 8l-4-4L4.5 15.5zM14.5 6.5l3.5 3.5"/></symbol>
-<symbol id="i-caret" viewBox="0 0 24 24"><path d="M6.5 9.5L12 15l5.5-5.5"/></symbol>
-<symbol id="i-info" viewBox="0 0 24 24"><path d="M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17zM12 11v5.5M12 7.8h.01"/></symbol>
-<symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 3.8L20.8 19H3.2zM12 10v4.4M12 16.8h.01"/></symbol>
-<symbol id="i-error" viewBox="0 0 24 24"><path d="M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17zM9.2 9.2l5.6 5.6M14.8 9.2l-5.6 5.6"/></symbol>
-<symbol id="i-terminal" viewBox="0 0 24 24"><path d="M4.5 4.5h15v15h-15zM8 10l2.8 2L8 14M13 14.5h4"/></symbol>
-<symbol id="i-traffic" viewBox="0 0 24 24"><path d="M12 3.2v4M12 10v4M12 16.8v4M7 5.2h10M7 12h10M7 18.8h10"/></symbol>
-<symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3.5H6.5v17h11V7zM14 3.5V7h4"/></symbol>
-<symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="M9.5 5.5L16 12l-6.5 6.5"/></symbol>
-<symbol id="i-globe" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 1 0 0-18M3.4 9.5h17.2M3.4 14.5h17.2M12 3c2.6 2.5 4 5.5 4 9s-1.4 6.5-4 9c-2.6-2.5-4-5.5-4-9s1.4-6.5 4-9"/></symbol>
-<symbol id="i-medical" viewBox="0 0 24 24"><path d="M5.4 8.4h13.2V20H5.4zM8.8 8.4V4.6h6.4v3.8M12 11.6v5M9.5 14.1h5"/></symbol>
-<symbol id="i-timer" viewBox="0 0 24 24"><path d="M12 21.4a8 8 0 1 0 0-16 8 8 0 1 0 0 16M12 9.6v5l3.2 2M9.4 2.4h5.2"/></symbol>
+<symbol id="i-menu" viewBox="0 -960 960 960"><path d="M120-240v-80h720v80H120Zm0-200v-80h720v80H120Zm0-200v-80h720v80H120Z"/></symbol>
+<symbol id="i-close" viewBox="0 -960 960 960"><path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z"/></symbol>
+<symbol id="i-check" viewBox="0 -960 960 960"><path d="M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z"/></symbol>
+<symbol id="i-play" viewBox="0 -960 960 960"><path d="M320-200v-560l440 280-440 280Zm80-280Zm0 134 210-134-210-134v268Z"/></symbol>
+<symbol id="i-stop" viewBox="0 -960 960 960"><path d="M320-640v320-320Zm-80 400v-480h480v480H240Zm80-80h320v-320H320v320Z"/></symbol>
+<symbol id="i-restart" viewBox="0 -960 960 960"><path d="M440-122q-121-15-200.5-105.5T160-440q0-66 26-126.5T260-672l57 57q-38 34-57.5 79T240-440q0 88 56 155.5T440-202v80Zm80 0v-80q87-16 143.5-83T720-440q0-100-70-170t-170-70h-3l44 44-56 56-140-140 140-140 56 56-44 44h3q134 0 227 93t93 227q0 121-79.5 211.5T520-122Z"/></symbol>
+<symbol id="i-add" viewBox="0 -960 960 960"><path d="M440-440H200v-80h240v-240h80v240h240v80H520v240h-80v-240Z"/></symbol>
+<symbol id="i-search" viewBox="0 -960 960 960"><path d="M784-120 532-372q-30 24-69 38t-83 14q-109 0-184.5-75.5T120-580q0-109 75.5-184.5T380-840q109 0 184.5 75.5T640-580q0 44-14 83t-38 69l252 252-56 56ZM380-400q75 0 127.5-52.5T560-580q0-75-52.5-127.5T380-760q-75 0-127.5 52.5T200-580q0 75 52.5 127.5T380-400Z"/></symbol>
+<symbol id="i-shield" viewBox="0 -960 960 960"><path d="M480-80q-139-35-229.5-159.5T160-516v-244l320-120 320 120v244q0 152-90.5 276.5T480-80Zm0-84q104-33 172-132t68-220v-189l-240-90-240 90v189q0 121 68 220t172 132Zm0-316Z"/></symbol>
+<symbol id="i-list" viewBox="0 -960 960 960"><path d="M360-200v-80h480v80H360Zm0-240v-80h480v80H360Zm0-240v-80h480v80H360ZM200-160q-33 0-56.5-23.5T120-240q0-33 23.5-56.5T200-320q33 0 56.5 23.5T280-240q0 33-23.5 56.5T200-160Zm0-240q-33 0-56.5-23.5T120-480q0-33 23.5-56.5T200-560q33 0 56.5 23.5T280-480q0 33-23.5 56.5T200-400Zm0-240q-33 0-56.5-23.5T120-720q0-33 23.5-56.5T200-800q33 0 56.5 23.5T280-720q0 33-23.5 56.5T200-640Z"/></symbol>
+<symbol id="i-apps" viewBox="0 -960 960 960"><path d="M240-160q-33 0-56.5-23.5T160-240q0-33 23.5-56.5T240-320q33 0 56.5 23.5T320-240q0 33-23.5 56.5T240-160Zm240 0q-33 0-56.5-23.5T400-240q0-33 23.5-56.5T480-320q33 0 56.5 23.5T560-240q0 33-23.5 56.5T480-160Zm240 0q-33 0-56.5-23.5T640-240q0-33 23.5-56.5T720-320q33 0 56.5 23.5T800-240q0 33-23.5 56.5T720-160ZM240-400q-33 0-56.5-23.5T160-480q0-33 23.5-56.5T240-560q33 0 56.5 23.5T320-480q0 33-23.5 56.5T240-400Zm240 0q-33 0-56.5-23.5T400-480q0-33 23.5-56.5T480-560q33 0 56.5 23.5T560-480q0 33-23.5 56.5T480-400Zm240 0q-33 0-56.5-23.5T640-480q0-33 23.5-56.5T720-560q33 0 56.5 23.5T800-480q0 33-23.5 56.5T720-400ZM240-640q-33 0-56.5-23.5T160-720q0-33 23.5-56.5T240-800q33 0 56.5 23.5T320-720q0 33-23.5 56.5T240-640Zm240 0q-33 0-56.5-23.5T400-720q0-33 23.5-56.5T480-800q33 0 56.5 23.5T560-720q0 33-23.5 56.5T480-640Zm240 0q-33 0-56.5-23.5T640-720q0-33 23.5-56.5T720-800q33 0 56.5 23.5T800-720q0 33-23.5 56.5T720-640Z"/></symbol>
+<symbol id="i-config" viewBox="0 -960 960 960"><path d="M320-240h320v-80H320v80Zm0-160h320v-80H320v80ZM240-80q-33 0-56.5-23.5T160-160v-640q0-33 23.5-56.5T240-880h320l240 240v480q0 33-23.5 56.5T720-80H240Zm280-520v-200H240v640h480v-440H520ZM240-800v200-200 640-640Z"/></symbol>
+<symbol id="i-logs" viewBox="0 -960 960 960"><path d="M280-280h280v-80H280v80Zm0-160h400v-80H280v80Zm0-160h400v-80H280v80Zm-80 480q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-80h560v-560H200v560Zm0-560v560-560Z"/></symbol>
+<symbol id="i-test" viewBox="0 -960 960 960"><path d="M84-516 0-600q95-97 219.5-148.5T480-800q24 0 48 1.5t48 4.5l-60 116q-9-1-18-1.5t-18-.5q-112 0-214.5 42.5T84-516Zm170 170-84-86q57-57 131-89t155-37l-64 131q-39 11-74 31.5T254-346Zm198 180q-33-11-48-41.5t0-60.5l240-488q4-8 12-10.5t16 .5q8 3 12 10.5t2 15.5L556-214q-8 33-39.5 47t-64.5 1Zm254-180q-7-7-13.5-12.5T678-370l32-125q21 14 41.5 29.5T790-432l-84 86Zm169-169q-32-29-65.5-55T738-616l28-120q54 26 103 60t91 76l-85 85Z"/></symbol>
+<symbol id="i-palette" viewBox="0 -960 960 960"><path d="M480-80q-82 0-155-31.5t-127.5-86Q143-252 111.5-325T80-480q0-83 32.5-156t88-127Q256-817 330-848.5T488-880q80 0 151 27.5t124.5 76q53.5 48.5 85 115T880-518q0 115-70 176.5T640-280h-74q-9 0-12.5 5t-3.5 11q0 12 15 34.5t15 51.5q0 50-27.5 74T480-80Zm0-400Zm-220 40q26 0 43-17t17-43q0-26-17-43t-43-17q-26 0-43 17t-17 43q0 26 17 43t43 17Zm120-160q26 0 43-17t17-43q0-26-17-43t-43-17q-26 0-43 17t-17 43q0 26 17 43t43 17Zm200 0q26 0 43-17t17-43q0-26-17-43t-43-17q-26 0-43 17t-17 43q0 26 17 43t43 17Zm120 160q26 0 43-17t17-43q0-26-17-43t-43-17q-26 0-43 17t-17 43q0 26 17 43t43 17ZM480-160q9 0 14.5-5t5.5-13q0-14-15-33t-15-57q0-42 29-67t71-25h70q66 0 113-38.5T800-518q0-121-92.5-201.5T488-800q-136 0-232 93t-96 227q0 133 93.5 226.5T480-160Z"/></symbol>
+<symbol id="i-wifi" viewBox="0 -960 960 960"><path d="M480-120q-42 0-71-29t-29-71q0-42 29-71t71-29q42 0 71 29t29 71q0 42-29 71t-71 29ZM254-346l-84-86q59-59 138.5-93.5T480-560q92 0 171.5 35T790-430l-84 84q-44-44-102-69t-124-25q-66 0-124 25t-102 69ZM84-516 0-600q92-94 215-147t265-53q142 0 265 53t215 147l-84 84q-77-77-178.5-120.5T480-680q-116 0-217.5 43.5T84-516Z"/></symbol>
+<symbol id="i-refresh" viewBox="0 -960 960 960"><path d="M480-160q-134 0-227-93t-93-227q0-134 93-227t227-93q69 0 132 28.5T720-690v-110h80v280H520v-80h168q-32-56-87.5-88T480-720q-100 0-170 70t-70 170q0 100 70 170t170 70q77 0 139-44t87-116h84q-28 106-114 173t-196 67Z"/></symbol>
+<symbol id="i-download" viewBox="0 -960 960 960"><path d="M480-320 280-520l56-58 104 104v-326h80v326l104-104 56 58-200 200ZM240-160q-33 0-56.5-23.5T160-240v-120h80v120h480v-120h80v120q0 33-23.5 56.5T720-160H240Z"/></symbol>
+<symbol id="i-upload" viewBox="0 -960 960 960"><path d="M440-320v-326L336-542l-56-58 200-200 200 200-56 58-104-104v326h-80ZM240-160q-33 0-56.5-23.5T160-240v-120h80v120h480v-120h80v120q0 33-23.5 56.5T720-160H240Z"/></symbol>
+<symbol id="i-trash" viewBox="0 -960 960 960"><path d="M280-120q-33 0-56.5-23.5T200-200v-520h-40v-80h200v-40h240v40h200v80h-40v520q0 33-23.5 56.5T680-120H280Zm400-600H280v520h400v-520ZM360-280h80v-360h-80v360Zm160 0h80v-360h-80v360ZM280-720v520-520Z"/></symbol>
+<symbol id="i-edit" viewBox="0 -960 960 960"><path d="M200-200h57l391-391-57-57-391 391v57Zm-80 80v-170l528-527q12-11 26.5-17t30.5-6q16 0 31 6t26 18l55 56q12 11 17.5 26t5.5 30q0 16-5.5 30.5T817-647L290-120H120Zm640-584-56-56 56 56Zm-141 85-28-29 57 57-29-28Z"/></symbol>
+<symbol id="i-caret" viewBox="0 -960 960 960"><path d="M480-345 240-585l56-56 184 184 184-184 56 56-240 240Z"/></symbol>
+<symbol id="i-info" viewBox="0 -960 960 960"><path d="M440-280h80v-240h-80v240Zm40-320q17 0 28.5-11.5T520-640q0-17-11.5-28.5T480-680q-17 0-28.5 11.5T440-640q0 17 11.5 28.5T480-600Zm0 520q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-80q134 0 227-93t93-227q0-134-93-227t-227-93q-134 0-227 93t-93 227q0 134 93 227t227 93Zm0-320Z"/></symbol>
+<symbol id="i-warn" viewBox="0 -960 960 960"><path d="m40-120 440-760 440 760H40Zm138-80h604L480-720 178-200Zm302-40q17 0 28.5-11.5T520-280q0-17-11.5-28.5T480-320q-17 0-28.5 11.5T440-280q0 17 11.5 28.5T480-240Zm-40-120h80v-200h-80v200Zm40-100Z"/></symbol>
+<symbol id="i-error" viewBox="0 -960 960 960"><path d="m336-280 144-144 144 144 56-56-144-144 144-144-56-56-144 144-144-144-56 56 144 144-144 144 56 56ZM480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-80q134 0 227-93t93-227q0-134-93-227t-227-93q-134 0-227 93t-93 227q0 134 93 227t227 93Zm0-320Z"/></symbol>
+<symbol id="i-terminal" viewBox="0 -960 960 960"><path d="M160-160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h640q33 0 56.5 23.5T880-720v480q0 33-23.5 56.5T800-160H160Zm0-80h640v-400H160v400Zm140-40-56-56 103-104-104-104 57-56 160 160-160 160Zm180 0v-80h240v80H480Z"/></symbol>
+<symbol id="i-file" viewBox="0 -960 960 960"><path d="M240-80q-33 0-56.5-23.5T160-160v-640q0-33 23.5-56.5T240-880h320l240 240v480q0 33-23.5 56.5T720-80H240Zm280-520v-200H240v640h480v-440H520ZM240-800v200-200 640-640Z"/></symbol>
+<symbol id="i-chevron-right" viewBox="0 -960 960 960"><path d="M504-480 320-664l56-56 240 240-240 240-56-56 184-184Z"/></symbol>
+<symbol id="i-globe" viewBox="0 -960 960 960"><path d="M480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm-40-82v-78q-33 0-56.5-23.5T360-320v-40L168-552q-3 18-5.5 36t-2.5 36q0 121 79.5 212T440-162Zm276-102q20-22 36-47.5t26.5-53q10.5-27.5 16-56.5t5.5-59q0-98-54.5-179T600-776v16q0 33-23.5 56.5T520-680h-80v80q0 17-11.5 28.5T400-560h-80v80h240q17 0 28.5 11.5T600-440v120h40q26 0 47 15.5t29 40.5Z"/></symbol>
+<symbol id="i-medical" viewBox="0 -960 960 960"><path d="M160-80q-33 0-56.5-23.5T80-160v-480q0-33 23.5-56.5T160-720h160v-80q0-33 23.5-56.5T400-880h160q33 0 56.5 23.5T640-800v80h160q33 0 56.5 23.5T880-640v480q0 33-23.5 56.5T800-80H160Zm0-80h640v-480H160v480Zm240-560h160v-80H400v80ZM160-160v-480 480Zm280-200v120h80v-120h120v-80H520v-120h-80v120H320v80h120Z"/></symbol>
+<symbol id="i-status" viewBox="0 -960 960 960"><path d="M80-600v-120q0-33 23.5-56.5T160-800h640q33 0 56.5 23.5T880-720v120h-80v-120H160v120H80Zm80 440q-33 0-56.5-23.5T80-240v-120h80v120h640v-120h80v120q0 33-23.5 56.5T800-160H160Zm240-120q11 0 21-5.5t15-16.5l124-248 44 88q5 11 15 16.5t21 5.5h240v-80H665l-69-138q-5-11-15-15.5t-21-4.5q-11 0-21 4.5T524-658L400-410l-44-88q-5-11-15-16.5t-21-5.5H80v80h215l69 138q5 11 15 16.5t21 5.5Zm80-200Z"/></symbol>
+<symbol id="i-route" viewBox="0 -960 960 960"><path d="M440-80v-200q0-56-17-83t-45-53l57-57q12 11 23 23.5t22 26.5q14-19 28.5-33.5T538-485q38-35 69-81t33-161l-63 63-57-56 160-160 160 160-56 56-64-63q-2 143-44 203.5T592-425q-32 29-52 56.5T520-280v200h-80ZM248-633q-4-20-5.5-44t-2.5-50l-64 63-56-56 160-160 160 160-57 56-63-62q0 21 2 39.5t4 34.5l-78 19Zm86 176q-20-21-38.5-49T263-575l77-19q10 27 23 46t28 34l-57 57Z"/></symbol>
+<symbol id="i-tune" viewBox="0 -960 960 960"><path d="M440-120v-240h80v80h320v80H520v80h-80Zm-320-80v-80h240v80H120Zm160-160v-80H120v-80h160v-80h80v240h-80Zm160-80v-80h400v80H440Zm160-160v-240h80v80h160v80H680v80h-80Zm-480-80v-80h400v80H120Z"/></symbol>
 </defs></svg>
 
 <!-- ═══ Small top app bar ════════════════════════════════════════════════ -->
@@ -936,7 +953,7 @@ textarea.mono {
   </div>
   <div class="drawer-label">Управление</div>
   <button class="nav-item state active" data-page="control" aria-current="page">
-    <svg class="icon nav-icon"><use href="#i-traffic"/></svg><span class="nav-text">Состояние</span>
+    <svg class="icon nav-icon"><use href="#i-status"/></svg><span class="nav-text">Состояние</span>
   </button>
   <button class="nav-item state" data-page="lists">
     <svg class="icon nav-icon"><use href="#i-list"/></svg><span class="nav-text">Списки доменов</span>
@@ -967,10 +984,9 @@ textarea.mono {
         <div class="hero-state" id="st">Опрос службы…</div>
         <div class="hero-sub" id="sub">—</div>
       </div>
-      <div class="hero-metrics" id="cnt" aria-label="Счётчики списков"></div>
-      <div class="hero-line up"><span>Аптайм <b id="upt">—</b></span><span class="m-tail">ipset <b id="ipset-num">—</b></span></div>
-      <div class="hero-line queue"><span>Очередь <b id="queue-num">—</b></span><span class="m-tail">ipset_excl <b id="ipset-excl-num">—</b></span></div>
-      <div class="hero-line drop"><span>Сброс пакетов <b id="qdrop-num">0</b></span><span class="m-tail">apps <b id="apps-num">—</b></span></div>
+      <div class="hero-line up"><span>Аптайм <b id="upt">—</b></span></div>
+      <div class="hero-line queue"><span>Очередь <b id="queue-num">—</b></span></div>
+      <div class="hero-line drop"><span>Сброс пакетов <b id="qdrop-num">0</b></span></div>
       <div class="hero-foot">
         <div class="split" id="act-split">
           <button class="seg-main state" id="bt" onclick="toggle()">
@@ -985,6 +1001,14 @@ textarea.mono {
     </div>
 
     <div id="warn" class="stack"></div>
+
+    <div class="card filled">
+      <div class="card-head">
+        <span class="card-icon"><svg class="icon s20"><use href="#i-list"/></svg></span>
+        <div class="card-title">Счётчики списков</div>
+      </div>
+      <div class="metrics" id="cnt" aria-label="Счётчики списков"></div>
+    </div>
 
     <div class="card filled">
       <div class="list-item two-line clickable state" id="strategy-row" role="button" tabindex="0"
@@ -1008,7 +1032,7 @@ textarea.mono {
 
     <div class="card filled">
       <div class="card-head">
-        <span class="card-icon"><svg class="icon s20"><use href="#i-config"/></svg></span>
+        <span class="card-icon"><svg class="icon s20"><use href="#i-tune"/></svg></span>
         <div class="card-title">Параметры ядра и сети</div>
       </div>
       <div class="list divider" id="sws"></div>
@@ -1053,7 +1077,7 @@ textarea.mono {
   <section class="page" data-page="lists" aria-label="Списки доменов">
     <div class="card filled">
       <div class="card-head">
-        <span class="card-icon"><svg class="icon s20"><use href="#i-traffic"/></svg></span>
+        <span class="card-icon"><svg class="icon s20"><use href="#i-route"/></svg></span>
         <div class="card-title">Режим обработки доменов</div>
       </div>
       <div class="segmented" id="mode" role="group" aria-label="Режим обработки"></div>
@@ -1229,12 +1253,8 @@ textarea.mono {
         <button class="btn text danger state" onclick="clearLogs()">Очистить</button>
       </div>
       <div class="divider"></div>
-      <div class="list-item two-line">
-        <span class="li-icon"><svg class="icon s20"><use href="#i-bolt"/></svg></span>
-        <span class="li-text">
-          <span class="li-primary">Подробный Debug-лог</span>
-          <span class="li-secondary">Замедляет nfqws2, требуется перезапуск</span>
-        </span>
+      <div class="list-item">
+        <span class="li-text"><span class="li-primary">Подробный Debug-лог</span></span>
         <span class="li-trail">
           <input type="checkbox" class="switch" role="switch" id="dbg" aria-label="Подробный debug-лог"
                  onchange="setp('LOG_LEVEL',this.checked?1:0)">
@@ -1291,11 +1311,7 @@ textarea.mono {
   </div>
 
   <div class="list-item">
-    <span class="li-icon"><svg class="icon s20"><use href="#i-theme"/></svg></span>
-    <span class="li-text">
-      <span class="li-primary">AMOLED</span>
-      <span class="li-secondary">Глубокий чёрный фон в тёмной схеме</span>
-    </span>
+    <span class="li-text"><span class="li-primary">AMOLED</span></span>
     <span class="li-trail">
       <input type="checkbox" class="switch" role="switch" id="amoled-toggle" aria-label="Режим AMOLED"
              onchange="toggleAmoled(this.checked)">
@@ -1378,8 +1394,10 @@ textarea.mono {
   </div>
 </div>
 
-<!-- ═══ Overlay host: меню позиционируются от окна и не попадают в overflow карточек -->
-<div id="layer" aria-hidden="true"></div>
+<!-- ═══ Overlay host: меню позиционируются от окна и не попадают в overflow карточек
+     NB: без aria-hidden — в этот слой рендерятся role="menu"/"menuitem",
+     и aria-hidden="true" выкидывал бы их из дерева доступности. -->
+<div id="layer"></div>
 
 <!-- ═══ Snackbar ═════════════════════════════════════════════════════════ -->
 <div class="snackbar" id="prompt-container" role="status" aria-live="polite">
@@ -1687,12 +1705,14 @@ async function applySelectedStrategy(){
 }
 
 /* ══ 1. СОСТОЯНИЕ ════════════════════════════════════════════════════════ */
+/* Только [ключ, подпись]: строки-переключатели в M3 однострочные.
+   Описания и ведущие иконки здесь были лишними и ломали ритм списка. */
 const SW = [
-  ['AUTOSTART', 'Автозапуск при загрузке', 'Запуск службы из service.sh после boot_completed', 'bolt'],
-  ['WATCHDOG', 'Контроль работы', 'Перезапуск процесса и восстановление правил iptables', 'shield'],
-  ['IPV6_ENABLED', 'Обрабатывать IPv6', 'Дублирует правила в ip6tables, если они доступны', 'wifi'],
-  ['BLOCK_QUIC', 'Блокировать QUIC', 'DROP UDP/443 — браузеры переходят на TCP/TLS', 'traffic'],
-  ['WAKELOCK', 'Не давать телефону спать', 'Частичный wakelock, пока служба запущена: проверяет гипотезу обрывов из-за сна CPU, заметно повышает расход батареи', 'timer']
+  ['AUTOSTART', 'Автозапуск при загрузке'],
+  ['WATCHDOG', 'Контроль работы'],
+  ['IPV6_ENABLED', 'Обрабатывать IPv6'],
+  ['BLOCK_QUIC', 'Блокировать QUIC'],
+  ['WAKELOCK', 'Не давать телефону спать']
 ];
 const KEY = {AUTOSTART: 'autostart', WATCHDOG: 'watchdog', IPV6_ENABLED: 'ipv6', BLOCK_QUIC: 'block_quic', WAKELOCK: 'wakelock_on'};
 
@@ -1735,21 +1755,16 @@ async function stat(){
     '<span>' + (j.running ? 'Остановить' : 'Запустить') + '</span>';
 
   const c = j.counts || {};
-  const laid = [['user', c.user], ['auto', c.auto], ['exclude', c.exclude]];
-  if(j.app_uids > 0) laid.push(['uid', j.app_uids]);
-  $('cnt').innerHTML = laid.filter(x => x[1] != null)
-    .map(x => '<span class="m">' + esc(x[0]) + ' <b>' + esc(x[1]) + '</b></span>').join('');
-  $('ipset-num').textContent = c.ipset == null ? '—' : c.ipset;
-  $('ipset-excl-num').textContent = c.ipset_exclude == null ? '—' : c.ipset_exclude;
-  $('apps-num').textContent = c.apps == null ? '—' : c.apps;
+  const tiles = [['user', c.user], ['auto', c.auto], ['exclude', c.exclude],
+                 ['ipset', c.ipset], ['ipset_excl', c.ipset_exclude], ['apps', c.apps]];
+  if(j.app_uids > 0) tiles.push(['uid', j.app_uids]);
+  $('cnt').innerHTML = tiles.filter(t => t[1] != null)
+    .map(t => '<div class="metric"><span class="metric-label">' + esc(t[0]) + '</span>' +
+      '<span class="metric-value">' + esc(t[1]) + '</span></div>').join('');
 
   $('sws').innerHTML = SW.map(s =>
-    '<div class="list-item two-line">' +
-      '<span class="li-icon">' + icon(s[3], 's24') + '</span>' +
-      '<span class="li-text">' +
-        '<span class="li-primary">' + esc(s[1]) + '</span>' +
-        '<span class="li-secondary">' + esc(s[2]) + '</span>' +
-      '</span>' +
+    '<div class="list-item">' +
+      '<span class="li-text"><span class="li-primary">' + esc(s[1]) + '</span></span>' +
       '<span class="li-trail"><input type="checkbox" class="switch" role="switch" aria-label="' + esc(s[1]) + '"' +
         (j[KEY[s[0]]] == 1 ? ' checked' : '') + ' onchange="setp(\'' + s[0] + '\', this.checked ? 1 : 0)"></span>' +
     '</div>').join('');
