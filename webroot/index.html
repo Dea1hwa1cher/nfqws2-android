@@ -695,7 +695,7 @@ textarea.mono {
   <button class="icon-btn state" id="menu-btn" aria-label="Открыть меню навигации" aria-expanded="false" aria-controls="drawer">
     <svg class="icon"><use href="#i-menu"/></svg>
   </button>
-  <h1 class="title truncate">nfqws2 <span class="ver" id="header-version">v1.3.1</span></h1>
+  <h1 class="title truncate">nfqws2 <span class="ver" id="header-version">v1.3.6</span></h1>
   <span class="status-pill" id="hs" aria-live="polite"><span class="dot"></span><span id="hs-text">…</span></span>
   <button class="icon-btn state" onclick="openMonetModal()" aria-label="Настройки темы">
     <svg class="icon"><use href="#i-palette"/></svg>
@@ -1357,9 +1357,10 @@ const SW = [
   ['AUTOSTART', 'Автозапуск при загрузке', 'Запуск службы из service.sh после boot_completed'],
   ['WATCHDOG', 'Контроль работы', 'Перезапуск процесса и восстановление правил iptables'],
   ['IPV6_ENABLED', 'Обрабатывать IPv6', 'Дублирует правила в ip6tables, если они доступны'],
-  ['BLOCK_QUIC', 'Блокировать QUIC', 'DROP UDP/443 — браузеры переходят на TCP/TLS']
+  ['BLOCK_QUIC', 'Блокировать QUIC', 'DROP UDP/443 — браузеры переходят на TCP/TLS'],
+  ['WAKELOCK', 'Не давать телефону спать', 'Частичный wakelock, пока служба запущена: проверяет гипотезу обрывов из-за сна CPU, заметно повышает расход батареи']
 ];
-const KEY = {AUTOSTART: 'autostart', WATCHDOG: 'watchdog', IPV6_ENABLED: 'ipv6', BLOCK_QUIC: 'block_quic'};
+const KEY = {AUTOSTART: 'autostart', WATCHDOG: 'watchdog', IPV6_ENABLED: 'ipv6', BLOCK_QUIC: 'block_quic', WAKELOCK: 'wakelock_on'};
 
 function banner(kind, ic, text){
   return '<div class="banner' + (kind ? ' ' + kind : '') + '">' + icon(ic) +
@@ -1382,7 +1383,7 @@ async function stat(){
     return;
   }
   S = j;
-  $('header-version').textContent = j.version || 'v1.3.1';
+  $('header-version').textContent = j.version || 'v1.3.6';
   $('hero-status').className = 'hero' + (j.running ? ' running' : '');
   $('st').textContent = j.running ? 'Служба запущена' : 'Служба остановлена';
   $('hs').className = 'status-pill' + (j.running ? ' on' : '');

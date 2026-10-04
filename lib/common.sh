@@ -18,6 +18,7 @@ NFQWS_BIN="$MODDIR/bin/nfqws2"
 
 PIDFILE="$STATE_DIR/nfqws2.pid"
 WD_PIDFILE="$STATE_DIR/watchdog.pid"
+WN_PIDFILE="$STATE_DIR/netwatch.pid"
 DESIRED_FILE="$STATE_DIR/desired"
 ARGS_FILE="$STATE_DIR/last.args"
 CAPS_FILE="$STATE_DIR/caps"
@@ -33,6 +34,7 @@ IPT_GROUP_POST="nfqws_post"
 IPT_GROUP_PRE="nfqws_pre"
 IPT_GROUP_NAT="nfqws_nat"
 IPT_GROUP_QOUT="nfqws_qout"
+IPT_GROUP_QIN="nfqws_qin"    # то же, что QOUT, но для входящих, когда нет connbytes
 IPT_GROUP_APP="nfqws_app"
 
 # xt_owner принимает не более 128 диапазонов в одном правиле
@@ -40,6 +42,8 @@ APP_UID_MAX=128
 
 CNT_OUT_MASK=0x0f000000
 CNT_OUT_STEP=16777216
+CNT_IN_MASK=0x000f0000   # биты 16-19: отдельно от исходящего счётчика (24-27) и MARK_* (28-30)
+CNT_IN_STEP=65536        # 1<<16
 
 mkdir -p "$LISTS_DIR" "$STATE_DIR" "$LOG_DIR" "$USER_PRESETS_DIR" "$USER_STRATEGIES_DIR" 2>/dev/null
 
@@ -63,6 +67,7 @@ set_defaults() {
   : "${LOG_MAX_KB:=512}"
   : "${PKT_LIMIT_OUT:=15}"
   : "${PKT_LIMIT_IN:=15}"
+  : "${WAKELOCK:=0}"
 }
 
 log_msg() {
@@ -397,7 +402,7 @@ _fw_iface_rules() {
   local JNFQ="-j NFQUEUE --queue-num $NFQUEUE_NUM --queue-bypass"
   local CONN_CHECK="-m mark ! --mark $MARK_PROCESSED"
   local UP="$IPT_UDP_EFF" TP="$IPT_TCP_PORTS"
-  local CB_OUT="" CB_IN="" LIM_OUT=""
+  local CB_OUT="" CB_IN="" LIM_OUT="" LIM_IN=""
 
   case "$LIMITER" in
     connbytes)
@@ -406,6 +411,7 @@ _fw_iface_rules() {
       ;;
     connmark_out)
       LIM_OUT="-j $IPT_GROUP_QOUT"
+      LIM_IN="-j $IPT_GROUP_QIN"
       ;;
   esac
 
@@ -425,14 +431,23 @@ _fw_iface_rules() {
     $CMD -w -t nat -A $IPT_GROUP_NAT $OUT -m mark --mark $MARK_PROCESSED -p udp -j MASQUERADE
   fi
 
-  [ "$LIMITER" = "connbytes" ] || return 0
+  # Входящие правила нужны ВСЕГДА, а не только при connbytes: раньше без connbytes цепочка
+  # nfqws_pre оставалась пустой, и circular-стратегии не видели ни одного входящего пакета,
+  # то есть не могли заметить, что стратегия провалилась.
   $CMD -w -t mangle -A $IPT_GROUP_PRE $IN -m mark --mark $MARK_PROCESSED -j RETURN
-  [ -n "$UP" ] && $CMD -w -t mangle -A $IPT_GROUP_PRE $IN $CONN_CHECK -p udp -m multiport --sports $UP $CB_IN $JNFQ
   if [ -n "$TP" ]; then
-    $CMD -w -t mangle -A $IPT_GROUP_PRE $IN $CONN_CHECK -p tcp -m multiport --sports $TP $CB_IN $JNFQ
     $CMD -w -t mangle -A $IPT_GROUP_PRE $IN $CONN_CHECK -p tcp -m multiport --sports $TP --tcp-flags syn,ack syn,ack $JNFQ
     $CMD -w -t mangle -A $IPT_GROUP_PRE $IN $CONN_CHECK -p tcp -m multiport --sports $TP --tcp-flags fin fin $JNFQ
     $CMD -w -t mangle -A $IPT_GROUP_PRE $IN $CONN_CHECK -p tcp -m multiport --sports $TP --tcp-flags rst rst $JNFQ
+  fi
+  # Поток с данными: при connbytes — честный счётчик ядра, без него — тот же приём, что и для
+  # исходящих (PKT_LIMIT_IN пакетов на соединение через CONNMARK-счётчик), а не весь поток.
+  if [ "$LIMITER" = "connbytes" ]; then
+    [ -n "$UP" ] && $CMD -w -t mangle -A $IPT_GROUP_PRE $IN $CONN_CHECK -p udp -m multiport --sports $UP $CB_IN $JNFQ
+    [ -n "$TP" ] && $CMD -w -t mangle -A $IPT_GROUP_PRE $IN $CONN_CHECK -p tcp -m multiport --sports $TP $CB_IN $JNFQ
+  elif [ -n "$LIM_IN" ]; then
+    [ -n "$UP" ] && $CMD -w -t mangle -A $IPT_GROUP_PRE $IN $CONN_CHECK -p udp -m multiport --sports $UP $LIM_IN
+    [ -n "$TP" ] && $CMD -w -t mangle -A $IPT_GROUP_PRE $IN $CONN_CHECK -p tcp -m multiport --sports $TP $LIM_IN
   fi
 }
 
@@ -450,14 +465,13 @@ _firewall_start() {
   $CMD -w -t mangle -F $IPT_GROUP_POST
   while $CMD -w -t mangle -D POSTROUTING -j $IPT_GROUP_POST 2>/dev/null; do :; done
 
-  if [ "$LIMITER" = "connbytes" ]; then
-    $CMD -w -t mangle -N $IPT_GROUP_PRE 2>/dev/null
-    $CMD -w -t mangle -F $IPT_GROUP_PRE
-  fi
+  $CMD -w -t mangle -N $IPT_GROUP_PRE 2>/dev/null
+  $CMD -w -t mangle -F $IPT_GROUP_PRE
   while $CMD -w -t mangle -D PREROUTING -j $IPT_GROUP_PRE 2>/dev/null; do :; done
 
   if [ "$LIMITER" = "connmark_out" ]; then
     _fw_counter_chain "$CMD" $IPT_GROUP_QOUT $CNT_OUT_MASK $CNT_OUT_STEP "$PKT_LIMIT_OUT"
+    _fw_counter_chain "$CMD" $IPT_GROUP_QIN $CNT_IN_MASK $CNT_IN_STEP "$PKT_LIMIT_IN"
   fi
 
   if [ "$CMD" = "iptables" ] && [ "$NAT_FIX" = "1" ]; then
@@ -469,7 +483,7 @@ _firewall_start() {
   if [ -z "$ISP_INTERFACE" ]; then
     for ex in $IFACE_EXCLUDE; do
       $CMD -w -t mangle -A $IPT_GROUP_POST -o "$ex" -j RETURN
-      [ "$LIMITER" = "connbytes" ] && $CMD -w -t mangle -A $IPT_GROUP_PRE -i "$ex" -j RETURN
+      $CMD -w -t mangle -A $IPT_GROUP_PRE -i "$ex" -j RETURN
     done
   fi
 
@@ -488,7 +502,7 @@ _firewall_start() {
   fi
 
   $CMD -w -t mangle -I POSTROUTING 1 -j $IPT_GROUP_POST
-  [ "$LIMITER" = "connbytes" ] && $CMD -w -t mangle -I PREROUTING 1 -j $IPT_GROUP_PRE
+  $CMD -w -t mangle -I PREROUTING 1 -j $IPT_GROUP_PRE
   if [ "$CMD" = "iptables" ] && [ "$NAT_FIX" = "1" ]; then
     $CMD -w -t nat -I POSTROUTING 1 -j $IPT_GROUP_NAT
   fi
@@ -501,6 +515,7 @@ _firewall_stop() {
   $CMD -w -t mangle -F $IPT_GROUP_POST 2>/dev/null; $CMD -w -t mangle -X $IPT_GROUP_POST 2>/dev/null
   $CMD -w -t mangle -F $IPT_GROUP_PRE 2>/dev/null;  $CMD -w -t mangle -X $IPT_GROUP_PRE 2>/dev/null
   $CMD -w -t mangle -F $IPT_GROUP_QOUT 2>/dev/null; $CMD -w -t mangle -X $IPT_GROUP_QOUT 2>/dev/null
+  $CMD -w -t mangle -F $IPT_GROUP_QIN 2>/dev/null;  $CMD -w -t mangle -X $IPT_GROUP_QIN 2>/dev/null
   $CMD -w -t mangle -F $IPT_GROUP_APP 2>/dev/null; $CMD -w -t mangle -X $IPT_GROUP_APP 2>/dev/null
   if [ "$CMD" = "iptables" ]; then
     while $CMD -w -t nat -D POSTROUTING -j $IPT_GROUP_NAT 2>/dev/null; do :; done
@@ -525,6 +540,55 @@ firewall_ok() {
   iptables -w -t mangle -C POSTROUTING -j $IPT_GROUP_POST 2>/dev/null
 }
 
+# Бюджет PKT_LIMIT_OUT/IN тратится один раз за всю жизнь соединения и никогда не возвращается:
+# у долгоживущих keep-alive соединений он кончается быстро, и дальше DPI уже нечем перехватывать.
+# Раз в тик watchdog обнуляем оба счётчика вставкой и немедленным снятием одного временного
+# правила. Снимаем по спецификации, а не «правилом номер 1», чтобы не удалить чужое правило,
+# вставленное в цепочку параллельным firewall_start. Если цепочек нет (LIMITER=connbytes),
+# команды просто ничего не найдут.
+refresh_connmark_counter() {
+  local spec
+  for spec in "$IPT_GROUP_QOUT $CNT_OUT_MASK" "$IPT_GROUP_QIN $CNT_IN_MASK"; do
+    set -- $spec
+    iptables  -w -t mangle -I "$1" 1 -j CONNMARK --set-xmark "0x0/$2" 2>/dev/null && \
+    iptables  -w -t mangle -D "$1"     -j CONNMARK --set-xmark "0x0/$2" 2>/dev/null
+    if [ "$IPV6_ENABLED" != "0" ]; then
+      ip6tables -w -t mangle -I "$1" 1 -j CONNMARK --set-xmark "0x0/$2" 2>/dev/null && \
+      ip6tables -w -t mangle -D "$1"     -j CONNMARK --set-xmark "0x0/$2" 2>/dev/null
+    fi
+  done
+  return 0
+}
+
+# На части Android-прошивок (особенно с агрессивным энергосбережением) корневой процесс модуля
+# создаётся в cgroup вызвавшего root-доступ приложения и попадает под заморозку фоновых процессов
+# вместе с ним. Переносим в корневую cgroup верхнего уровня (cgroup v2) — её не замораживают.
+# Всё best-effort: если недоступно, просто не срабатывает. Проверка -w перед записью нужна
+# потому, что в dash ошибка ОТКРЫТИЯ файла для записи уходит в stderr раньше, чем применяется
+# редирект самой команды, и «2>/dev/null» после > её не подавляет.
+protect_process() {   # $1 - PID; по умолчанию текущий процесс
+  local p="${1:-$$}"
+  [ -w "/proc/$p/oom_score_adj" ] 2>/dev/null && echo -1000 > "/proc/$p/oom_score_adj" 2>/dev/null
+  [ -w /sys/fs/cgroup/cgroup.procs ] 2>/dev/null && echo "$p" > /sys/fs/cgroup/cgroup.procs 2>/dev/null
+  return 0
+}
+
+# Партиционный wakelock держит CPU от глубокого сна, пока служба запущена. Это НЕ бесплатно —
+# заметно повышает расход батареи, особенно ночью, когда телефон иначе спал бы. Включается
+# только явно (WAKELOCK=1) — это эксперимент для проверки гипотезы, что именно заморозка/сон на
+# этой конкретной прошивке останавливает обработку пакетов, а не включение по умолчанию для всех.
+acquire_wakelock() {
+  [ "$WAKELOCK" = "1" ] || return 0
+  [ -w /sys/power/wake_lock ] 2>/dev/null && echo "nfqws2-magisk" > /sys/power/wake_lock 2>/dev/null
+  return 0
+}
+# Снимаем независимо от WAKELOCK: если пользователь успел выключить параметр, а лок остался
+# висеть (прошивка не передала его при рестарте службы), иначе он не освободится никогда.
+release_wakelock() {
+  [ -w /sys/power/wake_unlock ] 2>/dev/null && echo "nfqws2-magisk" > /sys/power/wake_unlock 2>/dev/null
+  return 0
+}
+
 system_config() {
   sysctl -w net.netfilter.nf_conntrack_checksum=0 >/dev/null 2>&1
   sysctl -w net.netfilter.nf_conntrack_tcp_be_liberal=1 >/dev/null 2>&1
@@ -532,6 +596,26 @@ system_config() {
   sysctl -w net.core.wmem_max=8388608 >/dev/null 2>&1
   sysctl -w net.core.rmem_default=2097152 >/dev/null 2>&1
   sysctl -w net.core.netdev_max_backlog=16384 >/dev/null 2>&1
+
+  # На живом Keenetic-роутере (где nfqws2-keenetic работает стабильно) эти два параметра явно
+  # выставлены в startup-config: nf_conntrack_tcp_timeout_established=1200, ip conntrack
+  # max-entries=16384. У нас они не трогались вовсе — остаются дефолтом ядра телефона, а на
+  # части Android-прошивок (особенно с агрессивной экономией батареи/памяти) этот таймаут может
+  # быть куда короче. Если запись conntrack для долгоживущего, но не постоянно активного
+  # соединения (мессенджер, соцсеть) истекает раньше, чем приложение реально закрыло сокет,
+  # ядро начинает видеть его пакеты как INVALID/untracked — и дальше зависит от того, что с
+  # такими пакетами делает остальной стек (часто — тихо дропает). Подозреваемый отдельных
+  # "зависших" соединений посреди работы, не только на старте. Задаём те же значения, что
+  # доказанно стабильны на роутере — явно, не полагаясь на дефолт ядра телефона.
+  local cur_est cur_max
+  cur_est=$(sysctl -n net.netfilter.nf_conntrack_tcp_timeout_established 2>/dev/null)
+  cur_max=$(sysctl -n net.netfilter.nf_conntrack_max 2>/dev/null)
+  [ -n "$cur_est" ] && log_msg "conntrack: nf_conntrack_tcp_timeout_established было $cur_est, ставим 1200 (как на эталонном роутере)"
+  sysctl -w net.netfilter.nf_conntrack_tcp_timeout_established=1200 >/dev/null 2>&1
+  if [ -n "$cur_max" ] && [ "$cur_max" -lt 16384 ] 2>/dev/null; then
+    log_msg "conntrack: nf_conntrack_max было $cur_max, поднимаем до 16384 (как на эталонном роутере)"
+    sysctl -w net.netfilter.nf_conntrack_max=16384 >/dev/null 2>&1
+  fi
   return 0
 }
 

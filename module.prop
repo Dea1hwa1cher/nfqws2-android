@@ -1,6 +1,6 @@
 id=nfqws2-android
 name=nfqws2 for Android
-version=v1.3.1
-versionCode=1031
+version=v1.3.6
+versionCode=1036
 author=port of nfqws/nfqws2-keenetic (MIT) + bol-van/zapret2
 description=Обход DPI на базе nfqws2.

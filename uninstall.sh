@@ -1,6 +1,9 @@
 #!/system/bin/sh
 MODDIR="${0%/*}"
 case "$MODDIR" in /*) ;; *) MODDIR="$(cd "$MODDIR" 2>/dev/null && pwd)" ;; esac
+# Снимаем partial wakelock: в ядре это именованный лок, не привязанный к процессу, поэтому он
+# переживает удаление модуля — без этой строки телефон после uninstall не заснёт до перезагрузки.
+[ -w /sys/power/wake_unlock ] 2>/dev/null && echo nfqws2-magisk > /sys/power/wake_unlock 2>/dev/null
 [ -f "$MODDIR/service.sh" ] || MODDIR=/data/adb/modules/nfqws2-android
 kill "$(cat /data/adb/nfqws2/state/watchdog.pid 2>/dev/null)" 2>/dev/null
 sh "$MODDIR/service.sh" stop >/dev/null 2>&1

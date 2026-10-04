@@ -129,14 +129,14 @@ cmd_json_status() {
   cnt_apps=$(list_count "$CONFDIR/apps.list" 2>/dev/null)
   # нечисловое значение обваливает весь JSON и убивает WebUI, поэтому проверяем каждое поле
   for v in appn cnt_user cnt_auto cnt_excl cnt_ipset cnt_ipset_excl cnt_apps uptime qdrop \
-           PKT_LIMIT_OUT PKT_LIMIT_IN BLOCK_QUIC AUTOSTART WATCHDOG IPV6_ENABLED LOG_LEVEL NFQUEUE_NUM; do
+           PKT_LIMIT_OUT PKT_LIMIT_IN BLOCK_QUIC AUTOSTART WATCHDOG IPV6_ENABLED LOG_LEVEL NFQUEUE_NUM WAKELOCK; do
     eval "case \"\${$v}\" in ''|*[!0-9]*) $v=0 ;; esac"
   done
 
   cat <<JSON
 {"running":$run,"pid":"$pid","uptime":$uptime,"strategy":"$(json_str "$cur_strat")","version":"$(json_str "$ver")","mode":"$(json_str "$(current_mode)")",
 "strategy_tls":"$(json_str "$STRATEGY_TLS")","strategy_udp":"$(json_str "$STRATEGY_UDP")","tls_strategies":"$(json_str "$strat_tls")","udp_strategies":"$(json_str "$strat_udp")",
-"preset":"$(json_str "$PRESET_TCP")","limiter":"$(json_str "$(cat "$STATE_DIR/limiter" 2>/dev/null)")","pkt_limit_out":$PKT_LIMIT_OUT,"pkt_limit_in":$PKT_LIMIT_IN,"block_quic":$BLOCK_QUIC,"app_mode":"$(json_str "$APP_MODE")","autostart":$AUTOSTART,"watchdog":$WATCHDOG,
+"preset":"$(json_str "$PRESET_TCP")","limiter":"$(json_str "$(cat "$STATE_DIR/limiter" 2>/dev/null)")","pkt_limit_out":$PKT_LIMIT_OUT,"pkt_limit_in":$PKT_LIMIT_IN,"block_quic":$BLOCK_QUIC,"app_mode":"$(json_str "$APP_MODE")","autostart":$AUTOSTART,"watchdog":$WATCHDOG,"wakelock_on":$WAKELOCK,
 "ipv6":$IPV6_ENABLED,"log_level":$LOG_LEVEL,"qdrop":$qdrop,"queue":$NFQUEUE_NUM,"app_uids":$appn,
 "counts":{"user":$cnt_user,"auto":$cnt_auto,"exclude":$cnt_excl,"ipset":$cnt_ipset,"ipset_exclude":$cnt_ipset_excl,"apps":$cnt_apps}}
 JSON
@@ -167,7 +167,7 @@ cmd_doctor() {
   lim=$(detect_limiter iptables)
   case "$lim" in
     connbytes)   row ok limiter "есть connbytes: обе стороны, лимит исх. $PKT_LIMIT_OUT / вх. $PKT_LIMIT_IN пак. на соединение" ;;
-    connmark_out) row warn limiter "нет connbytes: входящий поток данных не перехватывается; исходящий ограничен $PKT_LIMIT_OUT пак. на соединение (CONNMARK)" ;;
+    connmark_out) row warn limiter "нет connbytes: вход/выход ограничены $PKT_LIMIT_IN/$PKT_LIMIT_OUT пак. на соединение через CONNMARK, обнуляется раз в 20 сек" ;;
   esac
   has_ipt_feature iptables -m owner --uid-owner 0 -j RETURN \
     && row ok owner "фильтр приложений доступен" || row warn owner "нет xt_owner — фильтр приложений не сработает"
@@ -181,8 +181,40 @@ cmd_doctor() {
   else
     row info apps "фильтр по приложениям выключен (APP_MODE=off)"
   fi
-  [ -e /proc/sys/net/netfilter/nf_conntrack_checksum ] && row ok conntrack "sysctl доступны" || row warn conntrack "нет nf_conntrack sysctl"
-  is_running && row ok process "nfqws2 PID $(cat "$PIDFILE" 2>/dev/null)" || row info process "не запущен"
+  if [ -e /proc/sys/net/netfilter/nf_conntrack_checksum ]; then
+    local est cnt mx
+    est=$(sysctl -n net.netfilter.nf_conntrack_tcp_timeout_established 2>/dev/null)
+    cnt=$(sysctl -n net.netfilter.nf_conntrack_count 2>/dev/null)
+    mx=$(sysctl -n net.netfilter.nf_conntrack_max 2>/dev/null)
+    row ok conntrack "timeout_established=${est:-?}с, записей ${cnt:-?}/${mx:-?} (на эталонном роутере: 1200с, max 16384)"
+  else
+    row warn conntrack "нет nf_conntrack sysctl"
+  fi
+  if is_running; then
+    local _pid _cg
+    _pid=$(cat "$PIDFILE" 2>/dev/null)
+    row ok process "nfqws2 PID $_pid"
+    _cg=$(cat "/proc/$_pid/cgroup" 2>/dev/null | tr '\n' ' ')
+    row info cgroup "${_cg:-недоступно}"
+  else
+    row info process "не запущен"
+  fi
+  if grep -q "nfqws2-magisk" /sys/power/wake_lock 2>/dev/null; then
+    row ok wakelock "удерживается"
+  elif [ "$WAKELOCK" = "1" ]; then
+    row warn wakelock "включён в настройках, но не удерживается (нет /sys/power/wake_lock?)"
+  else
+    row info wakelock "выключен (WAKELOCK=0)"
+  fi
+  if [ -f "$WN_PIDFILE" ] && kill -0 "$(cat "$WN_PIDFILE" 2>/dev/null)" 2>/dev/null; then
+    row ok netwatch "работает (мгновенная реакция на смену сети через ip monitor)"
+  elif [ "$WATCHDOG" != "1" ]; then
+    row info netwatch "выключен вместе с WATCHDOG"
+  elif command -v ip >/dev/null 2>&1; then
+    row warn netwatch "не запущен — правила обновятся только по watchdog (раз в 20 сек)"
+  else
+    row info netwatch "команда ip недоступна — на этой прошивке работает только опрос watchdog"
+  fi
   if is_running; then
     local qn
     qn=$(cat /proc/net/netfilter/nfnetlink_queue 2>/dev/null | awk -v q="$NFQUEUE_NUM" '$1 == q { print }')
@@ -345,7 +377,7 @@ case "$1" in
 
   set)
     case "$2" in
-      BLOCK_QUIC|AUTOSTART|WATCHDOG|IPV6_ENABLED|NAT_FIX|LOG_LEVEL) case "$3" in 0|1) ;; *) echo "Допустимо 0 или 1" >&2; exit 1 ;; esac ;;
+      BLOCK_QUIC|AUTOSTART|WATCHDOG|IPV6_ENABLED|NAT_FIX|LOG_LEVEL|WAKELOCK) case "$3" in 0|1) ;; *) echo "Допустимо 0 или 1" >&2; exit 1 ;; esac ;;
       PKT_LIMIT_OUT|PKT_LIMIT_IN) case "$3" in [1-9]|1[0-5]) ;; *) echo "Допустимо 1..15" >&2; exit 1 ;; esac ;;
       APP_MODE) case "$3" in off|include|exclude) ;; *) echo "off|include|exclude" >&2; exit 1 ;; esac ;;
       *) echo "Параметр $2 нельзя менять этой командой" >&2; exit 1 ;;
