@@ -1615,7 +1615,7 @@ async function importPaste(){
     'Текст пройдёт валидатор на устройстве.', '', 'NFQWS_BASE_ARGS=…');
   if(!t || !t.trim()) return;
   const name = await mdPrompt('Имя конфига',
-    'Латиница, цифры, дефисы и подчёркивания.', 'import', 'import');
+    'Можно по-русски. Слэши, кавычки и $ будут убраны.', 'import', 'import');
   if(!name) return;
   const r = await withBusy(['import-add-b64', b64(name), b64(t)]);
   if(r.code){

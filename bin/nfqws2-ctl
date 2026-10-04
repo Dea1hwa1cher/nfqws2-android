@@ -10,7 +10,6 @@ SERVICE="$MODDIR/service.sh"
 
 STRATEGIES_DIR="$MODDIR/strategies"
 USER_STRATEGIES_DIR="$CONFDIR/strategies"
-IMPORTS_DIR="$CONFDIR/imports"
 mkdir -p "$USER_STRATEGIES_DIR" "$STATE_DIR" "$IMPORTS_DIR" 2>/dev/null
 
 b64d() {

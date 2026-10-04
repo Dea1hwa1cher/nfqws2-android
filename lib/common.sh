@@ -9,6 +9,7 @@ LOG_DIR="$CONFDIR/logs"
 USER_PRESETS_DIR="$CONFDIR/presets"
 STRATEGIES_DIR="$MODDIR/strategies"
 USER_STRATEGIES_DIR="$CONFDIR/strategies"
+IMPORTS_DIR="$CONFDIR/imports"
 
 LUA_DIR="$MODDIR/lua"
 BLOBS_DIR="$MODDIR/blobs"
@@ -532,4 +533,91 @@ system_config() {
   sysctl -w net.core.rmem_default=2097152 >/dev/null 2>&1
   sysctl -w net.core.netdev_max_backlog=16384 >/dev/null 2>&1
   return 0
+}
+
+# ---------------------------------------------------------------- импорт конфигов пачками
+# Файл считается конфигом nfqws2-keenetic, если в нём есть минимум 2 ключевых переменной.
+is_keenetic_config() {
+  local f="$1" n
+  [ -f "$f" ] || return 1
+  n=$(grep -cE '^[[:space:]]*(NFQWS_BASE_ARGS|NFQWS_ARGS|NFQWS_ARGS_QUIC|NFQWS_ARGS_UDP|NFQWS_EXTRA_ARGS|NFQWS_ARGS_IPSET|ISP_INTERFACE|TCP_PORTS)=' "$f" 2>/dev/null)
+  [ "${n:-0}" -ge 2 ]
+}
+
+import_safe_name() {
+  # Чёрный список вместо белого: убираем только то, что реально опасно для пути/shell
+  # (/ как разделитель каталогов, кавычки, обратный слэш, $ и обратные кавычки), а не весь
+  # не-ASCII — иначе кириллица и любой другой unicode превращались бы в подчёркивания.
+  # Байты '/','\','`','$','"',''' всегда однобайтовые (< 0x80) и не входят в UTF-8-продолжения,
+  # поэтому их можно безопасно вырезать побайтово, не трогая многобайтовые символы.
+  printf '%s' "$1" | tr -d '/\\`$"'"'" | tr -d '\n\r\t' | sed -e 's/^[[:space:].]*//' -e 's/[[:space:]]*$//' | cut -c1-200
+}
+
+list_imports() {
+  local f
+  for f in "$IMPORTS_DIR"/*.conf; do
+    [ -f "$f" ] || continue
+    basename "$f" .conf
+  done | sort
+}
+
+# Готовит содержимое импортированного файла к ПРЕДПРОСМОТРУ в редакторе: тот же перенос путей
+# и та же чистка переменных Keenetic, что и раньше при импорте, но НИЧЕГО не сохраняет — исходный
+# файл в imports/ остаётся как есть, чтобы Настройки Android можно было поменять один раз и они
+# были одинаковы на всех конфигах, а не "заморожены" на момент импорта каждого из них.
+render_import_merged() {
+  local src="$1" out="$STATE_DIR/import_preview.$$"
+  [ -f "$src" ] || return 1
+
+  awk '
+    function is_drop(k) { return k == "ISP_INTERFACE" || k == "USER" || k == "POLICY_NAME" || k == "POLICY_EXCLUDE" || k == "LOG_DEBUG_PATH" }
+    function flush_pend(   i) { for (i = 1; i <= np; i++) print pend[i]; np = 0 }
+    function quotes(str,   t) { t = str; return gsub(/"/, "", t) }
+    {
+      line = $0
+      if (inval) {
+        if (!dropping) print line
+        if (quotes(line) % 2 == 1) inval = 0
+        next
+      }
+      if (line ~ /^[ \t]*#/) { pend[++np] = line; next }
+      if (line ~ /^[ \t]*$/) {
+        if (dropping_pending) { np = 0; dropping_pending = 0 }
+        flush_pend(); print line; next
+      }
+      if (match(line, /^[A-Za-z_][A-Za-z0-9_]*=/)) {
+        key = substr(line, 1, RLENGTH - 1)
+        dropping = is_drop(key)
+        if (dropping) { np = 0 } else { flush_pend(); print line }
+        if (quotes(line) % 2 == 1) inval = 1
+        next
+      }
+      flush_pend(); print line
+    }
+    END { flush_pend() }' "$src" \
+  | tr -d '\r' \
+  | sed -e 's#/opt/etc/nfqws2/lua#$LUA_DIR#g' -e 's#/opt/etc/nfqws2/blobs#$BLOBS_DIR#g' \
+        -e 's#/opt/etc/nfqws2/lists#$LISTS_DIR#g' -e 's#/opt/etc/nfqws2#$CONFDIR#g' \
+        -e 's#/opt/var/log#$LOG_DIR#g' > "$out"
+
+  local have
+  have=$(grep -o '^[A-Za-z_][A-Za-z0-9_]*=' "$out" | tr -d '=' | sort -u | tr '\n' ' ')
+  {
+    echo
+    echo "# ---- Настройки Android (текущие, подставлены при выборе конфига) ----"
+    awk -v have=" $have " '
+      function quotes(str,   t) { t = str; return gsub(/"/, "", t) }
+      {
+        if (inval) { if (keep) print; if (quotes($0) % 2 == 1) inval = 0; next }
+        if (match($0, /^[A-Za-z_][A-Za-z0-9_]*=/)) {
+          key = substr($0, 1, RLENGTH - 1)
+          keep = (index(have, " " key " ") == 0)
+          if (keep) print
+          if (quotes($0) % 2 == 1) inval = 1
+        }
+      }' "$CONFFILE"
+  } >> "$out"
+
+  cat "$out"
+  rm -f "$out"
 }
