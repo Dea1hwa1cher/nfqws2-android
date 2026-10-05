@@ -1403,6 +1403,12 @@ function dialogResolve(val){
   if(cb) cb(val);
 }
 function mdDialog(opts){
+  /* Диалог на экране один, а промис у каждого свой. Если вызвать mdDialog
+     поверх открытого, dialogCb будет перезаписан и первый промис не разрешится
+     никогда — тот, кто его ждёт, зависнет навсегда (например, быстрый двойной
+     тап по «Удалить»). Закрываем прежний как отменённый: вызывающий получит
+     false, а не вечное ожидание. */
+  if(dialogCb) dialogResolve(false);
   return new Promise(res => {
     dialogCb = res;
     $('d-title').textContent = opts.title || '';
