@@ -1632,7 +1632,7 @@ async function stat(){
     '<div class="list-item">' +
       '<span class="li-text"><span class="li-primary">' + esc(s[1]) + '</span></span>' +
       '<span class="li-trail"><input type="checkbox" class="switch" role="switch" aria-label="' + esc(s[1]) + '"' +
-        (j[KEY[s[0]]] == 1 ? ' checked' : '') + ' onchange="setp(\'' + s[0] + '\', this.checked ? 1 : 0)"></span>' +
+        (j[KEY[s[0]]] == 1 ? ' checked' : '') + ' onchange="setp(' + jsArg(s[0]) + ', this.checked ? 1 : 0)"></span>' +
     '</div>').join('');
 
   $('dbg').checked = (j.log_level == 1);
@@ -1707,7 +1707,7 @@ async function listsInit(){
   await stat();
   $('mode').innerHTML = ['auto', 'list', 'all'].map(m =>
     '<button class="seg state' + (S.mode === m ? ' on' : '') + '" aria-pressed="' + (S.mode === m) + '"' +
-    ' onclick="setMode(\'' + m + '\')"><span class="check">' + icon('check', 's18') + '</span>' + m + '</button>').join('');
+    ' onclick="setMode(' + jsArg(m) + ')"><span class="check">' + icon('check', 's18') + '</span>' + m + '</button>').join('');
   loadList();
 }
 async function setMode(m){ await withBusy(['set-mode', m]); toast('Режим: ' + m); listsInit(); }
@@ -2172,13 +2172,13 @@ function applyTheme(){
 function drawThemeUI(){
   $('theme-mode').innerHTML = [['auto', 'Авто'], ['light', 'Светлая'], ['dark', 'Тёмная']].map(m =>
     '<button class="seg state' + (currentMode === m[0] ? ' on' : '') + '" aria-pressed="' + (currentMode === m[0]) +
-    '" onclick="setThemeMode(\'' + m[0] + '\')"><span class="check">' + icon('check', 's18') + '</span>' + m[1] + '</button>').join('');
+    '" onclick="setThemeMode(' + jsArg(m[0]) + ')"><span class="check">' + icon('check', 's18') + '</span>' + m[1] + '</button>').join('');
   const dark = isDark();
   $('palette-grid').innerHTML = PALETTES.map(p => {
     const r = roles(p[1], dark, false);
     return '<button class="swatch state" style="background:' + r.primaryContainer + ';color:' + r.onPrimaryContainer + '"' +
       ' aria-pressed="' + (p[1].toLowerCase() === currentSeed) + '"' +
-      ' onclick="applyMonet(\'' + p[1] + '\')">' + p[0] + '</button>';
+      ' onclick="applyMonet(' + jsArg(p[1]) + ')">' + p[0] + '</button>';
   }).join('');
   $('amoled-toggle').checked = localStorage.getItem('m3_amoled') === 'true';
   $('amoled-toggle').disabled = !dark;
