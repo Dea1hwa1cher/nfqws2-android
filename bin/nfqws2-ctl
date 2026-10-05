@@ -104,9 +104,20 @@ cmd_json_status() {
     run=true
     pid=$(cat "$PIDFILE" 2>/dev/null)
     if [ -f "$STATE_DIR/started_at" ]; then
-      local now=$(date +%s)
-      local st=$(cat "$STATE_DIR/started_at" 2>/dev/null)
-      uptime=$((now - st))
+      local now st
+      now=$(date +%s)
+      st=$(cat "$STATE_DIR/started_at" 2>/dev/null)
+      # Проверяем ДО арифметики. Нечисловое значение («12x», «1+», «(») роняет
+      # `$((now - st))` с ошибкой арифметики, а переменная после неудачного
+      # присваивания остаётся пустой — тогда в JSON уходит `"uptime":` без числа
+      # и документ становится невалидным. WebUI его не разберёт, а json-status
+      # здесь — контракт. Пустое значение арифметика сама считает нулём, но
+      # uptime тогда равен `now`, то есть «57 лет»; честнее показать 0.
+      case "$st" in
+        ''|*[!0-9]*) uptime=0 ;;
+        *)           uptime=$((now - st)) ;;
+      esac
+      # Часы могли перевести назад — тогда разница отрицательная.
       [ "$uptime" -ge 0 ] 2>/dev/null || uptime=0
     fi
   fi
