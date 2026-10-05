@@ -21,6 +21,19 @@ ui_print "- Архитектура: $ABI -> $BIN"
 ui_print "- Распаковка..."
 unzip -o "$ZIPFILE" -x 'META-INF/*' -d "$MODPATH" >&2 || abort "! Не удалось распаковать модуль"
 
+# Разработческие каталоги не должны оставаться на устройстве, даже если архив
+# собран вручную — например, простым zip из корня репозитория, куда попадают и
+# tests/, и tools/, и логи работы. Штатная сборка (tools/build.py) их не кладёт
+# вовсе, а здесь — вторая линия защиты.
+#
+# Именно удаление, а не `unzip -x`: в unzip '*' не пересекает '/', поэтому
+# шаблон 'tests/*' отсекает только файлы верхнего уровня, а вложенные
+# (tests/module/*, .workbuddy-ai/memory/*) распаковываются как обычно —
+# проверено на Info-ZIP 6.00. Удаляем целиком, до set_perm_recursive.
+rm -rf "$MODPATH/tests" "$MODPATH/tools" "$MODPATH/.workbuddy-ai" \
+       "$MODPATH/.git" "$MODPATH/.github" "$MODPATH/.gitattributes"
+rm -f "$MODPATH"/*.zip
+
 [ -f "$MODPATH/binaries/$BIN/nfqws2" ] || abort "! Нет бинарника $BIN"
 cp -f "$MODPATH/binaries/$BIN/nfqws2" "$MODPATH/bin/nfqws2" || abort "! Не удалось скопировать nfqws2"
 rm -rf "$MODPATH/binaries"
