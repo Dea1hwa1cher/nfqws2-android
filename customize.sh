@@ -56,6 +56,10 @@ for f in user exclude ipset ipset_exclude auto probe_hosts; do
   [ -f "$CONF/lists/$f.list" ] || cp -f "$MODPATH/lists/$f.list" "$CONF/lists/$f.list"
 done
 [ -f "$CONF/apps.list" ] || echo "# Пакеты для фильтра приложений (APP_MODE=include|exclude), по одному на строку" > "$CONF/apps.list"
+# Файл caps писали старые версии модуля; сам механизм больше не существует, но
+# уборку оставляем: при обновлении со старой версии файл должен исчезнуть.
+# Переменная CAPS_FILE из lib/common.sh удалена ревью 2026-10-06 как мёртвая —
+# здесь путь намеренно литералом, читать его больше неоткуда.
 rm -f "$CONF/state/caps"
 
 set_perm_recursive "$MODPATH" 0 0 0755 0644

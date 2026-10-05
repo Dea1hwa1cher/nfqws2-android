@@ -718,20 +718,12 @@ textarea.mono {
 /* ── Type-роли M3 ────────────────────────────────────────────────────────
    В конце файла намеренно: это одноклассовые селекторы, они выигрывают у
    компонентных правил (.card-title, .li-primary, …) только порядком. */
-.t-display-large { font-size: var(--ts-display-large); line-height: var(--lh-display-large); font-weight: var(--w-regular); letter-spacing: var(--tr-display-large); }
-.t-headline-large { font-size: var(--ts-headline-large); line-height: var(--lh-headline-large); font-weight: var(--w-bold); }
-.t-headline-medium { font-size: var(--ts-headline-medium); line-height: var(--lh-headline-medium); font-weight: var(--w-bold); }
-.t-headline-small { font-size: var(--ts-headline-small); line-height: var(--lh-headline-small); font-weight: var(--w-emph); }
-.t-title-large { font-size: var(--ts-title-large); line-height: var(--lh-title-large); font-weight: var(--w-emph); }
+/* Единственный класс шкалы, который где-то применён — в диалоге цвета
+   (index.html, #cd-hex). Остальные тринадцать ступеней были объявлены, но не
+   использовались ни разу: типографика везде задаётся напрямую через var(--ts-*).
+   Удалены ревью 2026-10-06. Если понадобится ещё одна — добавить вместе с местом,
+   где она применяется: страж в test_static.js требует, чтобы класс был достижим. */
 .t-title-medium { font-size: var(--ts-title-medium); line-height: var(--lh-title-medium); font-weight: var(--w-emph); }
-.t-title-small { font-size: var(--ts-title-small); line-height: var(--lh-title-small); font-weight: var(--w-emph); }
-.t-body-large { font-size: var(--ts-body-large); line-height: var(--lh-body-large); font-weight: var(--w-regular); }
-.t-body-medium { font-size: var(--ts-body-medium); line-height: var(--lh-body-medium); font-weight: var(--w-regular); }
-.t-body-small { font-size: var(--ts-body-small); line-height: var(--lh-body-small); font-weight: var(--w-regular); }
-.t-label-large { font-size: var(--ts-label-large); line-height: var(--lh-label-large); font-weight: var(--w-bold); letter-spacing: .1px; }
-.t-label-medium { font-size: var(--ts-label-medium); line-height: var(--lh-label-medium); font-weight: var(--w-emph); letter-spacing: .5px; }
-.t-label-small { font-size: var(--ts-label-small); line-height: var(--lh-label-small); font-weight: var(--w-emph); letter-spacing: .5px; }
-.t-metric { font-size: var(--ts-metric); line-height: var(--lh-metric); font-weight: var(--w-medium); }
 </style>
 <!-- Сгенерированная палитра. Отдельный <style>, а не инлайн-стили на корневом
      элементе: инлайн нельзя перекрыть из CSS, поэтому любая правка ролей в

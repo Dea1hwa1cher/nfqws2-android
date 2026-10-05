@@ -6,14 +6,12 @@ CONFFILE="$CONFDIR/nfqws2.conf"
 LISTS_DIR="$CONFDIR/lists"
 STATE_DIR="$CONFDIR/state"
 LOG_DIR="$CONFDIR/logs"
-USER_PRESETS_DIR="$CONFDIR/presets"
 STRATEGIES_DIR="$MODDIR/strategies"
 USER_STRATEGIES_DIR="$CONFDIR/strategies"
 IMPORTS_DIR="$CONFDIR/imports"
 
 LUA_DIR="$MODDIR/lua"
 BLOBS_DIR="$MODDIR/blobs"
-PRESETS_DIR="$MODDIR/presets"
 NFQWS_BIN="$MODDIR/bin/nfqws2"
 
 PIDFILE="$STATE_DIR/nfqws2.pid"
@@ -21,7 +19,6 @@ WD_PIDFILE="$STATE_DIR/watchdog.pid"
 WN_PIDFILE="$STATE_DIR/netwatch.pid"
 DESIRED_FILE="$STATE_DIR/desired"
 ARGS_FILE="$STATE_DIR/last.args"
-CAPS_FILE="$STATE_DIR/caps"
 APP_UIDS_FILE="$STATE_DIR/app_uids"
 SERVICE_LOG="$LOG_DIR/service.log"
 NFQWS_LOG="$LOG_DIR/nfqws2.log"
@@ -45,7 +42,7 @@ CNT_OUT_STEP=16777216
 CNT_IN_MASK=0x000f0000   # биты 16-19: отдельно от исходящего счётчика (24-27) и MARK_* (28-30)
 CNT_IN_STEP=65536        # 1<<16
 
-mkdir -p "$LISTS_DIR" "$STATE_DIR" "$LOG_DIR" "$USER_PRESETS_DIR" "$USER_STRATEGIES_DIR" 2>/dev/null
+mkdir -p "$LISTS_DIR" "$STATE_DIR" "$LOG_DIR" "$USER_STRATEGIES_DIR" 2>/dev/null
 
 set_defaults() {
   : "${ISP_INTERFACE:=}"
