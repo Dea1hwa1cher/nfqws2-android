@@ -1,0 +1,31 @@
+#!/bin/sh
+# Fake nfqws2 daemon for the regression tests.
+#
+# service.sh start() launches "$NFQWS_BIN" --daemon --pidfile=P ... and waits for
+# that command to return, because the real nfqws2 detaches itself. This stub has
+# to do the same: it spawns a long sleep in the background, records *its* PID in
+# the pidfile and exits immediately. Blocking here instead would hang the whole
+# test run (the pidfile PID has to stay alive for is_running() to accept it).
+#
+# The received argv is saved so tests can assert the assembled startup arguments.
+
+[ -n "$MOCK_NFQWS_ARGS_FILE" ] && printf '%s\n' "$*" > "$MOCK_NFQWS_ARGS_FILE"
+
+pidfile=""
+for a in "$@"; do
+  case "$a" in
+    --pidfile=*) pidfile="${a#--pidfile=}" ;;
+  esac
+done
+
+case "$MOCK_NFQWS_FAIL" in
+  ''|0) ;;
+  *) exit "$MOCK_NFQWS_FAIL" ;;
+esac
+
+if [ -n "$pidfile" ]; then
+  sleep 86400 &
+  printf '%s\n' "$!" > "$pidfile"
+fi
+
+exit 0
