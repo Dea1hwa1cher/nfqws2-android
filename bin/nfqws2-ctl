@@ -318,6 +318,16 @@ cmd_list_apps() {
   pm list packages -3 2>/dev/null | sed 's/^package://' | sort
 }
 
+# Список записан на диск, но служба его ещё не перечитала. Провал перезагрузки
+# говорим словами, а не глотаем: правка сделана, но в работу не пошла — это важно
+# знать. Код возврата не роняем, потому что основное действие уже выполнено; а вот
+# провал самого действия роняет — раньше он не ронял ничего (см. ветки ниже).
+reload_after_change() {
+  is_running || return 0
+  sh "$SERVICE" reload >/dev/null 2>&1 && return 0
+  echo "Списки сохранены, но служба их не перечитала — перезапустите вручную" >&2
+}
+
 case "$1" in
   status) cmd_status ;;
   json-status) cmd_json_status ;;
@@ -370,9 +380,14 @@ case "$1" in
     [ -f "$f" ] || cp -f "$MODDIR/defaults/lists/${f##*/}" "$f" 2>/dev/null
     if [ -f "$f" ]; then cat "$f"; fi ;;
   save-list-b64) f=$(list_file "$2") || { echo "Неизвестный список" >&2; exit 1; }
-    b64d "$3" | tr -d '\r' > "$f.tmp" && mv -f "$f.tmp" "$f"; chmod 0644 "$f"
+    # Проверяем саму запись: без этого упавший mv (полный диск, права, каталог
+    # на месте файла) заканчивался `echo OK`, и правки пользователя молча
+    # терялись — UI показывал успех.
+    { b64d "$3" | tr -d '\r' > "$f.tmp"; } && mv -f "$f.tmp" "$f" ||
+      { rm -f "$f.tmp"; echo "Не удалось сохранить ${f##*/}" >&2; exit 1; }
+    chmod 0644 "$f"
     if [ "$2" = "apps" ]; then cmd_apply_apps; exit $?; fi
-    is_running && sh "$SERVICE" reload >/dev/null 2>&1; echo OK ;;
+    reload_after_change; echo OK ;;
   add-domain)
     d=$(printf '%s' "$2" | tr 'A-Z' 'a-z' | sed 's#^[a-z]*://##; s#/.*##; s/^www\.//')
     case "$d" in ''|*[!a-z0-9.-]*) echo "Некорректный домен" >&2; exit 1 ;; esac
@@ -380,15 +395,23 @@ case "$1" in
     # echo >> склеил бы новый домен с последней строкой, если файл не заканчивается переводом:
     # портились обе записи, и проверка дедупликации ниже тоже переставала срабатывать.
     if [ -s "$ul" ] && [ -n "$(tail -c 1 "$ul")" ]; then printf '\n' >> "$ul"; fi
-    grep -qx "$d" "$ul" 2>/dev/null || echo "$d" >> "$ul"
-    is_running && sh "$SERVICE" reload >/dev/null 2>&1; echo "Добавлено: $d" ;;
-  clear-auto) : > "$LISTS_DIR/auto.list"; is_running && sh "$SERVICE" reload >/dev/null 2>&1; echo OK ;;
+    if ! grep -qx "$d" "$ul" 2>/dev/null; then
+      printf '%s\n' "$d" >> "$ul" || { echo "Не удалось записать ${ul##*/}" >&2; exit 1; }
+    fi
+    reload_after_change; echo "Добавлено: $d" ;;
+  clear-auto)
+    : > "$LISTS_DIR/auto.list" || { echo "Не удалось очистить auto.list" >&2; exit 1; }
+    reload_after_change; echo OK ;;
   # auto.list здесь намеренно нет: он выученный, и сброс не должен стирать
   # наработку — для него есть отдельная команда clear-auto. Установщик
   # (customize.sh) кладёт все шесть, включая auto. Списки обязаны различаться
   # ровно на auto, это проверяет test_data.sh.
-  reset-lists) for f in user exclude ipset ipset_exclude probe_hosts; do cp -f "$MODDIR/defaults/lists/$f.list" "$LISTS_DIR/$f.list"; done
-    is_running && sh "$SERVICE" reload >/dev/null 2>&1; echo OK ;;
+  reset-lists)
+    for f in user exclude ipset ipset_exclude probe_hosts; do
+      cp -f "$MODDIR/defaults/lists/$f.list" "$LISTS_DIR/$f.list" ||
+        { echo "Не удалось восстановить $f.list" >&2; exit 1; }
+    done
+    reload_after_change; echo OK ;;
 
   set)
     case "$2" in
