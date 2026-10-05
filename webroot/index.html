@@ -2285,6 +2285,12 @@ async function detectSystemMonet(showToastNotice){
   if(showToastNotice) toast('Акцент с обоев: ' + hex.toUpperCase());
 }
 function openMonetModal(){
+  /* Выглядит как дубль вызова drawThemeUI() из applyTheme(), но это не дубль и
+     удалять его нельзя: applyTheme() перерисовывает шторку при смене состояния, а тут
+     она приводится в соответствие с состоянием при открытии. Разница видна на
+     поле HEX — в нём может остаться недонабранное значение, которое никуда не
+     применилось (currentSeed меняется только на шести символах), и открытие
+     шторки возвращает туда настоящий seed. Проверяется тестом в test_layout.js. */
   drawThemeUI();
   $('monet-modal').classList.add('open');
   $('theme-scrim').classList.add('show');
