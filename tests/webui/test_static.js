@@ -31,6 +31,8 @@ function truthy(cond, msg) { cond ? ok(msg) : fail(msg); }
 
 const html = fs.readFileSync(INDEX, 'utf8');
 const script = (html.match(/<script>([\s\S]*?)<\/script>/) || [])[1] || '';
+// The document without the stylesheet and the script — class attributes live here.
+const markup = html.replace(/<style>[\s\S]*?<\/style>/, '').replace(/<script>[\s\S]*?<\/script>/, '');
 
 // ── script syntax ─────────────────────────────────────────────────────────────
 sect('script');
@@ -116,6 +118,29 @@ truthy(!/documentElement\.style\.setProperty\(\s*'--md-sys-color/.test(script),
 truthy(!/style\.setProperty\(\s*ROLE_VAR/.test(script), 'the ROLE_VAR map is not applied inline');
 // The status trio follows the same rule.
 truthy(!/^\s*--status-ok:/m.test(styleBlock), 'the status colours are not duplicated in CSS either');
+
+// ── every CSS class is reachable ──────────────────────────────────────────────
+sect('css classes are used');
+
+// Dead rules pile up silently: ~90 lines of chips/kv/pill/empty CSS sat unused
+// until the 2026-10-05 review, because nothing ever looked. A class counts as
+// used if the markup, a class string in the script, or a classList call names it.
+const usedClasses = new Set();
+for (const m of markup.matchAll(/class="([^"]*)"/g)) m[1].split(/\s+/).forEach(c => c && usedClasses.add(c));
+for (const m of script.matchAll(/class=\\?"([^"]*)/g)) m[1].split(/[\s'+]+/).forEach(c => c && usedClasses.add(c));
+for (const m of script.matchAll(/className\s*=\s*'([^']*)'/g)) m[1].split(/\s+/).forEach(c => c && usedClasses.add(c));
+for (const m of script.matchAll(/classList\.(?:add|remove|toggle)\(([^)]*)\)/g)) {
+  for (const q of m[1].matchAll(/'([\w-]+)'/g)) usedClasses.add(q[1]);
+}
+
+// The type scale is a deliberate utility layer: not every step is in use yet.
+const CLASS_WHITELIST = /^t-/;
+// Only class names, not pseudo-elements (::after) or decimal values.
+const cssClasses = new Set(
+  [...styleBlock.matchAll(/(?<![:\w])\.([a-z][a-z0-9-]*)/gi)].map(m => m[1]));
+const deadClasses = [...cssClasses]
+  .filter(c => !usedClasses.has(c) && !CLASS_WHITELIST.test(c)).sort();
+eq('', deadClasses.join(','), `every CSS class is reachable (${cssClasses.size} classes checked)`);
 
 // ── ids the script looks up ───────────────────────────────────────────────────
 sect('element ids');
