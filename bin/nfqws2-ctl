@@ -199,7 +199,7 @@ cmd_doctor() {
   else
     row info process "не запущен"
   fi
-  if grep -q "nfqws2-magisk" /sys/power/wake_lock 2>/dev/null; then
+  if grep -q "nfqws2-android" /sys/power/wake_lock 2>/dev/null; then
     row ok wakelock "удерживается"
   elif [ "$WAKELOCK" = "1" ]; then
     row warn wakelock "включён в настройках, но не удерживается (нет /sys/power/wake_lock?)"

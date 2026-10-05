@@ -602,15 +602,24 @@ protect_process() {   # $1 - PID; по умолчанию текущий про�
 # заметно повышает расход батареи, особенно ночью, когда телефон иначе спал бы. Включается
 # только явно (WAKELOCK=1) — это эксперимент для проверки гипотезы, что именно заморозка/сон на
 # этой конкретной прошивке останавливает обработку пакетов, а не включение по умолчанию для всех.
+# Имя лока — это id модуля (module.prop). Совпадение обязательно: захват,
+# освобождение и проверка в докторе пишут и читают одну и ту же строку, и если
+# они разойдутся, лок не снимется никогда — телефон не заснёт до перезагрузки.
+# Совпадение с module.prop проверяется тестом test_data.sh.
 acquire_wakelock() {
   [ "$WAKELOCK" = "1" ] || return 0
-  [ -w /sys/power/wake_lock ] 2>/dev/null && echo "nfqws2-magisk" > /sys/power/wake_lock 2>/dev/null
+  [ -w /sys/power/wake_lock ] 2>/dev/null && echo "nfqws2-android" > /sys/power/wake_lock 2>/dev/null
   return 0
 }
 # Снимаем независимо от WAKELOCK: если пользователь успел выключить параметр, а лок остался
 # висеть (прошивка не передала его при рестарте службы), иначе он не освободится никогда.
+#
+# Старое имя снимаем тоже: лок в ядре не привязан к процессу и переживает обновление
+# модуля, поэтому взятый прежней версией nfqws2-magisk висел бы до перезагрузки.
 release_wakelock() {
-  [ -w /sys/power/wake_unlock ] 2>/dev/null && echo "nfqws2-magisk" > /sys/power/wake_unlock 2>/dev/null
+  [ -w /sys/power/wake_unlock ] 2>/dev/null || return 0
+  echo "nfqws2-android" > /sys/power/wake_unlock 2>/dev/null
+  echo "nfqws2-magisk" > /sys/power/wake_unlock 2>/dev/null
   return 0
 }
 
