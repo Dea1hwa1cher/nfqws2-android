@@ -106,104 +106,27 @@
   --screen-margin: 16px;
   --gap: 12px;
 
-  /* M3 не задаёт семантических success/info: тонированные значения около error */
-  --status-ok: #166a33;
-  --status-warn: #6b5000;
-  --status-bad: #a01811;
-
-  /* ── Color roles: светлая схема (fallback Purple) ── */
-  --md-sys-color-primary: #6750A4;
-  --md-sys-color-on-primary: #FFFFFF;
-  --md-sys-color-primary-container: #EADDFF;
-  --md-sys-color-on-primary-container: #21005D;
-  --md-sys-color-secondary: #635A75;
-  --md-sys-color-on-secondary: #FFFFFF;
-  --md-sys-color-secondary-container: #E8DEF8;
-  --md-sys-color-on-secondary-container: #1D192B;
-  --md-sys-color-tertiary: #7D5260;
-  --md-sys-color-on-tertiary: #FFFFFF;
-  --md-sys-color-tertiary-container: #FFD8E4;
-  --md-sys-color-on-tertiary-container: #31111D;
-  --md-sys-color-error: #B3261E;
-  --md-sys-color-on-error: #FFFFFF;
-  --md-sys-color-error-container: #F9DEDC;
-  --md-sys-color-on-error-container: #410E0B;
-  --md-sys-color-background: #FEF7FF;
-  --md-sys-color-on-background: #1D1B20;
-  --md-sys-color-surface: #FEF7FF;
-  --md-sys-color-on-surface: #1D1B20;
-  --md-sys-color-surface-variant: #E7E0EC;
-  --md-sys-color-on-surface-variant: #49454F;
-  --md-sys-color-surface-dim: #DED8DD;
-  --md-sys-color-surface-bright: #FEF7FF;
-  --md-sys-color-surface-container-lowest: #FFFFFF;
-  --md-sys-color-surface-container-low: #F7F2FA;
-  --md-sys-color-surface-container: #F3EDF7;
-  --md-sys-color-surface-container-high: #ECE6F0;
-  --md-sys-color-surface-container-highest: #E6E0E9;
-  --md-sys-color-outline: #79747E;
-  --md-sys-color-outline-variant: #CAC4D0;
-  --md-sys-color-inverse-surface: #322F35;
-  --md-sys-color-inverse-on-surface: #F5EFF7;
-  --md-sys-color-inverse-primary: #D0BCFF;
+  /* ── Color roles ────────────────────────────────────────────────────────
+     Палитры здесь нет намеренно: все роли M3 генерируются в JS из seed —
+     roles() → applyTheme() → блок <style id="theme-vars">. Держать те же
+     значения ещё и в CSS нельзя: это две копии одного значения, и правка в
+     CSS молча не работала бы (инлайн/сгенерированный блок перекрывает её).
+     Здесь остаётся только то, чего applyTheme() не пишет. */
   --md-sys-color-scrim: rgba(0, 0, 0, .32);
 }
 
-/* Color roles: тёмная схема (fallback Purple, tone 80) */
+/* Тёмная схема: роли приходят из roles(), здесь — только color-scheme и
+   значения, которые applyTheme() не пишет (см. комментарий в :root). */
 html[data-mode="dark"] {
   color-scheme: dark;
-  --md-sys-color-primary: #D2BCFC;
-  --md-sys-color-on-primary: #32226F;
-  --md-sys-color-primary-container: #4C3889;
-  --md-sys-color-on-primary-container: #E9DDFF;
-  --md-sys-color-secondary: #CDC1E1;
-  --md-sys-color-on-secondary: #332D41;
-  --md-sys-color-secondary-container: #4B425D;
-  --md-sys-color-on-secondary-container: #E9DDFD;
-  --md-sys-color-tertiary: #F2B8D3;
-  --md-sys-color-on-tertiary: #492C38;
-  --md-sys-color-tertiary-container: #6C3644;
-  --md-sys-color-on-tertiary-container: #FDDAE1;
-  --md-sys-color-error: #F2B8B5;
-  --md-sys-color-on-error: #601410;
-  --md-sys-color-error-container: #8C1D18;
-  --md-sys-color-on-error-container: #F9DEDC;
-  --md-sys-color-background: #141317;
-  --md-sys-color-on-background: #E4E1E7;
-  --md-sys-color-surface: #141317;
-  --md-sys-color-on-surface: #E4E1E7;
-  --md-sys-color-surface-variant: #49454F;
-  --md-sys-color-on-surface-variant: #C9C4D1;
-  --md-sys-color-surface-dim: #0F0E13;
-  --md-sys-color-surface-bright: #3B383E;
-  --md-sys-color-surface-container-lowest: #0F0E13;
-  --md-sys-color-surface-container-low: #1C1B1F;
-  --md-sys-color-surface-container: #201F23;
-  --md-sys-color-surface-container-high: #2B292D;
-  --md-sys-color-surface-container-highest: #363438;
-  --md-sys-color-outline: #938F9B;
-  --md-sys-color-outline-variant: #494550;
-  --md-sys-color-inverse-surface: #E4E1E7;
-  --md-sys-color-inverse-on-surface: #313034;
-  --md-sys-color-inverse-primary: #6750A4;
   --md-sys-color-scrim: rgba(0, 0, 0, .48);
-  --status-ok: #6dd58c;
-  --status-warn: #f0c14b;
-  --status-bad: #ffb4ab;
 }
 
-/* Светлая схема явно задана и в :root — блок оставлен для переопределений seed */
+/* Светлая схема: роли тоже из roles(), здесь нужен только color-scheme. */
 html[data-mode="light"] { color-scheme: light; }
 
-/* AMOLED: surface-роли уходят в чёрный (M3 dark + OLED-вариант).
-   applyTheme() пишет роли инлайном, поэтому реальные значения задаёт roles(). */
-html[data-mode="dark"][data-amoled="true"] {
-  --md-sys-color-background: #000000;
-  --md-sys-color-surface: #000000;
-  --md-sys-color-surface-dim: #000000;
-  --md-sys-color-surface-container-lowest: #000000;
-  --md-sys-color-surface-container-low: #05040A;
-}
+/* AMOLED отдельным блоком не описан: surface-роли уходят в чёрный внутри
+   roles(seed, dark, amoled) — см. ветку amoled в роли генератора. */
 
 /* ── Base ─────────────────────────────────────────────────────────────── */
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -884,6 +807,11 @@ textarea.mono {
 .t-label-small { font-size: var(--ts-label-small); line-height: var(--lh-label-small); font-weight: var(--w-emph); letter-spacing: .5px; }
 .t-metric { font-size: var(--ts-metric); line-height: var(--lh-metric); font-weight: var(--w-medium); }
 </style>
+<!-- Сгенерированная палитра. Отдельный <style>, а не инлайн-стили на корневом
+     элементе: инлайн нельзя перекрыть из CSS, поэтому любая правка ролей в
+     таблице стилей молча терялась бы. Здесь блок идёт последним и выигрывает
+     по порядку, но остаётся обычным CSS-правилом. -->
+<style id="theme-vars"></style>
 </head>
 <body>
 <!-- ═══ Иконки: Material Symbols Outlined, инлайновый спрайт 24dp ═══════
@@ -2275,11 +2203,11 @@ const ROLE_VAR = {
 function applyTheme(){
   const dark = isDark();
   const amoled = localStorage.getItem('m3_amoled') === 'true' && dark;
-  const R = roles(currentSeed, dark, amoled), st = document.documentElement.style;
-  for(const k in ROLE_VAR) st.setProperty(ROLE_VAR[k], R[k]);
-  st.setProperty('--status-ok', R.statusOk);
-  st.setProperty('--status-warn', R.statusWarn);
-  st.setProperty('--status-bad', R.statusBad);
+  const R = roles(currentSeed, dark, amoled);
+  let css = ':root{';
+  for(const k in ROLE_VAR) css += ROLE_VAR[k] + ':' + R[k] + ';';
+  css += '--status-ok:' + R.statusOk + ';--status-warn:' + R.statusWarn + ';--status-bad:' + R.statusBad + ';}';
+  $('theme-vars').textContent = css;
   document.documentElement.setAttribute('data-mode', dark ? 'dark' : 'light');
   document.documentElement.setAttribute('data-amoled', amoled ? 'true' : 'false');
   const meta = document.querySelector('meta[name="theme-color"]');
