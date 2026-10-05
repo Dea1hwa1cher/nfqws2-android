@@ -383,6 +383,10 @@ case "$1" in
     grep -qx "$d" "$ul" 2>/dev/null || echo "$d" >> "$ul"
     is_running && sh "$SERVICE" reload >/dev/null 2>&1; echo "Добавлено: $d" ;;
   clear-auto) : > "$LISTS_DIR/auto.list"; is_running && sh "$SERVICE" reload >/dev/null 2>&1; echo OK ;;
+  # auto.list здесь намеренно нет: он выученный, и сброс не должен стирать
+  # наработку — для него есть отдельная команда clear-auto. Установщик
+  # (customize.sh) кладёт все шесть, включая auto. Списки обязаны различаться
+  # ровно на auto, это проверяет test_data.sh.
   reset-lists) for f in user exclude ipset ipset_exclude probe_hosts; do cp -f "$MODDIR/defaults/lists/$f.list" "$LISTS_DIR/$f.list"; done
     is_running && sh "$SERVICE" reload >/dev/null 2>&1; echo OK ;;
 

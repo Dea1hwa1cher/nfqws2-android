@@ -48,6 +48,10 @@ else
   cp -f "$MODPATH/defaults/nfqws2.conf" "$CONF/nfqws2.conf"
   ui_print "- Создан конфиг: $CONF/nfqws2.conf"
 fi
+# При установке кладутся все шесть списков, включая auto.list: это стартовый
+# набор, дальше nfqws2 пополняет его сам. reset-lists в nfqws2-ctl намеренно НЕ
+# трогает auto.list — он выученный, и сброс стёр бы наработку. Списки обязаны
+# различаться ровно на auto, это проверяет test_data.sh.
 for f in user exclude ipset ipset_exclude auto probe_hosts; do
   [ -f "$CONF/lists/$f.list" ] || cp -f "$MODPATH/lists/$f.list" "$CONF/lists/$f.list"
 done
