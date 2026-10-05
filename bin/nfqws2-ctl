@@ -112,10 +112,13 @@ cmd_json_status() {
       [ "$uptime" -ge 0 ] 2>/dev/null || uptime=0
     fi
   fi
-  local ver strat_tls strat_udp cur_strat
+  # Ничего сверх того, что читает WebUI: раньше здесь ещё считались
+  # tls_strategies/udp_strategies — два пайплайна norm_args|tr|grep|sort|sed по
+  # обоим наборам аргументов на КАЖДЫЙ вызов, — плюс всегда пустой preset.
+  # Ни одно из этих полей интерфейс не читал. Если диагностика по стратегиям
+  # понадобится, её стоит отдавать отдельной командой, а не в статусе.
+  local ver cur_strat
   ver=$(sed -n 's/^version=//p' "$MODDIR/module.prop" | head -n1)
- strat_tls=$(norm_args "$NFQWS_ARGS" | tr ' ' '\n' | grep -o 'strategy=[0-9]*' | sort -u | sed 's/strategy=//' | sort -n | tr '\n' ',' | sed 's/,$//')
-  strat_udp=$(norm_args "$NFQWS_ARGS_UDP" | tr ' ' '\n' | grep -o 'strategy=[0-9]*' | sort -u | sed 's/strategy=//' | sort -n | tr '\n' ',' | sed 's/,$//')
   cur_strat=$(get_current_strategy)
   local qdrop
   qdrop=$(awk -v q="$NFQUEUE_NUM" '$1 == q { print $6 + $7; f = 1 } END { if (!f) print 0 }' /proc/net/netfilter/nfnetlink_queue 2>/dev/null)
@@ -135,8 +138,7 @@ cmd_json_status() {
 
   cat <<JSON
 {"running":$run,"pid":"$pid","uptime":$uptime,"strategy":"$(json_str "$cur_strat")","version":"$(json_str "$ver")","mode":"$(json_str "$(current_mode)")",
-"strategy_tls":"$(json_str "$STRATEGY_TLS")","strategy_udp":"$(json_str "$STRATEGY_UDP")","tls_strategies":"$(json_str "$strat_tls")","udp_strategies":"$(json_str "$strat_udp")",
-"preset":"$(json_str "$PRESET_TCP")","limiter":"$(json_str "$(cat "$STATE_DIR/limiter" 2>/dev/null)")","pkt_limit_out":$PKT_LIMIT_OUT,"pkt_limit_in":$PKT_LIMIT_IN,"block_quic":$BLOCK_QUIC,"app_mode":"$(json_str "$APP_MODE")","autostart":$AUTOSTART,"watchdog":$WATCHDOG,"wakelock_on":$WAKELOCK,
+"limiter":"$(json_str "$(cat "$STATE_DIR/limiter" 2>/dev/null)")","pkt_limit_out":$PKT_LIMIT_OUT,"pkt_limit_in":$PKT_LIMIT_IN,"block_quic":$BLOCK_QUIC,"app_mode":"$(json_str "$APP_MODE")","autostart":$AUTOSTART,"watchdog":$WATCHDOG,"wakelock_on":$WAKELOCK,
 "ipv6":$IPV6_ENABLED,"log_level":$LOG_LEVEL,"qdrop":$qdrop,"queue":$NFQUEUE_NUM,"app_uids":$appn,
 "counts":{"user":$cnt_user,"auto":$cnt_auto,"exclude":$cnt_excl,"ipset":$cnt_ipset,"ipset_exclude":$cnt_ipset_excl,"apps":$cnt_apps}}
 JSON

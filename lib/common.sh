@@ -62,7 +62,6 @@ set_defaults() {
   : "${NAT_FIX:=1}"
   : "${STRATEGY_TLS:=auto}"
   : "${STRATEGY_UDP:=auto}"
-  : "${PRESET_TCP:=}"
   : "${APP_MODE:=off}"
   : "${LOG_MAX_KB:=512}"
   : "${PKT_LIMIT_OUT:=15}"
