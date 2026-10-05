@@ -24,7 +24,12 @@ done
 section "line endings"
 
 # Android's sh reads a CRLF script as garbage ("\r: not found" on every line).
-for f in $SCRIPTS; do
+# The check covers every shipped file, not just the scripts: an editor on
+# Windows will happily save index.html or build.py as CRLF too, and the repo
+# pins LF.
+LF_FILES="$SCRIPTS webroot/index.html webroot/config.json module.prop"
+for f in $LF_FILES; do
+  [ -f "$REPO_DIR/$f" ] || continue
   if grep -q "$(printf '\r')" "$REPO_DIR/$f" 2>/dev/null; then
     _fail "$f contains CR characters"
   else
@@ -93,6 +98,23 @@ for f in "$REPO_DIR"/defaults/nfqws2.conf "$REPO_DIR"/strategies/*.conf; do
 done
 [ "$missing_blobs" = 0 ] && _ok "every referenced blob exists (directly or as a runtime alias)"
 [ "$missing_lists" = 0 ] && _ok "every referenced list exists"
+
+# ── rewriting keenetic paths has one definition ────────────────────────────────
+section "keenetic path rewriting"
+
+# The rewrite rule used to be copy-pasted three times (norm_args, set_strategy,
+# render_import_merged) and drifted by quoting: two copies expanded the
+# variables, one wrote the reference. Keep it to one place.
+assert_eq "1" "$(grep -c '^rewrite_keenetic_paths()' "$REPO_DIR/lib/common.sh")" \
+  "rewrite_keenetic_paths is defined exactly once"
+assert_eq "0" "$(grep -c 'opt/etc/nfqws2' "$REPO_DIR/bin/nfqws2-ctl")" \
+  "the ctl has no private copy of the rewrite rule"
+assert_ge "$(grep -c 'rewrite_keenetic_paths' "$REPO_DIR/bin/nfqws2-ctl")" 1 \
+  "the ctl calls the shared function"
+assert_eq "refs" "$(grep -o 'rewrite_keenetic_paths refs' "$REPO_DIR/lib/common.sh" | sed 's/.* //')" \
+  "the config preview asks for the reference form explicitly"
+assert_contains "$(cat "$REPO_DIR/lib/common.sh")" \
+  's#/opt/etc/nfqws2/lua#$LUA_DIR#g' "the lua rule still precedes the generic /opt/etc/nfqws2 rule"
 
 # ── lists vs defaults/lists ───────────────────────────────────────────────────
 section "lists/ and defaults/lists/ agree"

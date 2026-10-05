@@ -192,16 +192,42 @@ list_count() {
   printf '%s' "${c:-0}"
 }
 
+# Перезапись keenetic-путей на каталоги этого модуля. Раньше это правило
+# копировалось трижды (norm_args, set_strategy, render_import_merged) и успело
+# разойтись по кавычкам: две копии раскрывали переменные, третья — писала
+# ссылкой, и по коду это различие видно не было.
+#
+# Порядок подстановок важен: частные пути (/opt/etc/nfqws2/lua, /blobs, /lists)
+# обязаны идти раньше общего /opt/etc/nfqws2, иначе они подменяются общим
+# правилом и превращаются в $CONFDIR/lua.
+#
+#   без аргумента  — подставить реальные пути: так нужно в командную строку
+#                    бинарника;
+#   аргумент "refs" — записать ссылками $LUA_DIR/$BLOBS_DIR/... : так нужно в
+#                     конфиг, который модуль потом сорсит (именно в такой форме
+#                     пути записаны в defaults/nfqws2.conf и в стратегиях).
+rewrite_keenetic_paths() {
+  if [ "$1" = "refs" ]; then
+    sed -e 's#/opt/etc/nfqws2/lua#$LUA_DIR#g' \
+        -e 's#/opt/etc/nfqws2/blobs#$BLOBS_DIR#g' \
+        -e 's#/opt/etc/nfqws2/lists#$LISTS_DIR#g' \
+        -e 's#/opt/etc/nfqws2#$CONFDIR#g' \
+        -e 's#/opt/var/log#$LOG_DIR#g'
+  else
+    sed -e "s#/opt/etc/nfqws2/lua#$LUA_DIR#g" \
+        -e "s#/opt/etc/nfqws2/blobs#$BLOBS_DIR#g" \
+        -e "s#/opt/etc/nfqws2/lists#$LISTS_DIR#g" \
+        -e "s#/opt/etc/nfqws2#$CONFDIR#g" \
+        -e "s#/opt/var/log#$LOG_DIR#g"
+  fi
+}
+
 norm_args() {
   printf '%s\n' "$1" \
     | sed -e 's/^[[:space:]]*#.*$//' -e 's/\\//g' \
     | awk '{ for (i=1; i<=NF; i++) printf "%s ", $i } END { print "" }' \
-    | sed -e "s#/opt/etc/nfqws2/lua#$LUA_DIR#g" \
-          -e "s#/opt/etc/nfqws2/blobs#$BLOBS_DIR#g" \
-          -e "s#/opt/etc/nfqws2/lists#$LISTS_DIR#g" \
-          -e "s#/opt/etc/nfqws2#$CONFDIR#g" \
-          -e "s#/opt/var/log#$LOG_DIR#g" \
-          -e 's/  */ /g; s/^ //; s/ $//'
+    | rewrite_keenetic_paths \
+    | sed -e 's/  */ /g; s/^ //; s/ $//'
 }
 
 apply_strategy() {
@@ -679,9 +705,7 @@ render_import_merged() {
     }
     END { flush_pend() }' "$src" \
   | tr -d '\r' \
-  | sed -e 's#/opt/etc/nfqws2/lua#$LUA_DIR#g' -e 's#/opt/etc/nfqws2/blobs#$BLOBS_DIR#g' \
-        -e 's#/opt/etc/nfqws2/lists#$LISTS_DIR#g' -e 's#/opt/etc/nfqws2#$CONFDIR#g' \
-        -e 's#/opt/var/log#$LOG_DIR#g' > "$out"
+  | rewrite_keenetic_paths refs > "$out"
 
   local have
   have=$(grep -o '^[A-Za-z_][A-Za-z0-9_]*=' "$out" | tr -d '=' | sort -u | tr '\n' ' ')

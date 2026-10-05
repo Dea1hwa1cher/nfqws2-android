@@ -79,13 +79,9 @@ set_strategy() {
   fi
 
   local tmp="$STATE_DIR/strat_apply.tmp"
-  sed -e "s#/opt/etc/nfqws2/lua#$LUA_DIR#g" \
-      -e "s#/opt/etc/nfqws2/blobs#$BLOBS_DIR#g" \
-      -e "s#/opt/etc/nfqws2/lists#$LISTS_DIR#g" \
-      -e "s#/opt/etc/nfqws2#$CONFDIR#g" \
-      -e "s#/opt/var/log#$LOG_DIR#g" \
-      -e 's#^[[:space:]]*ISP_INTERFACE=.*#ISP_INTERFACE=""#' \
-      -e 's#^[[:space:]]*USER=.*#NFQWS_USER=root#' "$src" > "$tmp"
+  rewrite_keenetic_paths < "$src" \
+    | sed -e 's#^[[:space:]]*ISP_INTERFACE=.*#ISP_INTERFACE=""#' \
+          -e 's#^[[:space:]]*USER=.*#NFQWS_USER=root#' > "$tmp"
 
   if validate_conf "$tmp" >/dev/null 2>&1; then
     cp -f "$CONFFILE" "$CONFFILE.bak" 2>/dev/null
