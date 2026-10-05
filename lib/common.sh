@@ -564,14 +564,21 @@ _firewall_stop() {
 firewall_iptables()  { _firewall_start iptables; }
 firewall_ip6tables() { [ "$IPV6_ENABLED" = "0" ] && return 0; _firewall_start ip6tables; }
 
+# Статус обеих половин, а не только последней. firewall_ip6tables() при
+# выключенном IPv6 возвращает 0 безусловно, поэтому провал iptables в ней тонул:
+# функция рапортовала успех, когда правила IPv4 не встали.
 firewall_start() {
-  firewall_iptables
-  firewall_ip6tables
+  local rc=0
+  firewall_iptables || rc=1
+  firewall_ip6tables || rc=1
+  return $rc
 }
 
 firewall_stop() {
-  _firewall_stop iptables
-  _firewall_stop ip6tables
+  local rc=0
+  _firewall_stop iptables || rc=1
+  _firewall_stop ip6tables || rc=1
+  return $rc
 }
 
 firewall_ok() {

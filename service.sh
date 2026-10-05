@@ -66,7 +66,19 @@ start() {
   protect_process "$pid"
   date +%s > "$STARTED_FILE"
 
+  # Проверяем результат, а не только код возврата firewall_start(): без правила
+  # в POSTROUTING демон работает вхолостую — пакеты не уходят в NFQUEUE и не
+  # перехватываются. Снаружи это выглядело как успешный запуск.
   firewall_start
+  if ! firewall_ok; then
+    log_msg "Ошибка: правила iptables не применились — трафик не перехватывается"
+    # Откат: демон без правил бесполезен, а оставленный pidfile показывал бы
+    # «служба работает» — ровно то, чего не произошло.
+    kill -TERM "$pid" 2>/dev/null
+    rm -f "$PIDFILE"
+    return 1
+  fi
+
   system_config
   acquire_wakelock
   echo 1 > "$DESIRED_FILE"
@@ -90,6 +102,15 @@ stop() {
     rm -f "$PIDFILE"
   fi
   pidof nfqws2 >/dev/null 2>&1 && killall -9 nfqws2 2>/dev/null
+
+  # Снятие правил проверяем отдельно: оставленная цепочка хуже работающей. В ней
+  # остаётся прыжок в NFQUEUE, слушателя уже нет, и ядро роняет эти пакеты —
+  # то есть «остановлено» с оставшимися правилами означает сломанную сеть.
+  if firewall_ok; then
+    log_msg "Ошибка: правила iptables остались на месте — трафик в NFQUEUE без слушателя"
+    return 1
+  fi
+
   log_msg "nfqws2 остановлен"
   return 0
 }
