@@ -1270,6 +1270,12 @@ const q = s => "'" + String(s).replace(/'/g, "'\\''") + "'";
 const b64 = s => btoa(unescape(encodeURIComponent(s)));
 const unb64 = s => { try { return decodeURIComponent(escape(atob(s))); } catch(e) { return atob(s); } };
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+/* Значение внутрь JS-строки в HTML-атрибуте, например onclick="f('ИМЯ')".
+   Одного esc() здесь мало: HTML-декодер вернёт &#39; обратно в кавычку ДО того,
+   как строку увидит JS-парсер, и она вырвется из литерала. Поэтому сначала
+   кавычим для JS (JSON.stringify экранирует кавычки, слэши и переводы строк),
+   а потом получившуюся двойную кавычку прячем от HTML через esc(). */
+const jsArg = v => esc(JSON.stringify(String(v == null ? '' : v)));
 const icon = (name, cls) => '<svg class="icon ' + (cls || 's20') + '"><use href="#i-' + name + '"/></svg>';
 
 /* ── Ripple: pointerdown на любой .state, делегирование переживает innerHTML ── */
@@ -1800,11 +1806,11 @@ async function loadImports(){
     '<div class="list-item two-line">' +
       '<span class="li-icon">' + icon('file') + '</span>' +
       '<span class="li-text"><span class="li-primary li-mono clickable truncate" title="Нажмите для переименования"' +
-        ' onclick="renameImportStart(this,\'' + esc(n) + '\')">' + esc(n) + '</span></span>' +
+        ' onclick="renameImportStart(this,' + jsArg(n) + ')">' + esc(n) + '</span></span>' +
       '<span class="li-trail">' +
-        '<button class="btn text sm state" onclick="loadImport(\'' + esc(n) + '\')">Выбрать</button>' +
+        '<button class="btn text sm state" onclick="loadImport(' + jsArg(n) + ')">Выбрать</button>' +
         '<button class="icon-btn sm state" aria-label="Удалить импорт"' +
-          ' onclick="delImport(\'' + esc(n) + '\')">' + icon('trash') + '</button>' +
+          ' onclick="delImport(' + jsArg(n) + ')">' + icon('trash') + '</button>' +
       '</span>' +
     '</div>').join('')
     : '<div class="list-item"><span class="li-text"><span class="li-secondary">Пока пусто</span></span></div>';
