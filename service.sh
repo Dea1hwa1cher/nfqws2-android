@@ -8,6 +8,14 @@ load_conf
 
 STARTED_FILE="$STATE_DIR/started_at"
 
+# Обе ветки отказа в start() кончаются одинаково — причиной и хвостом лога
+# запуска, — поэтому хвост живёт здесь, а не копией в каждой ветке.
+start_failed() { # <причина>
+  log_msg "$1"
+  log_msg "Последние строки лога:"
+  tail -n 8 "$NFQWS_LOG" 2>/dev/null | while IFS= read -r l; do log_msg "  $l"; done
+}
+
 start() {
   if is_running; then
     echo "Служба nfqws2 уже запущена (PID $(cat "$PIDFILE"))"
@@ -39,8 +47,7 @@ start() {
   set +f
 
   if [ "$res" -ne 0 ]; then
-    log_msg "Ошибка: nfqws2 завершился с кодом $res. Последние строки лога:"
-    tail -n 8 "$NFQWS_LOG" 2>/dev/null | while IFS= read -r l; do log_msg "  $l"; done
+    start_failed "Ошибка: nfqws2 завершился с кодом $res."
     return 1
   fi
 
@@ -51,8 +58,7 @@ start() {
   [ -n "$pid" ] || pid=$(pidof nfqws2 2>/dev/null | awk '{print $1}')
 
   if [ -z "$pid" ] || ! kill -0 "$pid" 2>/dev/null; then
-    log_msg "Ошибка: nfqws2 не запустился. Последние строки лога:"
-    tail -n 8 "$NFQWS_LOG" 2>/dev/null | while IFS= read -r l; do log_msg "  $l"; done
+    start_failed "Ошибка: nfqws2 не запустился."
     return 1
   fi
 
