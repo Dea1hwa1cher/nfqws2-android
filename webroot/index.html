@@ -1024,7 +1024,7 @@ textarea.mono {
       <div class="field">
         <div class="control has-lead">
           <span class="lead"><svg class="icon s20"><use href="#i-search"/></svg></span>
-          <input type="search" id="pf" placeholder="Поиск пакета…" autocapitalize="off" spellcheck="false" oninput="drawPk()">
+          <input type="search" id="pf" placeholder="Поиск пакета…" autocapitalize="off" spellcheck="false" oninput="pkSearchInput()">
         </div>
         <div class="helper" id="pk-count"></div>
       </div>
@@ -1730,12 +1730,29 @@ async function loadPk(){
   $('pk').innerHTML = '<div class="list-item"><span class="spinner"></span>' +
     '<span class="li-text"><span class="li-secondary">Загрузка списка пакетов…</span></span></div>';
   pkgs = (await ctl(['list-apps'], 30000)).trim().split('\n').filter(Boolean);
+  appsCache = null;          // список могли изменить снаружи
+  clearTimeout(pkTimer);     // и отменяем отложенную перерисовку от старого ввода
   $('pf').value = '';
   await drawPk();
   $('pk-card').scrollIntoView({behavior: 'smooth', block: 'start'});
 }
+/* apps.list кэшируется на время работы со страницей: drawPk() вызывается на
+   каждое нажатие клавиши в поиске, а каждый ctl — это запуск процесса на
+   устройстве. Возвращается ТОТ ЖЕ Set, а не копия: togglePkg меняет его и тут
+   же сохраняет, поэтому кэш остаётся согласованным. Сбрасывается в loadPk(),
+   где список мог измениться извне. */
+let appsCache = null;
 async function getAppsList(){
-  return new Set((await ctl(['get-list', 'apps'])).split('\n').map(s => s.trim()).filter(s => s && s[0] !== '#'));
+  if(!appsCache)
+    appsCache = new Set((await ctl(['get-list', 'apps'])).split('\n').map(s => s.trim()).filter(s => s && s[0] !== '#'));
+  return appsCache;
+}
+/* Фильтр перерисовывает до 120 строк на каждое нажатие, поэтому ввод
+   придерживается: ctl уже не дёргается (кэш), а вот innerHTML — дорогой. */
+let pkTimer = null;
+function pkSearchInput(){
+  clearTimeout(pkTimer);
+  pkTimer = setTimeout(drawPk, 180);
 }
 async function drawPk(){
   const f = $('pf').value.toLowerCase();

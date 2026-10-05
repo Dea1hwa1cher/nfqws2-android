@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 /*
- * Rendered-geometry tests for webroot/index.html.
+ * Browser tests for webroot/index.html: rendered geometry, plus the handful of
+ * interactions whose cost or correctness only shows up in a real page (the
+ * package search, which must not shell out per keystroke).
  *
  * The page is a KernelSU WebUI: it renders its lists from `ksu.exec` output, so
  * opening the file in a browser shows an empty skeleton and every visual
@@ -36,16 +38,20 @@ const STATUS = JSON.stringify({
 const STRATEGIES = 'default\nalt\nalt2\nalt3\nalt13\nfake_tls_auto\nsimple_fake\nhardcorp74\nkrushaaa\nMartinBacker\nUvvi2\neduncey\nexp';
 
 const STUB = `
+window.__calls = [];
 window.ksu = { exec: function(cmd, opts, cb){
   var args = [opts, cb], id = null;
   for (var i = args.length - 1; i >= 0; i--) {
     if (typeof args[i] === 'string') { id = args[i]; break; }
   }
+  window.__calls.push(cmd);
   var out = 'OK';
   if (cmd.indexOf('json-status') >= 0) out = ${JSON.stringify(STATUS)};
   else if (cmd.indexOf('list-strategies') >= 0) out = ${JSON.stringify(STRATEGIES)};
   else if (cmd.indexOf('get-strategy') >= 0) out = 'alt13';
+  else if (cmd.indexOf('get-list') >= 0 && cmd.indexOf('apps') >= 0) out = 'com.termux\\ncom.example.one';
   else if (cmd.indexOf('get-list') >= 0) out = 'example.com';
+  else if (cmd.indexOf('list-apps') >= 0) out = 'com.termux\\ncom.example.one\\ncom.example.two\\ncom.other';
   else if (cmd.indexOf('get-conf') >= 0) out = 'A=1';
   setTimeout(function(){ if (window[id]) window[id](0, out, ''); }, 0);
   return 'job';
@@ -235,6 +241,41 @@ const VIEWPORTS = [
       const overridden = await page.evaluate(() =>
         getComputedStyle(document.documentElement).getPropertyValue('--md-sys-color-primary').trim());
       eq('rgb(1, 2, 3)', overridden, 'a plain CSS rule can override a colour role');
+
+      // ── the package search must not shell out per keystroke ──
+      // Every ctl call is a process on the device, and drawPk() used to re-read
+      // apps.list on each one. ctl() quotes every argument, so match on the
+      // pieces rather than on 'get-list apps'.
+      const listReads = () => page.evaluate(() =>
+        window.__calls.filter(c => c.indexOf('get-list') >= 0 && c.indexOf('apps') >= 0).length);
+
+      // The apps page has to be on screen: a hidden input cannot be typed into.
+      await page.evaluate(() => {
+        document.querySelectorAll('.page').forEach(s => s.classList.toggle('active', s.dataset.page === 'apps'));
+      });
+      await page.waitForTimeout(150);
+
+      await page.evaluate(() => { window.__calls = []; });
+      await page.evaluate(() => loadPk());
+      await page.waitForTimeout(400);
+      eq(1, await listReads(), 'opening the package list reads apps.list exactly once');
+      const listed = await page.evaluate(() => document.querySelectorAll('#pk input[data-pkg]').length);
+      eq(4, listed, 'the package list is rendered');
+
+      await page.evaluate(() => { window.__calls = []; });
+      await page.evaluate(() => { document.getElementById('pf').value = ''; });
+      await page.evaluate(() => {
+        window.__renders = 0;
+        new MutationObserver(() => { window.__renders++; })
+          .observe(document.getElementById('pk'), { childList: true });
+      });
+      await page.type('#pf', 'com.example', { delay: 20 });
+      await page.waitForTimeout(400);
+      eq(0, await listReads(), 'typing in the search does not re-read apps.list');
+      const renders = await page.evaluate(() => window.__renders);
+      truthy(renders === 1, `eleven keystrokes caused ${renders} re-render(s), not eleven`);
+      const filtered = await page.evaluate(() => document.querySelectorAll('#pk input[data-pkg]').length);
+      eq(2, filtered, 'the filter still narrows the list to the final query');
 
       // ── overflow ──
       eq('0,0,0', geo.overflow.join(','), 'no container overflows horizontally');
