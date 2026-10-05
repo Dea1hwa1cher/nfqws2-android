@@ -8,9 +8,11 @@ MODDIR="${SELF%/bin}"
 load_conf >/dev/null 2>&1
 SERVICE="$MODDIR/service.sh"
 
-STRATEGIES_DIR="$MODDIR/strategies"
-USER_STRATEGIES_DIR="$CONFDIR/strategies"
-mkdir -p "$USER_STRATEGIES_DIR" "$STATE_DIR" "$IMPORTS_DIR" 2>/dev/null
+# Каталоги стратегий создаёт lib/common.sh (STRATEGIES_DIR, USER_STRATEGIES_DIR),
+# a состояние — она же через load_conf/sync_lists_and_blobs. Раньше всё это
+# повторялось здесь с теми же путями; оставляем только то, чего в common.sh
+# действительно нет — imports/.
+mkdir -p "$IMPORTS_DIR" 2>/dev/null
 
 b64d() {
   if command -v base64 >/dev/null 2>&1; then printf '%s' "$1" | base64 -d 2>/dev/null

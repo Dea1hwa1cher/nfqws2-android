@@ -116,6 +116,13 @@ assert_eq "refs" "$(grep -o 'rewrite_keenetic_paths refs' "$REPO_DIR/lib/common.
 assert_contains "$(cat "$REPO_DIR/lib/common.sh")" \
   's#/opt/etc/nfqws2/lua#$LUA_DIR#g' "the lua rule still precedes the generic /opt/etc/nfqws2 rule"
 
+# Paths and directories belong to lib/common.sh; the ctl sources it and must not
+# restate the same values (they used to drift silently when one side changed).
+for v in STRATEGIES_DIR USER_STRATEGIES_DIR; do
+  assert_eq "1" "$(grep -c "^$v=" "$REPO_DIR/lib/common.sh")" "$v is defined in lib/common.sh"
+  assert_eq "0" "$(grep -c "^$v=" "$REPO_DIR/bin/nfqws2-ctl")" "the ctl does not redeclare $v"
+done
+
 # ── lists vs defaults/lists ───────────────────────────────────────────────────
 section "lists/ and defaults/lists/ agree"
 
