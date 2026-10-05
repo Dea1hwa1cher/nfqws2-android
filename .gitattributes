@@ -1,3 +1,0 @@
-# Ядро Android читает shell-скрипты с CRLF как битые, поэтому working tree всегда LF,
-# независимо от core.autocrlf на машине клонирования.
-* text=auto eol=lf
