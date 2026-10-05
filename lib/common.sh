@@ -96,7 +96,14 @@ sync_lists_and_blobs() {
         youtube)
           printf 'youtube.com\nyoutu.be\ngooglevideo.com\nytimg.com\nggpht.com\n' > "$LISTS_DIR/youtube.list" ;;
         user_extra)
-          [ -f "$LISTS_DIR/user.list" ] && cp -f "$LISTS_DIR/user.list" "$LISTS_DIR/user_extra.list" || touch "$LISTS_DIR/user_extra.list" ;;
+          # Явный if, а не `[ -f ] && cp || touch`: при падении cp выполнился бы
+          # touch, и на месте копии остался бы пустой список. Так ошибка видна,
+          # а посев повторится при следующем запуске.
+          if [ -f "$LISTS_DIR/user.list" ]; then
+            cp -f "$LISTS_DIR/user.list" "$LISTS_DIR/user_extra.list"
+          else
+            touch "$LISTS_DIR/user_extra.list"
+          fi ;;
         *)
           touch "$LISTS_DIR/$l.list" ;;
       esac
@@ -135,7 +142,13 @@ rotate_logs() {
   for f in "$SERVICE_LOG" "$NFQWS_LOG" "$LOG_DIR/auto.log"; do rotate_file "$f" "$max"; done
   if [ "$1" = "start" ]; then
     f="$LOG_DIR/nfqws2-debug.log"
-    [ "$LOG_LEVEL" = "1" ] && : > "$f" 2>/dev/null || rotate_file "$f" "$max"
+    # То же самое: при неудачном обнулении `&& … ||` запустил бы ротацию вместо
+    # него. С включённой отладкой лог начинается заново, с выключенной — ротируется.
+    if [ "$LOG_LEVEL" = "1" ]; then
+      : > "$f" 2>/dev/null
+    else
+      rotate_file "$f" "$max"
+    fi
   fi
 }
 
