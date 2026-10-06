@@ -209,6 +209,7 @@ const ROLE_VAR = {
 function applyTheme(skipUI){
   const dark = isDark();
   const amoled = store.get('m3_amoled') === 'true' && dark;
+  const containers = store.get('m3_containers') !== 'false';
   const R = roles(currentSeed, dark, amoled);
   // Палитра уходит в <style id="theme-vars">, а не инлайном на documentElement.
   // Инлайн-стиль нельзя переопределить из CSS — ни правилом компонента, ни
@@ -220,6 +221,7 @@ function applyTheme(skipUI){
   $('theme-vars').textContent = css;
   document.documentElement.setAttribute('data-mode', dark ? 'dark' : 'light');
   document.documentElement.setAttribute('data-amoled', amoled ? 'true' : 'false');
+  document.documentElement.setAttribute('data-containers', containers ? 'true' : 'false');
   const meta = document.querySelector('meta[name="theme-color"]');
   if(meta) meta.setAttribute('content', R.background);
   if(!skipUI) drawThemeUI();
@@ -249,6 +251,7 @@ function drawThemeUI(){
     '<span class="tp-role" style="background:var(--md-sys-color-' + v + ')"></span>').join(''), false);
   $('amoled-toggle').checked = store.get('m3_amoled') === 'true';
   $('amoled-toggle').disabled = !dark;
+  if($('containers-toggle')) $('containers-toggle').checked = store.get('m3_containers') !== 'false';
   syncPicker(true);
 }
 /* Круг, ползунок и HEX отражают текущий seed. fromSeed=false — когда seed
@@ -315,6 +318,10 @@ function toggleAmoled(on){
   store.set('m3_amoled', on ? 'true' : 'false');
   applyTheme();
 }
+function toggleContainers(on){
+  store.set('m3_containers', on ? 'true' : 'false');
+  applyTheme();
+}
 function onHexInput(val){
   const clean = val.replace(/[^0-9a-fA-F]/g, '').slice(0, 6);
   $('custom-hex-input').value = clean;
@@ -325,7 +332,7 @@ function onHexInput(val){
   syncPicker(true);
 }
 function resetTheme(){
-  ['m3_seed', 'm3_mode', 'm3_amoled'].forEach(k => store.del(k));
+  ['m3_seed', 'm3_mode', 'm3_amoled', 'm3_containers'].forEach(k => store.del(k));
   currentMode = 'auto';
   currentSeed = systemSeed();
   applyTheme();
@@ -339,12 +346,14 @@ async function detectSystemMonet(showToastNotice){
   `);
   const out = r.out || '';
   let hex = '';
-  for(const m of Array.from(out.matchAll(/Color\(\s*(-?\d{5,12})/gi)).reverse()){
+  // 1. Packed integer colors: Color(-14329243) or mMainColor=-14329243
+  for(const m of Array.from(out.matchAll(/(?:Color\(|mMainColor\s*[:=]\s*)(-?\d{5,12})/gi)).reverse()){
     const val = parseInt(m[1], 10);
     if(isNaN(val) || val === 0 || val === -1) continue;
     const rawHex = ((val >>> 0) & 0xFFFFFF).toString(16).padStart(6, '0');
     if(rawHex !== '000000' && rawHex !== 'ffffff' && rawHex !== 'e2e2e9' && rawHex !== '111318'){ hex = '#' + rawHex; break; }
   }
+  // 2. Float RGB colors: Color(0.2, 0.4, 0.8)
   if(!hex){
     for(const m of Array.from(out.matchAll(/Color\(\s*([\d.]+),\s*([\d.]+),\s*([\d.]+)/gi)).reverse()){
       const to2 = v => { const x = parseFloat(v); return Math.round(x <= 1 ? x * 255 : x).toString(16).padStart(2, '0'); };
@@ -352,10 +361,13 @@ async function detectSystemMonet(showToastNotice){
       if(c !== '#000000' && c !== '#ffffff' && c !== '#e2e2e9'){ hex = c; break; }
     }
   }
+  // 3. Hex representations: _A8C7FA, #A8C7FA, "A8C7FA", 0xffA8C7FA, =A8C7FA
   if(!hex){
-    for(const m of Array.from(out.matchAll(/(?:_|[#"'])([0-9a-fA-F]{6})/g)).reverse()){
-      const c = ('#' + m[1]).toLowerCase();
-      if(c !== '#e2e2e9' && c !== '#000000' && c !== '#ffffff'){ hex = c; break; }
+    for(const m of Array.from(out.matchAll(/(?:_|[#"'=:|]|(?:0x))([0-9a-fA-F]{6,8})\b/g)).reverse()){
+      let h = m[1];
+      if(h.length === 8) h = h.slice(2);
+      const c = ('#' + h).toLowerCase();
+      if(c !== '#e2e2e9' && c !== '#000000' && c !== '#ffffff' && c !== '#111318'){ hex = c; break; }
     }
   }
   if(!hex) hex = systemSeed();

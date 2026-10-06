@@ -529,8 +529,8 @@ body.nav-hidden .content { padding-bottom: calc(var(--bottom-inset) + 24px); }
 }
 
 /* ── Lists & list items ──────────────────────────────────────────────────
-   Чистый плоский список M3 без лишних контейнеров-подложек под каждым пунктом.
-   Для тача и ховера состояние подсвечивается через .state/ripple. */
+   Плоский список M3 либо контейнеры-подложки (M3 Expressive stacked list).
+   Режим контейнеров переключается в настройках темы (data-containers). */
 .list { display: flex; flex-direction: column; gap: 0; }
 .sheet > .list-item { border-radius: var(--shape-large); }
 .list-item {
@@ -538,6 +538,28 @@ body.nav-hidden .content { padding-bottom: calc(var(--bottom-inset) + 24px); }
   appearance: none; border: none; background: transparent; text-align: left;
   color: var(--md-sys-color-on-surface); border-radius: var(--shape-small);
   transition: background-color var(--dur-short) var(--standard);
+}
+html[data-containers="true"] .list { gap: 3px; }
+html[data-containers="true"] .sheet .list { gap: 0; }
+html[data-containers="true"] .list-item {
+  background: var(--md-sys-color-surface-container-low);
+  border-radius: var(--shape-extra-small);
+}
+html[data-containers="true"] .sheet .list-item {
+  background: transparent;
+  border-radius: var(--shape-small);
+}
+html[data-containers="true"] .list > .list-item:where(:first-child) {
+  border-start-start-radius: var(--shape-large);
+  border-start-end-radius: var(--shape-large);
+}
+html[data-containers="true"] .list > .list-item:where(:last-child) {
+  border-end-start-radius: var(--shape-large);
+  border-end-end-radius: var(--shape-large);
+}
+html[data-containers="true"] .sheet > .list-item {
+  background: transparent;
+  border-radius: var(--shape-large);
 }
 .list-item.two-line { min-height: 72px; }
 .list-item.clickable, .list-item[role="button"] { cursor: pointer; }

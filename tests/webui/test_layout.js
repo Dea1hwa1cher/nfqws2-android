@@ -224,10 +224,10 @@ const VIEWPORTS = [
       // project targets; the old 12dp was the baseline card corner.
       eq(16, geo.cardRadius, 'cards use the 16dp corner (--shape-large)');
       eq(28, geo.heroRadius, 'the hero follows the extra-large corner (28dp)');
-      eq(8, geo.strategyRowRadius, 'the strategy row is rounded (8dp, --shape-small)');
-      eq('8,8,8,8', geo.swsFirstRadius.join(','), 'the first list row has 8dp corners (--shape-small)');
-      eq('8,8,8,8', geo.swsLastRadius.join(','), 'the last list row has 8dp corners (--shape-small)');
-      eq('8,8,8,8', geo.swsMiddleRadius.join(','), 'the middle list rows use 8dp corners (--shape-small)');
+      eq(16, geo.strategyRowRadius, 'the strategy row is rounded (16dp, --shape-large)');
+      eq('16,16,4,4', geo.swsFirstRadius.join(','), 'the first list row has 16dp outer corners');
+      eq('4,4,16,16', geo.swsLastRadius.join(','), 'the last list row has 16dp outer corners');
+      eq('4,4,4,4', geo.swsMiddleRadius.join(','), 'the middle list rows use 4dp inner corners');
       // #sws holds the three switches. The conventions are about the switches.
       eq(3, geo.swsRows, 'the list holds the three switches');
       eq(3, geo.swsSwitchRows, 'all three of those rows are switches');
@@ -422,6 +422,30 @@ const VIEWPORTS = [
     });
     truthy(swatch.clicked && /^#[0-9a-f]{6}$/.test(swatch.after) && swatch.after !== swatch.before,
       'a palette swatch reaches applyMonet() and changes the seed');
+
+    const containerToggle = await page.evaluate(async () => {
+      const wait = () => new Promise(r => setTimeout(r, 60));
+      const getRadii = el => {
+        const parts = getComputedStyle(el).borderRadius.split(/\s+/).map(v => parseFloat(v));
+        if (parts.length === 1) return [parts[0], parts[0], parts[0], parts[0]];
+        if (parts.length === 2) return [parts[0], parts[1], parts[0], parts[1]];
+        if (parts.length === 3) return [parts[0], parts[1], parts[2], parts[1]];
+        return parts;
+      };
+      openMonetModal(); await wait();
+      const toggle = document.querySelector('#containers-toggle');
+      if (!toggle) return { found: false };
+      toggle.click(); await wait();
+      const row = document.querySelector('#sws .list-item');
+      const offRadius = getRadii(row);
+      toggle.click(); await wait();
+      const onRadius = getRadii(row);
+      closeSheet();
+      return { found: true, offRadius, onRadius };
+    });
+    truthy(containerToggle.found, 'containers toggle is present in theme sheet');
+    eq('8,8,8,8', containerToggle.offRadius.join(','), 'disabling containers flattens list items to 8dp');
+    eq('16,16,4,4', containerToggle.onRadius.join(','), 're-enabling containers restores stacked corners');
 
     await ctx.close();
   }

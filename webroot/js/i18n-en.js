@@ -311,6 +311,8 @@ EN = {
  "Режим цвета": "Color mode",
  "Чёрный фон AMOLED": "AMOLED black background",
  "Только в тёмной теме": "Dark theme only",
+ "Контейнеры пунктов": "Item containers",
+ "Подложки для пунктов списков": "Background cards for list items",
  "Готовые палитры": "Palettes",
  "Цвет обоев": "Wallpaper color",
  "Назад": "Back",
