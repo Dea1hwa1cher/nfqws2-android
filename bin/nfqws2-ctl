@@ -18,6 +18,10 @@ b64d() {
   if command -v base64 >/dev/null 2>&1; then printf '%s' "$1" | base64 -d 2>/dev/null
   else printf '%s' "$1" | busybox base64 -d 2>/dev/null; fi
 }
+b64e() {
+  if command -v base64 >/dev/null 2>&1; then base64 "$@"
+  else busybox base64 "$@"; fi
+}
 
 list_file() {
   case "$1" in
@@ -481,7 +485,7 @@ cmd_backup_restore() { # <имя файла в Download>  -> stdout: ui.json в 
   [ -f "$tmp/active_strategy" ] && cp -f "$tmp/active_strategy" "$ACTIVE_FILE"
   for f in "$tmp"/strategies/*.conf; do [ -f "$f" ] && validate_conf "$f" >/dev/null 2>&1 && cp -f "$f" "$USER_STRATEGIES_DIR/"; done
   for f in "$tmp"/imports/*.conf; do [ -f "$f" ] && validate_conf "$f" >/dev/null 2>&1 && cp -f "$f" "$IMPORTS_DIR/"; done
-  [ -s "$tmp/ui.json" ] && { command -v base64 >/dev/null 2>&1 && base64 < "$tmp/ui.json" || busybox base64 < "$tmp/ui.json"; } | tr -d '\n'
+  [ -s "$tmp/ui.json" ] && b64e < "$tmp/ui.json" | tr -d '\n'
   echo
   rm -rf "$tmp"
   load_conf >/dev/null 2>&1
@@ -621,7 +625,7 @@ case "$1" in
     # Импорт из старой версии мог остаться в исходном виде Keenetic —
     # в редактор он попадает уже приведённым к виду встроенной стратегии.
     case "$2" in imp:*) normalize_import "$f" ;; *) cat "$f" ;; esac \
-      | { command -v base64 >/dev/null 2>&1 && base64 || busybox base64; } ;;
+      | b64e ;;
   strategy-save-b64)
     n="$2"; t="$STATE_DIR/strat_save.tmp"
     case "$n" in default|'') echo "Стандартную стратегию редактируйте во вкладке «Конфиг»" >&2; exit 1 ;; esac
@@ -647,19 +651,19 @@ case "$1" in
     cmd_import_add "$(b64d "$2")" "$t"; rc=$?; rm -f "$t"; exit $rc ;;
   list-imports) list_imports ;;
   get-import-merged-b64)
-    case "$2" in ''|*/*|*'`'*|*'$'*|*'"'*|*\'*|*'\\'*) echo "Некорректное имя" >&2; exit 1 ;; esac
+    strategy_name_ok "$2" || { echo "Некорректное имя" >&2; exit 1; }
     f="$IMPORTS_DIR/$2.conf"
     [ -f "$f" ] || { echo "Импорт не найден" >&2; exit 1; }
-    render_import_merged "$f" | { command -v base64 >/dev/null 2>&1 && base64 || busybox base64; } ;;
+    render_import_merged "$f" | b64e ;;
   delete-import)
-    case "$2" in ''|*/*|*'`'*|*'$'*|*'"'*|*\'*|*'\\'*) echo "Некорректное имя" >&2; exit 1 ;; esac
+    strategy_name_ok "$2" || { echo "Некорректное имя" >&2; exit 1; }
     rm -f "$IMPORTS_DIR/$2.conf"
     # Удалённый импорт был активной стратегией: конфиг остаётся, но вернуть его
     # «к исходнику» больше не к чему — дальше он считается стандартным.
     [ "$(get_current_strategy)" = "imp:$2" ] && echo default > "$ACTIVE_FILE"
     echo OK ;;
   rename-import)
-    case "$2" in ''|*/*|*'`'*|*'$'*|*'"'*|*\'*|*'\\'*) echo "Некорректное текущее имя" >&2; exit 1 ;; esac
+    strategy_name_ok "$2" || { echo "Некорректное текущее имя" >&2; exit 1; }
     src="$IMPORTS_DIR/$2.conf"
     [ -f "$src" ] || { echo "Импорт не найден" >&2; exit 1; }
     newname=$(import_safe_name "$3")
