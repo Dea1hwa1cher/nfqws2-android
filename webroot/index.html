@@ -384,8 +384,8 @@ body.nav-hidden .content { padding-bottom: calc(var(--bottom-inset) + 24px); }
 .hero-state { font-size: var(--ts-headline-small); line-height: var(--lh-headline-small); font-weight: var(--w-emph); }
 .hero-sub { font-size: var(--ts-body-medium); line-height: var(--lh-body-medium);
   letter-spacing: var(--tr-body-medium); opacity: .8; word-break: break-word; }
-/* Время работы шире: «1 д 12:34:56» не должно переноситься */
-.hero-stats { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+/* Статистика службы: равномерное распределение по трём колонкам */
+.hero-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .hstat { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .hstat-label { font-size: var(--ts-label-medium); line-height: var(--lh-label-medium); font-weight: var(--w-medium);
   opacity: .75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -536,22 +536,15 @@ body.nav-hidden .content { padding-bottom: calc(var(--bottom-inset) + 24px); }
   clip-path: polygon(36% 62%, 48% 76%, 76% 36%, 86% 44%, 50% 88%, 26% 68%);
 }
 
-/* ── Stacked list (M3 Expressive) ───────────────────────────────────────
-   3dp зазоры; внешние углы 16dp, внутренние 4dp, выбранный элемент морфит
-   в 16dp по всем углам (shape morphing). `:where()` обнуляет специфичность,
-   чтобы правило .list-item.selected ниже выигрывало порядком. */
-.list { display: flex; flex-direction: column; gap: 3px; }
-.list > .list-item:where(:first-child) { border-start-start-radius: var(--shape-large); border-start-end-radius: var(--shape-large); }
-.list > .list-item:where(:last-child) { border-end-start-radius: var(--shape-large); border-end-end-radius: var(--shape-large); }
-.list > .list-item:where(:not(:first-child)):where(:not(:last-child)) { border-radius: var(--shape-extra-small); }
-/* Одиночный list-item, положенный прямо в .card/.sheet (мимо .list), правил
-   выше не получает и остаётся с квадратными углами внутри скруглённой
-   карточки. Задаём внешний радиус явно (дефект 2026-10-04). */
+/* ── Lists & list items ──────────────────────────────────────────────────
+   Чистый плоский список M3 без лишних контейнеров-подложек под каждым пунктом.
+   Для тача и ховера состояние подсвечивается через .state/ripple. */
+.list { display: flex; flex-direction: column; gap: 0; }
 .sheet > .list-item { border-radius: var(--shape-large); }
 .list-item {
   display: flex; align-items: center; gap: 16px; min-height: 56px; padding: 8px 16px;
-  appearance: none; border: none; background: var(--md-sys-color-surface-container-low); text-align: left;
-  color: var(--md-sys-color-on-surface);
+  appearance: none; border: none; background: transparent; text-align: left;
+  color: var(--md-sys-color-on-surface); border-radius: var(--shape-small);
   transition: background-color var(--dur-short) var(--standard);
 }
 .list-item.two-line { min-height: 72px; }
@@ -571,7 +564,7 @@ body.nav-hidden .content { padding-bottom: calc(var(--bottom-inset) + 24px); }
 .list-item .li-mono { font-family: var(--md-font-code); font-size: 13px; }
 .list-item .li-trail { flex: none; display: flex; align-items: center; gap: 8px;
   color: var(--md-sys-color-on-surface-variant);
-  font-size: var(--ts-label-small); line-height: var(--lh-label-small); font-weight: var(--w-medium); }
+  font-size: var(--ts-body-medium); line-height: var(--lh-body-medium); font-weight: var(--w-medium); }
 .list-item .switch { margin-left: auto; }
 .list-item.selected { background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container);
   border-radius: var(--shape-large); }
@@ -779,7 +772,7 @@ body.nav-hidden .snackbar { bottom: calc(var(--bottom-inset) + 16px); }
 /* Деструктивные строки: цвет error только на тексте и иконке */
 .list-item.danger .li-primary { color: var(--md-sys-color-error); }
 .list-item.danger .li-icon { background: var(--md-sys-color-error-container); color: var(--md-sys-color-on-error-container); }
-.list-item .li-value { font-variant-numeric: tabular-nums; }
+.list-item .li-value { font-variant-numeric: tabular-nums; font-size: var(--ts-body-medium); font-weight: var(--w-medium); }
 label.list-item { cursor: pointer; }
 
 /* ── M3 radio: кольцо 20dp, точка 10dp, пружина при выборе ───────────── */
@@ -1893,8 +1886,7 @@ function renderAppBar(page, animate){
   $('back-btn').hidden = !m.child;
   $('settings-btn').hidden = !!m.child;
   const tEl = $('app-title');
-  tEl.innerHTML = esc(t(m.title)) +
-    (page === 'control' && S.version ? ' <span class="ver" id="header-version">' + esc(S.version) + '</span>' : '');
+  tEl.innerHTML = esc(t(m.title));
   bindVersionPress();
   if(animate !== false){ tEl.classList.remove('swap'); void tEl.offsetWidth; tEl.classList.add('swap'); }
   const box = $('bar-actions');
@@ -1978,17 +1970,18 @@ function navigate(page){
 function goBack(){ navigate(PAGE_META[currentPage].parent || lastTop); }
 document.querySelectorAll('.nav-dest').forEach(b => { b.onclick = () => navigate(b.dataset.page); });
 
-/* ── Режим разработчика: долгое нажатие на номер версии ──────────────────
+/* ── Режим разработчика: долгое нажатие на заголовок главного экрана ──────
    Показывает на главном экране служебные переключатели, которые обычному
-   пользователю не нужны (контроль работы, wakelock, лимиты пакетов). */
+   пользователю не нужны (watchdog, wakelock, лимиты пакетов). */
 let devMode = store.get('nfq_dev') === '1';
 function bindVersionPress(){
-  const v = $('header-version');
+  const v = $('app-title');
   if(!v || v._bound) return;
   v._bound = true;
   let tm = 0;
   const cancel = () => { clearTimeout(tm); tm = 0; };
   v.addEventListener('pointerdown', () => {
+    if(currentPage !== 'control') return;
     cancel();
     tm = setTimeout(() => {
       tm = 0;
@@ -2307,8 +2300,8 @@ const SW = [
   ['BLOCK_QUIC', 'Блокировать QUIC', 'block_quic']
 ];
 const DEV_SW = [
-  ['WATCHDOG', 'Контроль работы', 'watchdog'],
-  ['WAKELOCK', 'Не давать телефону спать', 'wakelock_on']
+  ['WATCHDOG', 'Watchdog', 'watchdog'],
+  ['WAKELOCK', 'Wakelock', 'wakelock_on']
 ];
 const LIMITS = [
   ['PKT_LIMIT_OUT', 'Исходящие пакеты', 'Сколько первых пакетов соединения обрабатывать', 'pkt_limit_out'],
@@ -2348,7 +2341,10 @@ function renderParams(j){
         ' onclick="editLimit(' + jsArg(k) + ', ' + jsArg(t(label)) + ', ' + (+j[jk] || 15) + ')">' +
         '<span class="li-text"><span class="li-primary">' + esc(t(label)) + '</span>' +
           '<span class="li-secondary">' + esc(t(hint)) + '</span></span>' +
-        '<span class="li-trail li-value">' + esc(j[jk] != null ? j[jk] : '—') + '</span>' +
+        '<span class="li-trail">' +
+          '<span class="li-value">' + esc(j[jk] != null ? j[jk] : '—') + '</span>' +
+          '<svg aria-hidden="true" class="icon s24"><use href="#i-chevron-right"/></svg>' +
+        '</span>' +
       '</div>');
     setHTML('dev-sws', DEV_SW.map(([k, label, jk]) => switchRow(k, label, j[jk] == 1)).concat(lim).join(''), false);
   }
@@ -3294,7 +3290,7 @@ function renderSettings(){
       {icon: 'translate', title: 'Язык', sub: LANG === 'en' ? 'English' : 'Русский', on: 'pickLanguage(this)', menu: true}
     ]],
     ['О модуле', [
-      {icon: 'info', title: 'nfqws2 for Android', sub: (S.version || '—') + ' · ' + t('удерживайте номер версии на главном экране, чтобы открыть параметры для разработчика'), on: ''}
+      {icon: 'info', title: 'nfqws2 for Android', sub: (S.version || '—') + ' · ' + t('удерживайте заголовок на главном экране, чтобы открыть параметры для разработчика'), on: ''}
     ]]
   ];
   setHTML('settings-body', groups.map(([title, rows]) =>
@@ -3836,6 +3832,8 @@ EN = {
  "Автозапуск при загрузке": "Start on boot",
  "Обрабатывать IPv6": "Process IPv6",
  "Блокировать QUIC": "Block QUIC",
+ "Watchdog": "Watchdog",
+ "Wakelock": "Wakelock",
  "Контроль работы": "Watchdog",
  "Не давать телефону спать": "Keep the phone awake",
  "Исходящие пакеты": "Outgoing packets",
@@ -4017,7 +4015,7 @@ EN = {
  "Язык": "Language",
  "Русский": "Русский",
  "О модуле": "About",
- "удерживайте номер версии на главном экране, чтобы открыть параметры для разработчика": "long-press the version number on the main screen to open developer options",
+ "удерживайте заголовок на главном экране, чтобы открыть параметры для разработчика": "long-press the title on the home screen to open developer options",
  "Сейчас телефон подключён к «{0}». Добавить эту сеть в домашние?": "The phone is connected to “{0}”. Add this network to home networks?",
  "Добавить": "Add",
  "Подключено сейчас": "Connected now",
