@@ -709,63 +709,72 @@ list_imports() {
   done | sort
 }
 
-# Готовит содержимое импортированного файла к ПРЕДПРОСМОТРУ в редакторе: тот же перенос путей
-# и та же чистка переменных Keenetic, что и раньше при импорте, но НИЧЕГО не сохраняет — исходный
-# файл в imports/ остаётся как есть, чтобы Настройки Android можно было поменять один раз и они
-# были одинаковы на всех конфигах, а не "заморожены" на момент импорта каждого из них.
-render_import_merged() {
-  local src="$1" out="$STATE_DIR/import_preview.$$"
+# Ключи, которые описывают сам обход. Всё остальное в конфиге — настройки модуля
+# (порты, очередь, лимиты, переключатели, режим списков): у всех встроенных
+# стратегий они одинаковые, и при смене стратегии берутся из действующего
+# конфига пользователя (USER_KEYS ниже).
+STRATEGY_KEYS="NFQWS_BASE_ARGS NFQWS_ARGS NFQWS_ARGS_QUIC NFQWS_ARGS_UDP NFQWS_ARGS_IPSET NFQWS_ARGS_CUSTOM"
+
+# Приводит импортированный конфиг nfqws2-keenetic к виду встроенной стратегии:
+# каркас — defaults/nfqws2.conf, из импорта берутся только ключи обхода
+# (STRATEGY_KEYS) и собственные переменные, на которые они ссылаются; пути
+# Keenetic переписываются на каталоги модуля. Ключа обхода нет в импорте —
+# он пустой, а не унаследованный от стандартной стратегии. Функция
+# идемпотентна: уже приведённый файл проходит через неё без изменений.
+normalize_import() { # <файл импорта> -> stdout
+  local src="$1" clean="$STATE_DIR/import_norm.$$"
   [ -f "$src" ] || return 1
-
-  awk '
-    function is_drop(k) { return k == "ISP_INTERFACE" || k == "USER" || k == "POLICY_NAME" || k == "POLICY_EXCLUDE" || k == "LOG_DEBUG_PATH" }
-    function flush_pend(   i) { for (i = 1; i <= np; i++) print pend[i]; np = 0 }
+  tr -d '\r' < "$src" | rewrite_keenetic_paths refs > "$clean"
+  awk -v skeys=" $STRATEGY_KEYS " -v tpl="$MODDIR/defaults/nfqws2.conf" '
     function quotes(str,   t) { t = str; return gsub(/"/, "", t) }
-    {
-      line = $0
-      if (inval) {
-        if (!dropping) print line
-        if (quotes(line) % 2 == 1) inval = 0
-        next
-      }
-      if (line ~ /^[ \t]*#/) { pend[++np] = line; next }
-      if (line ~ /^[ \t]*$/) {
-        if (dropping_pending) { np = 0; dropping_pending = 0 }
-        flush_pend(); print line; next
-      }
-      if (match(line, /^[A-Za-z_][A-Za-z0-9_]*=/)) {
-        key = substr(line, 1, RLENGTH - 1)
-        dropping = is_drop(key)
-        if (dropping) { np = 0 } else { flush_pend(); print line }
+    function keyof(line) { return match(line, /^[A-Za-z_][A-Za-z0-9_]*=/) ? substr(line, 1, RLENGTH - 1) : "" }
+    # Читает файл блоками «КЛЮЧ=значение» (значение может занимать несколько строк)
+    function load(file, blk, ord,   line, k, cur, inval, n) {
+      n = 0; inval = 0; cur = ""
+      while ((getline line < file) > 0) {
+        if (inval) { blk[cur] = blk[cur] "\n" line; if (quotes(line) % 2 == 1) inval = 0; continue }
+        k = keyof(line)
+        if (k == "") { if (file == tpl) { ord[++n] = "\001" line } continue }
+        cur = k; blk[k] = line; ord[++n] = k
         if (quotes(line) % 2 == 1) inval = 1
-        next
       }
-      flush_pend(); print line
+      close(file)
+      return n
     }
-    END { flush_pend() }' "$src" \
-  | tr -d '\r' \
-  | rewrite_keenetic_paths refs > "$out"
-
-  local have
-  have=$(grep -o '^[A-Za-z_][A-Za-z0-9_]*=' "$out" | tr -d '=' | sort -u | tr '\n' ' ')
-  {
-    echo
-    echo "# ---- Настройки Android (текущие, подставлены при выборе конфига) ----"
-    awk -v have=" $have " '
-      function quotes(str,   t) { t = str; return gsub(/"/, "", t) }
-      {
-        if (inval) { if (keep) print; if (quotes($0) % 2 == 1) inval = 0; next }
-        if (match($0, /^[A-Za-z_][A-Za-z0-9_]*=/)) {
-          key = substr($0, 1, RLENGTH - 1)
-          keep = (index(have, " " key " ") == 0)
-          if (keep) print
-          if (quotes($0) % 2 == 1) inval = 1
+    BEGIN {
+      ni = load(ARGV[1], imp, iord)
+      nt = load(tpl, tblk, tord)
+      for (i = 1; i <= nt; i++) if (substr(tord[i], 1, 1) != "\001") intpl[tord[i]] = 1
+      skip["ISP_INTERFACE"]; skip["USER"]; skip["POLICY_NAME"]; skip["POLICY_EXCLUDE"]; skip["LOG_DEBUG_PATH"]
+      first = 1
+      for (i = 1; i <= nt; i++) {
+        k = tord[i]
+        if (substr(k, 1, 1) == "\001") { print substr(k, 2); continue }
+        if (index(skeys, " " k " ")) {
+          # Собственные переменные импорта (например ARGS_BLOCK16) нужны раньше,
+          # чем на них сошлются ключи обхода, — выводим их перед первым из них.
+          if (first) {
+            for (j = 1; j <= ni; j++) { e = iord[j]
+              if (!(e in intpl) && !(e in skip) && !(e in done)) { print imp[e]; print ""; done[e] = 1 } }
+            first = 0
+          }
+          print ((k in imp) ? imp[k] : k "=\"\"")
+        } else {
+          print tblk[k]
+          if (k == "IFACE_EXCLUDE" && !("ISP_INTERFACE" in intpl)) print "ISP_INTERFACE=\"\""
         }
-      }' "$CONFFILE"
-  } >> "$out"
+      }
+      exit
+    }' "$clean"
+  rm -f "$clean"
+}
 
-  cat "$out"
-  rm -f "$out"
+# Предпросмотр импорта в редакторе: стратегия + настройки из действующего конфига
+render_import_merged() {
+  local raw="$STATE_DIR/import_prev.$$"
+  normalize_import "$1" > "$raw" || { rm -f "$raw"; return 1; }
+  if [ -f "$CONFFILE" ]; then merge_user_keys "$raw" "$CONFFILE"; else cat "$raw"; fi
+  rm -f "$raw"
 }
 
 # ---------------------------------------------------------------- язык служебного вывода
@@ -832,7 +841,7 @@ render_strategy() {
   local f
   case "$1" in
     ''|default) cat "$MODDIR/defaults/nfqws2.conf" ;;
-    imp:*) f=$(strategy_file "$1") || return 1; render_import_merged "$f" ;;
+    imp:*) f=$(strategy_file "$1") || return 1; normalize_import "$f" ;;
     *) f=$(strategy_file "$1") || return 1
        rewrite_keenetic_paths < "$f" \
          | sed -e 's#^[[:space:]]*ISP_INTERFACE=.*#ISP_INTERFACE=""#' \
@@ -840,11 +849,12 @@ render_strategy() {
   esac
 }
 
-# Настройки, которые пользователь задаёт в интерфейсе (переключатели, режим
-# списков, фильтр приложений, домашняя Wi-Fi), переживают смену стратегии и
-# сброс конфига: стратегия описывает обход, а не эти параметры. Режим списков
-# переносится, только если это одна из штатных ссылок $MODE_*.
-USER_KEYS="AUTOSTART WATCHDOG IPV6_ENABLED BLOCK_QUIC WAKELOCK LOG_LEVEL APP_MODE HOME_WIFI NFQWS_EXTRA_ARGS"
+# Нижний блок конфига — настройки модуля, а не стратегии: у всех встроенных
+# стратегий он одинаковый. Поэтому при смене стратегии и сбросе конфига он
+# целиком переносится из действующего конфига: переключатели, порты, очередь,
+# лимиты, режим списков, фильтр приложений и домашняя Wi-Fi остаются прежними.
+# Режим списков переносится, только если это одна из штатных ссылок $MODE_*.
+USER_KEYS="IPV6_ENABLED TCP_PORTS UDP_PORTS NFQUEUE_NUM PKT_LIMIT_OUT PKT_LIMIT_IN BLOCK_QUIC NAT_FIX APP_MODE AUTOSTART WATCHDOG NFQWS_USER LOG_LEVEL LOG_MAX_KB WAKELOCK HOME_WIFI NFQWS_EXTRA_ARGS"
 merge_user_keys() { # <сгенерированный конфиг> <конфиг-источник настроек>  -> stdout
   awk -v keys=" $USER_KEYS " -v src="$2" '
     function quotes(str,   t) { t = str; return gsub(/"/, "", t) }

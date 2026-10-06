@@ -1035,6 +1035,86 @@ html[data-mode="dark"] { --tk-keyword: #569cd6; --tk-string: #ce9178; --tk-strin
   .settings-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--gap) 24px; align-items: start; }
   .page[data-page="wifi"], .page[data-page="apps"], .page[data-page="test"], .page[data-page="diag"] { max-width: 820px; margin: 0 auto; width: 100%; }
 }
+
+/* ── Фон под открытыми листами, диалогами и меню не прокручивается ────── */
+html.scroll-locked, html.scroll-locked body { overflow: hidden; }
+.sheet, .sheet-scroll, .fs-body, .code-edit > textarea, .log-view, .menu { overscroll-behavior: contain; }
+.scrim, .dialog-scrim, .menu-back { touch-action: none; }
+
+/* ── AMOLED: на чёрном фоне контейнеры обведены, иначе они теряются ──── */
+html[data-amoled="true"] :is(.list-item, .group, .hero, .main-switch, .suggest, .search-bar, .gh-card, .sheet, .dialog, .menu, .code-edit, .log-view, .code-block) {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--md-sys-color-outline-variant) 70%, transparent);
+}
+html[data-amoled="true"] .nav-bar { box-shadow: inset 0 1px 0 color-mix(in srgb, var(--md-sys-color-outline-variant) 70%, transparent); }
+html[data-amoled="true"] .hero.running, html[data-amoled="true"] .hero.paused, html[data-amoled="true"] .list-item.selected { box-shadow: none; }
+
+/* ── Лист темы ───────────────────────────────────────────────────────── */
+.theme-sheet { gap: 14px; }
+.theme-preview {
+  display: flex; flex-direction: column; gap: 12px; padding: 16px; border-radius: var(--shape-extra-large);
+  background: var(--md-sys-color-surface-container-high);
+  transition: background-color var(--dur-medium) var(--standard);
+}
+.tp-hero { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: var(--shape-large);
+  background: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container);
+  transition: background-color var(--dur-medium) var(--standard); }
+.tp-icon { width: 36px; height: 36px; border-radius: 18px; display: grid; place-items: center; flex: none;
+  background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); }
+.tp-lines { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+.tp-line { height: 8px; border-radius: 4px; background: currentColor; opacity: .55; }
+.tp-line.w70 { width: 70%; opacity: .8; } .tp-line.w45 { width: 45%; }
+.tp-row { display: flex; align-items: center; gap: 8px; }
+.tp-btn { height: 28px; flex: 1; border-radius: 14px; background: var(--md-sys-color-primary); }
+.tp-chip { height: 28px; width: 56px; border-radius: 8px; background: var(--md-sys-color-secondary-container); }
+.tp-chip.t { background: var(--md-sys-color-tertiary-container); }
+.tp-roles { display: flex; gap: 8px; }
+.tp-role { width: 20px; height: 20px; border-radius: 50%; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--md-sys-color-on-surface) 12%, transparent); }
+
+.amoled-row { border-radius: var(--shape-large); }
+.swatch-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(48px, 1fr)); gap: 10px; justify-items: center; }
+.swatch-dot {
+  appearance: none; border: 0; cursor: pointer; width: 48px; height: 48px; border-radius: 50%; padding: 0;
+  display: grid; place-items: center; overflow: hidden;
+  background: conic-gradient(from 270deg, var(--sw-a) 0 50%, var(--sw-c) 0 75%, var(--sw-b) 0);
+  transition: border-radius var(--dur-medium) var(--spring-strong), transform var(--dur-short) var(--spring);
+}
+.swatch-dot.on { border-radius: 16px; box-shadow: 0 0 0 3px var(--md-sys-color-surface-container-low), 0 0 0 5px var(--md-sys-color-primary); }
+.swatch-dot .sw-check { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); transform: scale(0);
+  transition: transform var(--dur-medium) var(--spring-strong); }
+.swatch-dot.on .sw-check { transform: scale(1); }
+
+.picker { display: flex; gap: 16px; align-items: center; padding: 16px; border-radius: var(--shape-extra-large);
+  background: var(--md-sys-color-surface-container); }
+.wheel { position: relative; flex: none; width: 168px; height: 168px; border-radius: 50%; cursor: crosshair;
+  touch-action: none; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--md-sys-color-on-surface) 10%, transparent); }
+.wheel:focus-visible { outline: 3px solid var(--md-sys-color-secondary); outline-offset: 3px; }
+.wheel-thumb { position: absolute; width: 28px; height: 28px; margin: -14px 0 0 -14px; border-radius: 50%; pointer-events: none;
+  border: 3px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.45), 0 0 0 1px rgba(0,0,0,.15);
+  transition: width var(--dur-short) var(--spring), height var(--dur-short) var(--spring), margin var(--dur-short) var(--spring); }
+.wheel.drag .wheel-thumb { width: 36px; height: 36px; margin: -18px 0 0 -18px; }
+.picker-side { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.picker-side .hex-group { height: 44px; padding: 0 8px; border-radius: var(--shape-medium); }
+.picker-side .hex-swatch { width: 28px; height: 28px; border-radius: 50%; border: 0; cursor: default; }
+.picker-side .row { gap: 4px; }
+#cd-lum { --track: linear-gradient(90deg, #000, var(--md-sys-color-primary), #fff); }
+@media (max-width: 380px) { .picker { flex-direction: column; } .picker-side { width: 100%; } }
+
+/* ── Ссылка на GitHub в конце настроек ───────────────────────────────── */
+.gh-card { display: flex; align-items: center; gap: 16px; padding: 16px 20px; margin-top: 4px; text-decoration: none;
+  border-radius: var(--shape-extra-large); color: var(--md-sys-color-on-surface);
+  background: linear-gradient(135deg, var(--md-sys-color-primary-container), var(--md-sys-color-tertiary-container)); }
+.gh-mark { width: 48px; height: 48px; flex: none; border-radius: 16px; display: grid; place-items: center;
+  background: var(--md-sys-color-inverse-surface); color: var(--md-sys-color-inverse-on-surface); }
+.gh-mark svg.icon { width: 28px; height: 28px; }
+.gh-card .li-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.gh-title { font-size: var(--ts-label-medium); line-height: var(--lh-label-medium); font-weight: var(--w-bold);
+  letter-spacing: .8px; text-transform: uppercase; color: var(--md-sys-color-on-primary-container); opacity: .8; }
+.gh-repo { font-size: var(--ts-title-medium); line-height: var(--lh-title-medium); font-weight: var(--w-emph);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gh-sub { font-size: var(--ts-body-small); line-height: var(--lh-body-small); color: var(--md-sys-color-on-surface-variant); }
+.gh-open { flex: none; color: var(--md-sys-color-on-primary-container); }
+@media (orientation: landscape) and (min-width: 700px) { .gh-card { grid-column: 1 / -1; } }
 </style>
 <!-- Сюда applyTheme() кладёт палитру, сгенерированную из seed. Отдельным блоком,
      а не инлайном: инлайн-стиль нельзя переопределить из CSS. -->
@@ -1083,6 +1163,9 @@ html[data-mode="dark"] { --tk-keyword: #569cd6; --tk-string: #ce9178; --tk-strin
 <symbol id="i-copy" viewBox="0 -960 960 960"><path d="M360-240q-33 0-56.5-23.5T280-320v-480q0-33 23.5-56.5T360-880h360q33 0 56.5 23.5T800-800v480q0 33-23.5 56.5T720-240H360Zm0-80h360v-480H360v480ZM200-80q-33 0-56.5-23.5T120-160v-560h80v560h440v80H200Zm160-240v-480 480Z"/></symbol>
 <symbol id="i-settings" viewBox="0 -960 960 960"><path d="m370-80-16-128q-13-5-24.5-12T307-235l-119 50L78-375l103-78q-1-7-1-13.5v-27q0-6.5 1-13.5L78-585l110-190 119 50q11-8 23-15t24-12l16-128h220l16 128q13 5 24.5 12t22.5 15l119-50 110 190-103 78q1 7 1 13.5v27q0 6.5-2 13.5l103 78-110 190-118-50q-11 8-23 15t-24 12L590-80H370Zm70-80h79l14-106q31-8 57.5-23.5T639-327l99 41 39-68-86-65q5-14 7-29.5t2-31.5q0-16-2-31.5t-7-29.5l86-65-39-68-99 42q-22-23-48.5-38.5T533-694l-13-106h-79l-14 106q-31 8-57.5 23.5T321-633l-99-41-39 68 86 64q-5 15-7 30t-2 32q0 16 2 31t7 30l-86 65 39 68 99-42q22 23 48.5 38.5T427-266l13 106Zm42-180q58 0 99-41t41-99q0-58-41-99t-99-41q-59 0-99.5 41T342-480q0 58 40.5 99t99.5 41Zm-2-140Z"/></symbol>
 <symbol id="i-translate" viewBox="0 -960 960 960"><path d="m476-80 182-480h84L924-80h-84l-43-122H603L560-80h-84ZM160-200l-56-56 202-202q-35-35-63.5-80T190-640h84q20 39 40 68t48 58q33-33 68.5-92.5T484-720H40v-80h280v-80h80v80h280v80H564q-21 72-63 148t-83 116l96 98-30 82-122-125-202 201Zm468-72h144l-72-204-72 204Z"/></symbol>
+<symbol id="i-contrast" viewBox="0 -960 960 960"><path d="M480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm40-83q119-15 199.5-104.5T800-480q0-123-80.5-212.5T520-797v634Z"/></symbol>
+<symbol id="i-open" viewBox="0 -960 960 960"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h280v80H200v560h560v-280h80v280q0 33-23.5 56.5T760-120H200Zm188-212-56-56 372-372H560v-80h280v280h-80v-144L388-332Z"/></symbol>
+<symbol id="i-github" viewBox="0 0 24 24"><path d="M12 .3a12 12 0 0 0-3.8 23.4c.6.1.8-.3.8-.6v-2c-3.3.7-4-1.6-4-1.6-.6-1.4-1.4-1.8-1.4-1.8-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 0-.8.4-1.3.7-1.6-2.7-.3-5.5-1.3-5.5-6 0-1.2.5-2.3 1.3-3.1-.2-.4-.6-1.6 0-3.2 0 0 1-.3 3.4 1.2a11.5 11.5 0 0 1 6 0c2.3-1.5 3.3-1.2 3.3-1.2.6 1.6.2 2.8 0 3.2.9.8 1.3 1.9 1.3 3.2 0 4.6-2.8 5.6-5.5 5.9.5.4.9 1 .9 2.2v3.3c0 .3.1.7.8.6A12 12 0 0 0 12 .3"/></symbol>
 <symbol id="i-home" viewBox="0 -960 960 960"><path d="M240-200h120v-240h240v240h120v-360L480-740 240-560v360Zm-80 80v-480l320-240 320 240v480H520v-240h-80v240H160Zm320-350Z"/></symbol>
 </defs></svg>
 
@@ -1093,8 +1176,7 @@ html[data-mode="dark"] { --tk-keyword: #569cd6; --tk-string: #ce9178; --tk-strin
   </button>
   <h1 class="title truncate" id="app-title" data-t>Состояние</h1>
   <div class="bar-actions" id="bar-actions"></div>
-  <button class="icon-btn state" id="settings-btn" aria-label="Настройки" data-ta="aria-label,title" title="Настройки"
-          onclick="navigate('settings')">
+  <button class="icon-btn state" id="settings-btn" aria-label="Настройки" data-ta="aria-label,title" title="Настройки">
     <svg aria-hidden="true" class="icon"><use href="#i-settings"/></svg>
   </button>
 </header>
@@ -1427,16 +1509,26 @@ html[data-mode="dark"] { --tk-keyword: #569cd6; --tk-string: #ce9178; --tk-strin
   </div>
 </div>
 
-<div class="sheet" id="monet-modal" role="dialog" aria-modal="true" aria-labelledby="theme-sheet-title">
+<div class="sheet theme-sheet" id="monet-modal" role="dialog" aria-modal="true" aria-labelledby="theme-sheet-title">
   <button type="button" class="sheet-drag" aria-label="Закрыть" data-ta="aria-label"><span class="handle"></span></button>
   <div class="sheet-title" id="theme-sheet-title" data-t>Тема оформления</div>
 
-  <div class="stack">
-    <h2 class="subhead plain" data-t>Режим цвета</h2>
-    <div class="segmented" id="theme-mode" role="group" aria-label="Режим цвета" data-ta="aria-label"></div>
+  <!-- Живой предпросмотр: роли цвета текущей схемы на мини-экране -->
+  <div class="theme-preview" aria-hidden="true">
+    <div class="tp-hero">
+      <span class="tp-icon"><svg aria-hidden="true" class="icon s20"><use href="#i-shield"/></svg></span>
+      <span class="tp-lines"><span class="tp-line w70"></span><span class="tp-line w45"></span></span>
+    </div>
+    <div class="tp-row">
+      <span class="tp-btn"></span><span class="tp-chip"></span><span class="tp-chip t"></span>
+    </div>
+    <div class="tp-roles" id="tp-roles"></div>
   </div>
 
-  <label class="list-item clickable state">
+  <div class="segmented" id="theme-mode" role="group" aria-label="Режим цвета" data-ta="aria-label"></div>
+
+  <label class="list-item clickable state amoled-row">
+    <span class="li-icon plain"><svg aria-hidden="true" class="icon s24"><use href="#i-contrast"/></svg></span>
     <span class="li-text">
       <span class="li-primary" data-t>Чёрный фон AMOLED</span>
       <span class="li-secondary" data-t>Только в тёмной теме</span>
@@ -1447,60 +1539,32 @@ html[data-mode="dark"] { --tk-keyword: #569cd6; --tk-string: #ce9178; --tk-strin
     </span>
   </label>
 
-  <div class="stack">
-    <h2 class="subhead plain" data-t>Готовые палитры</h2>
-    <div class="palette" id="palette-grid"></div>
-  </div>
+  <h2 class="subhead plain" data-t>Цвет акцента</h2>
+  <div class="swatch-row" id="palette-grid" role="group" aria-label="Готовые палитры" data-ta="aria-label"></div>
 
-  <div class="field">
-    <label for="custom-hex-input" data-t>Свой цвет</label>
-    <div class="control">
+  <!-- Свой цвет: круг тона и насыщенности, ползунок яркости и HEX -->
+  <div class="picker">
+    <div class="wheel" id="wheel" role="slider" tabindex="0" aria-label="Тон и насыщенность" data-ta="aria-label"
+         aria-valuemin="0" aria-valuemax="360">
+      <span class="wheel-thumb" id="wheel-thumb"></span>
+    </div>
+    <div class="picker-side">
+      <div class="cd-row">
+        <label for="cd-lum" data-t>Яркость</label>
+        <input type="range" class="slider" id="cd-lum" min="20" max="85" step="1" value="60" oninput="onWheelLum()">
+      </div>
       <div class="hex-group">
-        <button type="button" class="hex-swatch state" id="custom-swatch" onclick="openColorDialog()"
-                aria-label="Открыть выбор цвета" data-ta="aria-label"></button>
+        <span class="hex-swatch" id="custom-swatch"></span>
         <span class="pfx">#</span>
-        <input type="text" class="hex" id="custom-hex-input" maxlength="6" placeholder="6750A4"
+        <input type="text" class="hex" id="custom-hex-input" maxlength="6" placeholder="6750A4" aria-label="HEX"
                autocapitalize="characters" spellcheck="false" oninput="onHexInput(this.value)">
       </div>
-    </div>
-    <div class="helper" data-t>Из одного цвета строятся все роли M3: основной, контейнеры, поверхности, контуры.</div>
-  </div>
-
-  <div class="row">
-    <button class="btn with-icon state" onclick="applyCustomHex()">
-      <svg aria-hidden="true" class="icon s18"><use href="#i-check"/></svg><span data-t>Применить цвет</span>
-    </button>
-    <button class="btn tonal with-icon state" onclick="detectSystemMonet(true)">
-      <svg aria-hidden="true" class="icon s18"><use href="#i-refresh"/></svg><span data-t>Цвет обоев</span>
-    </button>
-    <button class="btn text state" onclick="resetTheme()"><span data-t>Сбросить</span></button>
-  </div>
-</div>
-
-<!-- ═══ Диалог выбора цвета ═══════════════════════════════════════════════ -->
-<div class="dialog-wrap" id="color-wrap" role="presentation">
-  <div class="dialog-scrim" onclick="closeColorDialog()" aria-hidden="true"></div>
-  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="cd-title">
-    <div class="d-title" id="cd-title" data-t>Выберите цвет</div>
-    <div class="cd-preview">
-      <span class="cd-swatch" id="cd-swatch"></span>
-      <span class="t-title-medium" id="cd-hex">—</span>
-    </div>
-    <div class="cd-row">
-      <label for="cd-hue" data-t>Тон</label>
-      <input type="range" class="slider" id="cd-hue" min="0" max="360" step="1" value="300" oninput="onColorSlide()">
-    </div>
-    <div class="cd-row">
-      <label for="cd-sat" data-t>Насыщенность</label>
-      <input type="range" class="slider" id="cd-sat" min="0" max="100" step="1" value="60" oninput="onColorSlide()">
-    </div>
-    <div class="cd-row">
-      <label for="cd-lum" data-t>Светлота</label>
-      <input type="range" class="slider" id="cd-lum" min="0" max="100" step="1" value="80" oninput="onColorSlide()">
-    </div>
-    <div class="d-actions">
-      <button class="btn text state" onclick="closeColorDialog()"><span data-t>Отмена</span></button>
-      <button class="btn text state" onclick="colorDialogApply()"><span data-t>Выбрать</span></button>
+      <div class="row">
+        <button class="btn tonal sm with-icon state" onclick="detectSystemMonet(true)">
+          <svg aria-hidden="true" class="icon s18"><use href="#i-refresh"/></svg><span data-t>Цвет обоев</span>
+        </button>
+        <button class="btn text sm state" onclick="resetTheme()"><span data-t>Сбросить</span></button>
+      </div>
     </div>
   </div>
 </div>
@@ -1693,10 +1757,18 @@ function makeEmitter(){
     emit(ev){ const a = [].slice.call(arguments, 1); (h[ev] || []).forEach(f => { try { f.apply(null, a); } catch(e) {} }); }
   };
 }
+/* Менеджеры по-разному отдают stdout из spawn: построчно, кусками или
+   строками без переводов строк. Последний вариант склеивал многострочный
+   вывод в одну строку — список стратегий превращался в один «MartinBacker…»,
+   а приложения и импорты — в один элемент. Поэтому вывод обрамляется сам:
+   каждая строка заканчивается разделителем \x1e, код выхода команды идёт
+   последней записью. Переводы строк от менеджера просто выбрасываются. */
+const REC = '\x1e', RC_TAG = '__nfq_rc=';
+const frameCmd = cmd => '{ ' + cmd + '\nprintf \'\\n' + RC_TAG + '%s\\n\' "$?"; } | awk \'{ printf "%s\\036\\n", $0; fflush() }\'';
 function spawnRun(cmd, ms, onLine){
   return new Promise(res => {
     const id = '__sp' + (++seq), out = [], err = [];
-    let done = 0, tm = 0;
+    let done = 0, tm = 0, buf = '', rc = null;
     const child = makeEmitter();
     child.stdout = makeEmitter();
     child.stderr = makeEmitter();
@@ -1719,13 +1791,13 @@ function spawnRun(cmd, ms, onLine){
       }
     });
     child.stderr.on('data', d => err.push(String(d)));
-    child.on('exit', c => fin(c));
+    child.on('exit', c => fin(rc == null && c != null ? c : rc));
     child.on('error', e => fin(1, String(e)));
     window[id] = child;
     tm = setTimeout(() => fin(-1, t('Таймаут')), ms);
     // Аргументы KernelSU склеивает пробелами без кавычек, поэтому вся команда
     // уходит одной строкой, а список аргументов пуст.
-    try { window.ksu.spawn(cmd, '[]', '{}', id); } catch(e) { fin(1, String(e)); }
+    try { window.ksu.spawn(frameCmd(cmd), '[]', '{}', id); } catch(e) { fin(1, String(e)); }
   });
 }
 function execRun(cmd, ms){
@@ -1748,8 +1820,10 @@ async function sh(cmd, ms, onLine){
 }
 async function detectSpawn(){
   if(!window.ksu || typeof window.ksu.spawn !== 'function') return;
-  const r = await spawnRun('echo nfq_spawn_ok', 3000);
-  spawnOK = !r.code && r.out.indexOf('nfq_spawn_ok') >= 0;
+  // Проверяем не только что spawn отвечает, но и что строки и код выхода
+  // доходят без искажений; иначе остаёмся на exec.
+  const r = await spawnRun("printf 'nfq_a\\n\\nnfq_b\\n'; (exit 3)", 3000);
+  spawnOK = r.code === 3 && r.out === 'nfq_a\n\nnfq_b';
 }
 const ctlCmd = a => (LANG === 'en' ? 'NFQWS_LANG=en ' : '') + 'sh ' + q(CTL) + ' ' + a.map(q).join(' ');
 async function ctl(a, ms){
@@ -1997,17 +2071,19 @@ function bindVersionPress(){
     if(currentPage !== 'control') return;
     cancel();
     tm = setTimeout(() => {
-      tm = 0;
+      tm = 0; fired = true;
       devMode = !devMode;
       store.set('nfq_dev', devMode ? '1' : '0');
       if(navigator.vibrate) try { navigator.vibrate(30); } catch(e) {}
       renderParams(S);
+      if(currentPage === 'settings') renderSettings();
       toast(devMode ? t('Режим разработчика включён') : t('Режим разработчика выключен'));
     }, 650);
   });
-  ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => v.addEventListener(ev, cancel));
-  v.addEventListener('contextmenu', e => e.preventDefault());
-}
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => b.addEventListener(ev, cancel));
+  b.addEventListener('contextmenu', e => e.preventDefault());
+  b.addEventListener('click', () => { if(fired){ fired = false; return; } navigate('settings'); });
+})();
 
 /* elevation on scroll: surface → surface-container */
 addEventListener('scroll', () => $('app-bar').classList.toggle('scrolled', scrollY > 8), {passive: true});
@@ -2064,7 +2140,7 @@ function handleBack(allowExit){
   if(allowExit && currentPage !== 'control'){ navigate('control'); lastBackHandled = now; return true; }
   return false;
 }
-/* config.json: backInterceptor = javascript */
+/* config.json: backInterceptor = javascript — менеджер сам зовёт этот обработчик */
 window.onBackKeyPressed = function(){
   if(handleBack(true)) return;
   try { window.ksu && window.ksu.exit && window.ksu.exit(); } catch(e) {}
@@ -2072,35 +2148,67 @@ window.onBackKeyPressed = function(){
 document.addEventListener('keydown', e => { if(e.key === 'Escape') handleBack(false); });
 
 /* ── Жест «Назад» через историю WebView ──────────────────────────────────
-   Большинство менеджеров (KernelSU, KsuWebUI) на жест «Назад» делают
-   webView.goBack(), если в истории есть запись, иначе закрывают WebUI.
-   Поэтому, пока есть что закрывать (оверлей, дочерний экран, не главная
-   вкладка), в истории держится ровно одна «сторожевая» запись: жест
-   «Назад» снимает её, срабатывает popstate, и мы делаем один шаг назад
-   внутри интерфейса. Когда закрывать нечего, запись убирается, и следующий
-   жест закрывает WebUI, как и положено на главном экране. */
-let histGuard = false, histIgnorePop = 0, syncTimer = 0;
-function needsGuard(){
-  return !!(openMenuEntry || openSheetId || editorCtx || currentPage !== 'control' ||
-    $('dialog-wrap').classList.contains('open') || $('color-wrap').classList.contains('open'));
+   KernelSU и KsuWebUI на жест «Назад» делают webView.goBack(), если в
+   истории есть куда идти, иначе закрывают WebUI. Раньше держалась одна
+   «сторожевая» запись, и после каждого жеста она добавлялась заново. Но
+   Chromium помечает пропускаемыми записи, добавленные без действия
+   пользователя (history manipulation intervention): жест «Назад» — не
+   действие, поэтому заново добавленная запись через раз пропускалась, и
+   WebUI закрывался целиком.
+   Теперь в истории по записи на каждый открытый слой (вкладка не
+   «Состояние», дочерние экраны, лист, редактор, диалог, меню) плюс одна
+   запасная. Записи добавляются только пока у страницы есть свежее действие
+   пользователя (касание, клавиша), а жест «Назад» лишь расходует уже
+   имеющиеся: закрыл слой — и записей ровно столько, сколько нужно. Если
+   слой после жеста не закрылся (например, спросили «Закрыть без
+   сохранения?»), выручает запасная запись, а недостача доливается при
+   следующем касании. На главном экране без оверлеев записей нет, и жест
+   закрывает WebUI, как и положено. */
+let histDepth = (history.state && history.state.nfq) || 0, histPending = false, syncTimer = 0;
+function uiLayers(){
+  let n = pageDepth(currentPage) + (PAGE_META[currentPage].child ? (lastTop !== 'control' ? 1 : 0) : (currentPage !== 'control' ? 1 : 0));
+  if(openSheetId) n++;
+  if(editorCtx) n++;
+  if($('dialog-wrap').classList.contains('open')) n++;
+  if(openMenuEntry) n++;
+  return n;
 }
+const canPush = () => !navigator.userActivation || navigator.userActivation.isActive;
 function syncHistory(){
   syncTimer = 0;
-  if(histIgnorePop > 0) return;            // ждём popstate от нашего history.back()
-  const need = needsGuard();
+  updateScrollLock();
+  if(histPending) return;                      // ждём popstate от нашего history.go()
+  const layers = uiLayers(), target = layers ? layers + 1 : 0;
   try {
-    if(need && !histGuard){ history.pushState({nfqGuard: true}, ''); histGuard = true; }
-    else if(!need && histGuard){ histGuard = false; histIgnorePop++; history.back(); }
-  } catch(e) {}
+    if(target > histDepth){
+      if(!canPush()) return;                   // дольём при следующем касании
+      while(histDepth < target) history.pushState({nfq: ++histDepth}, '');
+    } else if(target < histDepth){
+      histPending = true;
+      history.go(target - histDepth);
+    }
+  } catch(e) { histPending = false; }
 }
 /* Откладываем на такт: «закрыть меню → открыть экран» должно дать одно итоговое состояние */
 function scheduleSync(){ if(!syncTimer) syncTimer = setTimeout(syncHistory, 0); }
-addEventListener('popstate', () => {
-  if(histIgnorePop > 0){ histIgnorePop--; scheduleSync(); return; }
-  histGuard = false;
-  handleBack(true);
+addEventListener('popstate', e => {
+  const d = (e.state && e.state.nfq) || 0;
+  if(histPending){ histPending = false; histDepth = d; scheduleSync(); return; }
+  const was = histDepth;
+  histDepth = d;
+  if(d < was) handleBack(true);
   scheduleSync();
 });
+/* Касание и клавиша дают странице действие пользователя — самое время долить записи */
+['pointerdown', 'keydown'].forEach(ev => addEventListener(ev, () => setTimeout(syncHistory, 0), true));
+
+/* ── Пока открыт лист, диалог, меню или редактор, фон не прокручивается ──
+   Без этого свайп по scrim или «дотянутая» прокрутка списка внутри листа
+   уезжала в страницу под ним. */
+function updateScrollLock(){
+  const lock = !!(openSheetId || editorCtx || openMenuEntry || $('dialog-wrap').classList.contains('open'));
+  document.documentElement.classList.toggle('scroll-locked', lock);
+}
 
 /* ── Клавиатура: нижняя панель не поднимается вместе с ней ───────────────
    При adjustResize окно WebView сжимается, и fixed-панель выезжает над
@@ -2372,7 +2480,6 @@ function renderParams(j){
 function renderStatus(){
   const j = S;
   if(!j || j.running == null){ renderHeroActions(); renderParams({}); return; }
-  if(currentPage === 'control') renderAppBar('control', false);
   const paused = !j.running && !!j.paused;
   $('hero-status').className = 'hero' + (j.running ? ' running' : (paused ? ' paused' : ''));
   $('st').textContent = j.running ? t('Служба работает') : (paused ? t('Пауза') : t('Служба остановлена'));
@@ -3359,7 +3466,21 @@ function renderSettings(){
     ]]
   ];
   setHTML('settings-body', groups.map(([title, rows]) =>
-    '<div class="stack"><h2 class="subhead">' + esc(t(title)) + '</h2><div class="list">' + rows.map(settingsRow).join('') + '</div></div>').join(''), false);
+    '<div class="stack"><h2 class="subhead">' + esc(t(title)) + '</h2><div class="list">' + rows.map(settingsRow).join('') + '</div></div>').join('') +
+    '<a class="gh-card state" href="' + GITHUB_URL + '" onclick="event.preventDefault(); openUrl(' + jsArg(GITHUB_URL) + ')">' +
+      '<span class="gh-mark">' + icon('github', 's24') + '</span>' +
+      '<span class="li-text"><span class="gh-title">GitHub</span>' +
+        '<span class="gh-repo">Dea1hwa1cher/nfqws2-android</span>' +
+        '<span class="gh-sub">' + esc(t('Исходный код, релизы и обсуждения')) + '</span></span>' +
+      '<span class="gh-open">' + icon('open', 's20') + '</span>' +
+    '</a>', false);
+}
+const GITHUB_URL = 'https://github.com/Dea1hwa1cher/nfqws2-android';
+/* Ссылку открывает система (браузер по умолчанию): внутри WebView менеджера
+   переход увёл бы со страницы модуля без пути назад. */
+async function openUrl(url){
+  const r = await sh('am start -a android.intent.action.VIEW -d ' + q(url) + ' >/dev/null 2>&1', 8000);
+  if(r.code) try { window.open(url, '_blank'); } catch(e) {}
 }
 function pickLanguage(anchor){
   openMenu(anchor, [['ru', 'Русский'], ['en', 'English']].map(([k, label]) => ({
@@ -3641,10 +3762,12 @@ function roles(seedHex, dark, amoled){
     R.surfaceVariant = p(30, 'neutralVariant'); R.onSurfaceVariant = p(80, 'neutralVariant');
     R.surfaceDim = amoled ? '#000000' : p(6, 'neutral'); R.surfaceBright = p(24, 'neutral');
     R.surfaceContainerLowest = amoled ? '#000000' : p(4, 'neutral');
-    R.surfaceContainerLow = p(amoled ? 4 : 10, 'neutral');
-    R.surfaceContainer = p(amoled ? 6 : 12, 'neutral');
-    R.surfaceContainerHigh = p(amoled ? 10 : 17, 'neutral');
-    R.surfaceContainerHighest = p(amoled ? 14 : 22, 'neutral');
+    /* AMOLED: фон чёрный, а контейнеры светлее обычного тёмного — с лёгким
+       оттенком акцента, чтобы карточки читались на чёрном. */
+    R.surfaceContainerLow = amoled ? p(11, 'neutralVariant') : p(10, 'neutral');
+    R.surfaceContainer = amoled ? p(14, 'neutralVariant') : p(12, 'neutral');
+    R.surfaceContainerHigh = amoled ? p(18, 'neutralVariant') : p(17, 'neutral');
+    R.surfaceContainerHighest = amoled ? p(23, 'neutralVariant') : p(22, 'neutral');
     R.outline = p(60, 'neutralVariant'); R.outlineVariant = p(30, 'neutralVariant');
     R.inverseSurface = p(90, 'neutral'); R.inverseOnSurface = p(20, 'neutral');
     R.inversePrimary = p(40);
@@ -3715,7 +3838,7 @@ const ROLE_VAR = {
   tertiaryFixedVariant: '--md-sys-color-tertiary-fixed-variant', onTertiaryFixed: '--md-sys-color-on-tertiary-fixed',
   onTertiaryFixedVariant: '--md-sys-color-on-tertiary-fixed-variant'
 };
-function applyTheme(){
+function applyTheme(skipUI){
   const dark = isDark();
   const amoled = store.get('m3_amoled') === 'true' && dark;
   const R = roles(currentSeed, dark, amoled);
@@ -3731,85 +3854,107 @@ function applyTheme(){
   document.documentElement.setAttribute('data-amoled', amoled ? 'true' : 'false');
   const meta = document.querySelector('meta[name="theme-color"]');
   if(meta) meta.setAttribute('content', R.background);
-  drawThemeUI();
+  if(!skipUI) drawThemeUI();
 }
+/* ── Лист темы ────────────────────────────────────────────────────────────
+   Сверху живой предпросмотр на текущих ролях, ниже — режим, AMOLED, готовые
+   акценты и свой цвет. Свой цвет выбирается «руками» на круге: угол — тон,
+   расстояние от центра — насыщенность; яркость — отдельным ползунком, HEX —
+   для точного значения. Пока палец ведёт по кругу, тема применяется сразу,
+   а в память пишется по отпусканию. */
+let wheelH = 270, wheelS = .6, wheelDrag = false, wheelFrame = 0;
 function drawThemeUI(){
-  $('theme-mode').innerHTML = [['auto', t('Авто')], ['light', t('Светлая')], ['dark', t('Тёмная')]].map(m =>
+  setHTML('theme-mode', [['auto', 'Авто'], ['light', 'Светлая'], ['dark', 'Тёмная']].map(m =>
     '<button class="seg state' + (currentMode === m[0] ? ' on' : '') + '" aria-pressed="' + (currentMode === m[0]) +
-    '" onclick="setThemeMode(' + jsArg(m[0]) + ')"><span class="check">' + icon('check', 's18') + '</span>' + esc(m[1]) + '</button>').join('');
+    '" onclick="setThemeMode(' + jsArg(m[0]) + ')"><span class="check">' + icon('check', 's18') + '</span>' + esc(t(m[1])) + '</button>').join(''), false);
   const dark = isDark();
-  $('palette-grid').innerHTML = PALETTES.map(p => {
-    const r = roles(p[1], dark, false);
-    return '<button class="swatch state" style="background:' + r.primaryContainer + ';color:' + r.onPrimaryContainer + '"' +
-      ' aria-pressed="' + (p[1].toLowerCase() === currentSeed) + '"' +
-      ' onclick="applyMonet(' + jsArg(p[1]) + ')">' + esc(t(p[0])) + '</button>';
-  }).join('');
+  setHTML('palette-grid', PALETTES.map(p => {
+    // Образец — как в выборе обоев Pixel: тон 80 основной палитры сверху,
+    // вторичная и третичная снизу; в любой теме он читается одинаково.
+    const r = roles(p[1], true, false), on = p[1].toLowerCase() === currentSeed;
+    return '<button class="swatch-dot state' + (on ? ' on' : '') + '" aria-pressed="' + on + '" title="' + esc(t(p[0])) + '"' +
+      ' aria-label="' + esc(t(p[0])) + '" onclick="applyMonet(' + jsArg(p[1]) + ', true)"' +
+      ' style="--sw-a:' + r.primary + ';--sw-b:' + r.secondary + ';--sw-c:' + r.tertiary + '">' +
+      '<span class="sw-check">' + icon('check', 's20') + '</span></button>';
+  }).join(''), false);
+  setHTML('tp-roles', [['primary', 'P'], ['secondary', 'S'], ['tertiary', 'T'], ['primary-container', 'PC'], ['error', 'E']].map(([v, l]) =>
+    '<span class="tp-role" style="background:var(--md-sys-color-' + v + ')"></span>').join(''), false);
   $('amoled-toggle').checked = store.get('m3_amoled') === 'true';
   $('amoled-toggle').disabled = !dark;
-  $('custom-hex-input').value = currentSeed.replace('#', '').toUpperCase();
-  $('custom-swatch').style.background = currentSeed;
+  syncPicker(true);
 }
+/* Круг, ползунок и HEX отражают текущий seed. fromSeed=false — когда seed
+   только что получен с самого круга: тон и насыщенность берём как есть,
+   без обратного пересчёта (он округляет и дёргает бегунок). */
+function syncPicker(fromSeed){
+  const hsl = hexToHsl(currentSeed);
+  if(fromSeed){ wheelH = hsl[0]; wheelS = hsl[1]; $('cd-lum').value = Math.round(Math.min(85, Math.max(20, hsl[2] * 100))); }
+  const L = +$('cd-lum').value;
+  const stops = [];
+  for(let h = 0; h <= 360; h += 30) stops.push('hsl(' + h + ' 100% ' + L + '%)');
+  $('wheel').style.background = 'radial-gradient(closest-side, hsl(0 0% ' + L + '%), hsl(0 0% ' + L + '% / 0)), conic-gradient(' + stops.join(',') + ')';
+  const a = wheelH * Math.PI / 180, r = wheelS * 50;
+  const th = $('wheel-thumb');
+  th.style.left = (50 + Math.sin(a) * r) + '%';
+  th.style.top = (50 - Math.cos(a) * r) + '%';
+  th.style.background = currentSeed;
+  $('wheel').setAttribute('aria-valuenow', Math.round(wheelH));
+  $('custom-swatch').style.background = currentSeed;
+  if(document.activeElement !== $('custom-hex-input')) $('custom-hex-input').value = currentSeed.replace('#', '').toUpperCase();
+}
+const wheelHex = () => hslToHex(wheelH, wheelS, +$('cd-lum').value / 100);
+function wheelApply(final){
+  currentSeed = wheelHex().toLowerCase();
+  if(!wheelFrame) wheelFrame = requestAnimationFrame(() => { wheelFrame = 0; applyTheme(true); syncPicker(false); });
+  if(final){ store.set('m3_seed', currentSeed); setTimeout(drawThemeUI, 30); }
+}
+function wheelPick(e){
+  const r = $('wheel').getBoundingClientRect();
+  const dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+  wheelH = (Math.atan2(dx, -dy) * 180 / Math.PI + 360) % 360;
+  wheelS = Math.min(1, Math.hypot(dx, dy) / (r.width / 2));
+  wheelApply(false);
+}
+(function initWheel(){
+  const w = $('wheel');
+  w.addEventListener('pointerdown', e => { wheelDrag = true; w.setPointerCapture(e.pointerId); w.classList.add('drag'); wheelPick(e); });
+  w.addEventListener('pointermove', e => { if(wheelDrag) wheelPick(e); });
+  const end = () => { if(!wheelDrag) return; wheelDrag = false; w.classList.remove('drag'); wheelApply(true); };
+  w.addEventListener('pointerup', end);
+  w.addEventListener('pointercancel', end);
+  w.addEventListener('keydown', e => {
+    const k = {ArrowLeft: [-5, 0], ArrowRight: [5, 0], ArrowUp: [0, .05], ArrowDown: [0, -.05]}[e.key];
+    if(!k) return;
+    e.preventDefault();
+    wheelH = (wheelH + k[0] + 360) % 360;
+    wheelS = Math.min(1, Math.max(0, wheelS + k[1]));
+    wheelApply(true);
+  });
+})();
+function onWheelLum(){ wheelApply(false); clearTimeout(onWheelLum.t); onWheelLum.t = setTimeout(() => store.set('m3_seed', currentSeed), 300); }
 function setThemeMode(m){
   currentMode = m;
   store.set('m3_mode', m);
   applyTheme();
 }
-function applyMonet(seedHex, quiet){
+function applyMonet(seedHex){
   if(!/^#[0-9a-fA-F]{6}$/.test(seedHex)) return;
   currentSeed = seedHex.toLowerCase();
   store.set('m3_seed', currentSeed);
   applyTheme();
-  if(!quiet) closeMonetModal();
 }
 function toggleAmoled(on){
   store.set('m3_amoled', on ? 'true' : 'false');
   applyTheme();
 }
-function colorHex(){
-  return hslToHex(+$('cd-hue').value, +$('cd-sat').value / 100, +$('cd-lum').value / 100);
-}
-function onColorSlide(){
-  const h = +$('cd-hue').value, s = +$('cd-sat').value, l = +$('cd-lum').value;
-  const hex = colorHex();
-  $('cd-swatch').style.background = hex;
-  $('cd-hex').textContent = hex.toUpperCase();
-  $('cd-hue').style.setProperty('--track', 'linear-gradient(90deg,' +
-    [0, 60, 120, 180, 240, 300, 360].map(x => hslToHex(x, 1, .5)).join(',') + ')');
-  $('cd-sat').style.setProperty('--track', 'linear-gradient(90deg,' +
-    hslToHex(h, 0, l / 100) + ',' + hslToHex(h, 1, l / 100) + ')');
-  $('cd-lum').style.setProperty('--track', 'linear-gradient(90deg,' +
-    hslToHex(h, s / 100, 0) + ',' + hslToHex(h, s / 100, .5) + ',' + hslToHex(h, s / 100, 1) + ')');
-}
-function openColorDialog(){
-  const hsl = hexToHsl(currentSeed);
-  $('cd-hue').value = Math.round(hsl[0]);
-  $('cd-sat').value = Math.round(hsl[1] * 100);
-  $('cd-lum').value = Math.round(hsl[2] * 100);
-  onColorSlide();
-  $('color-wrap').classList.add('open');
-  scheduleSync();
-  $('cd-hue').focus();
-}
-function closeColorDialog(){ $('color-wrap').classList.remove('open'); scheduleSync(); }
-function colorDialogApply(){
-  const hex = colorHex();
-  closeColorDialog();
-  applyMonet(hex, true);
-}
 function onHexInput(val){
   const clean = val.replace(/[^0-9a-fA-F]/g, '').slice(0, 6);
   $('custom-hex-input').value = clean;
   if(clean.length !== 6) return;
-  $('custom-swatch').style.background = '#' + clean;
   currentSeed = '#' + clean.toLowerCase();
-  applyTheme();
-}
-function applyCustomHex(){
-  let val = $('custom-hex-input').value.trim().replace('#', '');
-  if(val.length === 3) val = val.split('').map(x => x + x).join('');
-  if(!/^[0-9a-fA-F]{6}$/.test(val)){ toast(t('Введите 6-значный HEX')); return; }
-  applyMonet('#' + val, true);
-  toast(t('Цвет применён: {0}', '#' + val.toUpperCase()));
+  store.set('m3_seed', currentSeed);
+  applyTheme(true);
+  syncPicker(true);
 }
 function resetTheme(){
   ['m3_seed', 'm3_mode', 'm3_amoled'].forEach(k => store.del(k));
@@ -4185,7 +4330,14 @@ EN = {
  "Закрыть редактор": "Close editor",
  "Текст файла": "File text",
  "Стратегии": "Strategies",
- "Открыть выбор цвета": "Open color picker"
+ "Открыть выбор цвета": "Open color picker",
+ "Цвет акцента": "Accent color",
+ "Яркость": "Brightness",
+ "Тон и насыщенность": "Hue and saturation",
+ "Версия {0}": "Version {0}",
+ "параметры для разработчика включены": "developer options are on",
+ "удерживайте кнопку настроек, чтобы открыть параметры для разработчика": "long-press the settings button to open developer options",
+ "Исходный код, релизы и обсуждения": "Source code, releases and discussions"
 };
 
 /* ══ Init ════════════════════════════════════════════════════════════════ */
