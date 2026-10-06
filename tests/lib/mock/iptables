@@ -1,0 +1,156 @@
+#!/bin/sh
+# Mock iptables/ip6tables for the regression tests.
+#
+# Real rule bookkeeping is required, not just logging: firewall_stop() and
+# firewall_start() drain rules with `while iptables -D ... ; do :; done`, so a
+# mock that always returns 0 hangs the test run forever.
+#
+# Chains live as one file per chain under $MOCK_IPT_STORE/<binary>/<table>/.
+# MOCK_IPT_FEATURES lists the kernel features this mock pretends to have
+# (space separated). Anything gated and missing makes the rule fail, which is
+# how detect_limiter()/has_ipt_feature() decide between connbytes and connmark.
+
+# ${0##*/} rather than $(basename "$0"): this script is run once per iptables
+# call — thousands of times in the service suite — and on Windows/Git Bash every
+# external process costs about 0.3 s. Same for the dirname calls below.
+STORE="${MOCK_IPT_STORE:?MOCK_IPT_STORE not set}/${0##*/}"
+FEATURES="${MOCK_IPT_FEATURES:-connbytes multiport owner connmark CONNMARK NFQUEUE MASQUERADE}"
+TABLE=mangle
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -w) shift ;;
+    -t) TABLE="$2"; shift 2 ;;
+    *) break ;;
+  esac
+done
+
+# MOCK_IPT_FAIL makes every call fail, the way a kernel missing the right modules
+# would. This does not hang the drain loops in firewall_stop(): they are
+# `while iptables -D … ; do :; done`, and a failing -D ends the loop at once.
+if [ "${MOCK_IPT_FAIL:-0}" != "0" ]; then exit 1; fi
+
+CMD="$1"; shift
+
+chain_file() { printf '%s/%s/%s' "$STORE" "$TABLE" "$1"; }
+
+# The built-in chains exist in any real kernel; the module inserts its jump rules
+# into them (-I POSTROUTING 1 -j nfqws_post) and later checks them with -C. If
+# the mock treated them as missing, those inserts would silently fail and
+# firewall_ok() would report a firewall that is not there.
+is_builtin() {
+  case "$1" in
+    PREROUTING|POSTROUTING|INPUT|OUTPUT|FORWARD) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+ensure_chain() {
+  f=$(chain_file "$1")
+  if [ ! -f "$f" ]; then
+    if is_builtin "$1"; then mkdir -p "${f%/*}"; : > "$f"
+    else return 1
+    fi
+  fi
+  return 0
+}
+
+# Exact-line lookup with the shell's own read, not `grep -Fxq`. This is the
+# hottest path in the mock: firewall_ok() calls -C once, and firewall_stop()
+# drains chains with `while iptables -D ...; do :; done`, so every rule in a
+# chain goes through here on the way out.
+has_rule() { # <file> <rule>
+  [ -f "$1" ] || return 1
+  while IFS= read -r _line; do
+    [ "$_line" = "$2" ] && return 0
+  done < "$1"
+  return 1
+}
+
+# The rule text after the chain name is what we gate on and compare.
+# connmark/CONNMARK are deliberately never gated: connmark_out mode needs them,
+# so a kernel without them is not a state the module supports anyway.
+gate() {
+  for tok in connbytes multiport owner NFQUEUE; do
+    case "$1" in
+      *"$tok"*)
+        case " $FEATURES " in
+          *" $tok "*) ;;
+          *) printf 'iptables: No chain/target/match by that name.\n' >&2; return 1 ;;
+        esac ;;
+    esac
+  done
+  return 0
+}
+
+case "$CMD" in
+  -N)
+    f=$(chain_file "$1")
+    [ -f "$f" ] && { printf 'iptables: Chain already exists.\n' >&2; exit 1; }
+    mkdir -p "${f%/*}"; : > "$f"; exit 0 ;;
+  -F)
+    f=$(chain_file "$1")
+    [ -f "$f" ] || { printf 'iptables: No chain/target/match by that name.\n' >&2; exit 1; }
+    : > "$f"; exit 0 ;;
+  -X)
+    f=$(chain_file "$1")
+    [ -f "$f" ] || { printf 'iptables: No chain/target/match by that name.\n' >&2; exit 1; }
+    rm -f "$f"; exit 0 ;;
+  -A)
+    CH="$1"; shift; RULE="$*"
+    gate "$RULE" || exit 1
+    ensure_chain "$CH" || { printf 'iptables: No chain/target/match by that name.\n' >&2; exit 1; }
+    f=$(chain_file "$CH")
+    printf '%s\n' "$RULE" >> "$f"; exit 0 ;;
+  -I)
+    CH="$1"; shift
+    N=1
+    case "$1" in ''|*[!0-9]*) ;; *) N="$1"; shift ;; esac
+    RULE="$*"
+    gate "$RULE" || exit 1
+    ensure_chain "$CH" || { printf 'iptables: No chain/target/match by that name.\n' >&2; exit 1; }
+    f=$(chain_file "$CH")
+    # Insert without awk or a temp file: read and printf are builtins, and this
+    # runs for every rule when the firewall is applied.
+    i=0; _out=""
+    while IFS= read -r _line; do
+      i=$((i + 1))
+      [ "$i" = "$N" ] && _out="$_out$RULE
+"
+      _out="$_out$_line
+"
+    done < "$f"
+    [ "$i" -lt "$N" ] && _out="$_out$RULE
+"
+    printf '%s' "$_out" > "$f"
+    exit 0 ;;
+  -D)
+    CH="$1"; shift; RULE="$*"
+    ensure_chain "$CH" || exit 1
+    f=$(chain_file "$CH")
+    # Delete the first match, keeping the "no match means failure" contract that
+    # the drain loops in firewall_stop() rely on.
+    d=0; _out=""
+    while IFS= read -r _line; do
+      if [ "$d" = 0 ] && [ "$_line" = "$RULE" ]; then d=1; continue; fi
+      _out="$_out$_line
+"
+    done < "$f"
+    printf '%s' "$_out" > "$f"
+    [ "$d" = 1 ] || exit 1
+    exit 0 ;;
+  -C)
+    CH="$1"; shift; RULE="$*"
+    ensure_chain "$CH" || exit 1
+    f=$(chain_file "$CH")
+    has_rule "$f" "$RULE" || exit 1
+    gate "$RULE" || exit 1
+    exit 0 ;;
+  -S)
+    f=$(chain_file "$1")
+    if [ -f "$f" ]; then
+      while IFS= read -r _line; do printf '%s\n' "$_line"; done < "$f"
+    fi
+    exit 0 ;;
+  *)
+    exit 0 ;;
+esac

@@ -1,0 +1,439 @@
+#!/usr/bin/env node
+/*
+ * Browser tests for webroot/index.html: rendered geometry, plus the handful of
+ * interactions whose cost or correctness only shows up in a real page (the
+ * package search, which must not shell out per keystroke).
+ *
+ * The page is a KernelSU WebUI: it renders its lists from `ksu.exec` output, so
+ * opening the file in a browser shows an empty skeleton and every visual
+ * conclusion drawn from it is wrong. This test stubs the bridge, renders the
+ * page in headless Chromium at real device widths and asserts the geometry —
+ * which is how the layout regressions fixed on 2026-10-04 were found, and what
+ * keeps them from coming back.
+ *
+ * Needs playwright + a chromium build; exits 0 with SKIP when absent.
+ */
+'use strict';
+
+const path = require('path');
+
+let chromium;
+try {
+  ({ chromium } = require('playwright'));
+} catch (e) {
+  process.stdout.write('SKIP  playwright is not installed (set NODE_PATH to a workspace that has it)\n');
+  process.exit(0);
+}
+
+const REPO = path.resolve(__dirname, '..', '..');
+const INDEX = 'file:///' + path.join(REPO, 'webroot', 'index.html').replace(/\\/g, '/');
+
+// import_safe_name() strips quotes, but a file dropped straight into imports/
+// (by an older version, a backup, a root shell) never went through it.
+const HOSTILE_IMPORT = "x');window.__pwned=1;//";
+
+const STATUS = JSON.stringify({
+  running: true, pid: '4710', uptime: 52, strategy: 'alt13', version: 'v1.3.6', mode: 'auto',
+  limiter: 'connmark_out', pkt_limit_out: 2, pkt_limit_in: 2, block_quic: 0, app_mode: 'off',
+  autostart: 1, watchdog: 1, wakelock_on: 0, ipv6: 1, log_level: 0, qdrop: 0, queue: 300,
+  app_uids: 1,
+  counts: { user: 381, auto: 25, exclude: 2839, ipset: 28420, ipset_exclude: 637, apps: 1 },
+});
+const STRATEGIES = 'default\nalt\nalt2\nalt3\nalt13\nfake_tls_auto\nsimple_fake\nhardcorp74\nkrushaaa\nMartinBacker\nUvvi2\neduncey\nexp';
+
+const STUB = `
+window.__calls = [];
+window.ksu = { exec: function(cmd, opts, cb){
+  var args = [opts, cb], id = null;
+  for (var i = args.length - 1; i >= 0; i--) {
+    if (typeof args[i] === 'string') { id = args[i]; break; }
+  }
+  window.__calls.push(cmd);
+  var out = 'OK';
+  if (cmd.indexOf('json-status') >= 0) out = ${JSON.stringify(STATUS)};
+  else if (cmd.indexOf('list-strategies') >= 0) out = ${JSON.stringify(STRATEGIES)};
+  else if (cmd.indexOf('get-strategy') >= 0) out = 'alt13';
+  else if (cmd.indexOf('get-list') >= 0 && cmd.indexOf('apps') >= 0) out = 'com.termux\\ncom.example.one';
+  else if (cmd.indexOf('get-list') >= 0) out = 'example.com';
+  else if (cmd.indexOf('list-apps') >= 0) out = 'com.termux\\ncom.example.one\\ncom.example.two\\ncom.other';
+  else if (cmd.indexOf('list-imports') >= 0) out = ${JSON.stringify(HOSTILE_IMPORT)};
+  else if (cmd.indexOf('get-conf') >= 0) out = 'A=1';
+  setTimeout(function(){ if (window[id]) window[id](0, out, ''); }, 0);
+  return 'job';
+}};
+`;
+
+let pass = 0;
+const failures = [];
+let section = '';
+
+function sect(name) { section = name; process.stdout.write(`\n== ${name}\n`); }
+function ok(msg) { pass++; process.stdout.write(`   ok   ${msg}\n`); }
+function fail(msg) { failures.push(`[${section}] ${msg}`); process.stdout.write(`   FAIL ${msg}\n`); }
+function eq(expected, actual, msg) {
+  if (expected === actual) ok(msg);
+  else fail(`${msg} -- expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
+}
+function truthy(cond, msg) { cond ? ok(msg) : fail(msg); }
+
+const VIEWPORTS = [
+  { w: 360, dpr: 2.75, label: '360px' },
+  { w: 400, dpr: 2.7, label: '400px' },
+  { w: 467, dpr: 2.31, label: '467px (owner device)' },
+];
+
+(async () => {
+  const browser = await chromium.launch();
+
+  for (const vp of VIEWPORTS) {
+    for (const mode of ['dark', 'light']) {
+      const ctx = await browser.newContext({
+        viewport: { width: vp.w, height: 900 },
+        deviceScaleFactor: vp.dpr, isMobile: true, hasTouch: true,
+      });
+      await ctx.addInitScript(`try{localStorage.setItem('m3_mode','${mode}');}catch(e){}`);
+      await ctx.addInitScript(STUB);
+      const page = await ctx.newPage();
+      const pageErrors = [];
+      page.on('pageerror', e => pageErrors.push(e.message));
+      await page.goto(INDEX, { waitUntil: 'load' });
+      await page.waitForTimeout(700);
+      // #mode and the other list-driven controls are built by renderMode() / PAGE_META
+      await page.evaluate(() => {
+        if (typeof devMode !== 'undefined') devMode = true;
+        if (typeof renderParams === 'function' && typeof S !== 'undefined') renderParams(S);
+        if (typeof renderMode === 'function') renderMode();
+      });
+      await page.waitForTimeout(300);
+
+      const label = `${vp.label} ${mode}`;
+      sect(label);
+
+      eq('', pageErrors.join(' | '), 'the page loads without script errors');
+
+      const geo = await page.evaluate(() => {
+        // Every probe below is null-tolerant on purpose. This suite measures a
+        // specific markup, and when that markup changes the old behaviour was to
+        // throw inside page.evaluate — which aborts the whole run, so nothing at
+        // all got measured and the failure read as a crash rather than a report.
+        // Missing elements now yield empty/zero values and the checks below say
+        // which ones, which is the useful signal.
+        const cs = el => (el ? getComputedStyle(el) : { borderRadius: '', gridTemplateColumns: '' });
+        const box = el => (el ? el.getBoundingClientRect() : { height: 0, width: 0, left: 0, right: 0, top: 0, bottom: 0 });
+        const q = s => document.querySelector(s);
+        const txt = el => (el && el.textContent != null ? el.textContent : '');
+        // borderRadius comes back as a shorthand: one value means all four
+        // corners, two mean vertical/horizontal pairs.
+        const radii = el => {
+          if (!el) return [];
+          const parts = cs(el).borderRadius.split(/\s+/).map(v => parseFloat(v));
+          if (parts.length === 1) return [parts[0], parts[0], parts[0], parts[0]];
+          if (parts.length === 2) return [parts[0], parts[1], parts[0], parts[1]];
+          if (parts.length === 3) return [parts[0], parts[1], parts[2], parts[1]];
+          return parts;
+        };
+        const out = {};
+
+        out.statusText = txt(q('#st'));
+        out.heroCounters = document.querySelectorAll('.hero-metrics, .hero .m').length;
+
+        // The counters card and the split button are gone from the control page.
+        // The numbers now sit next to each list on the lists page, and the hero
+        // carries a plain start/stop button with a separate restart icon. Those
+        // probes and their checks were dropped rather than repointed: there is
+        // nothing on this screen to measure, and inventing a stand-in would only
+        // assert that the stand-in exists.
+        out.cardRadius = radii(q('.group'))[0];
+        out.heroRadius = radii(q('.hero'))[0];
+        out.titleLeft = Math.round(box(q('#app-title')).left);
+        out.heroLeft = Math.round(box(q('.hero')).left);
+
+        const sws = [...document.querySelectorAll('#sws .list-item')];
+        out.swsFirstRadius = radii(sws[0]);
+        out.swsLastRadius = radii(sws[sws.length - 1]);
+        out.swsMiddleRadius = sws.length > 2 ? radii(sws[1]) : [];
+        out.swsRows = sws.length;
+        // The container holds the switches and, below them, the packet limits. The
+        // conventions are about the switches, so count them separately instead of
+        // asking whether *any* row has a description — the limits have one.
+        out.swsSwitchRows = sws.filter(r => r.querySelector('input.switch')).length;
+        out.swsSwitchWithSecondary = sws.filter(r => r.querySelector('input.switch') && r.querySelector('.li-secondary')).length;
+        out.swsHasIcons = sws.some(r => r.querySelector('.li-icon'));
+        out.swsHeight = box(sws[0]).height;
+
+        // The strategy row renders into #strategy-current; the doctor moved to the
+        // diagnostics page and is not on this screen any more.
+        const stratSpan = q('#strategy-current');
+        out.strategyRowRadius = stratSpan ? radii(stratSpan.closest('.list-item'))[0] : undefined;
+
+        // The only text field is the search bar, and it lives on the apps page —
+        // hidden while this screen is up, so getBoundingClientRect returns 0. Read
+        // the computed height instead: it is the layout value being pinned here.
+        const searchBar = q('.search-bar');
+        out.fieldHeight = searchBar ? parseFloat(cs(searchBar).height) : 0;
+        out.fieldRadius = radii(searchBar);
+
+        const segs = [...document.querySelectorAll('#mode .seg')];
+        out.segCount = segs.length;
+        if (segs.length) {
+          out.segFirst = radii(segs[0]);
+          out.segLast = radii(segs[segs.length - 1]);
+          out.segGap = segs.length > 1 ? box(segs[1]).left - box(segs[0]).right : 0;
+        }
+
+        const icons = [...document.querySelectorAll('svg.icon')];
+        out.iconCount = icons.length;
+        out.iconFill = icons.length ? cs(icons[0]).fill : '';
+        out.iconStroke = icons.length ? cs(icons[0]).stroke : '';
+        // Icons inside closed overlays (.fs-dialog, .sheet, .dialog-wrap, #layer) have no
+        // box at all or are scaled away — only judge the ones that are actually on screen.
+        out.zeroSizedIcons = icons
+          .filter(i => i.getClientRects().length > 0)
+          .filter(i => !i.closest('.sheet, .dialog-wrap, .fs-dialog, #layer, .segmented .seg:not(.on)'))
+          .filter(i => { const b = box(i); return b.width < 8 || b.height < 8; }).length;
+        out.visibleIcons = icons.filter(i => i.getClientRects().length > 0).length;
+
+        // The palette must not be inline: an inline role cannot be overridden
+        // from CSS, which is how the CSS palette silently became dead code.
+        out.inlineRoleVars = (document.documentElement.getAttribute('style') || '').includes('--md-sys-color-');
+        const tvEl = document.getElementById('theme-vars');
+        out.themeVarsRule = (tvEl && tvEl.textContent ? tvEl.textContent : '').trim().slice(0, 6);
+
+        // Generic overflow check on the containers that must never scroll sideways.
+        out.overflow = ['.content', '.hero', '.group'].map(sel => {
+          const el = q(sel);
+          return el ? el.scrollWidth - el.clientWidth : 0;
+        });
+        out.docOverflow = document.documentElement.scrollWidth - document.documentElement.clientWidth;
+
+        // Every tappable thing should be at least 40px in one dimension.
+        out.tinyTargets = [...document.querySelectorAll('.btn, .icon-btn, .seg, .switch, .checkbox')]
+          .filter(el => { const b = box(el); return b.height > 0 && b.height < 32; }).length;
+
+        return out;
+      });
+
+      // ── hero ──
+      eq('Служба работает', geo.statusText, 'the service state is rendered from json-status');
+      eq(0, geo.heroCounters, 'the hero carries no counters');
+      eq(geo.heroLeft, geo.titleLeft, 'the app title aligns with the hero card margin');
+
+      // ── shapes ──
+      // Cards are .group on --shape-large (16dp) and the hero is on
+      // --shape-extra-large (28dp). Both are M3 Expressive steps, which is what the
+      // project targets; the old 12dp was the baseline card corner.
+      eq(16, geo.cardRadius, 'cards use the 16dp corner (--shape-large)');
+      eq(28, geo.heroRadius, 'the hero follows the extra-large corner (28dp)');
+      eq(8, geo.strategyRowRadius, 'the strategy row is rounded (8dp, --shape-small)');
+      eq('8,8,8,8', geo.swsFirstRadius.join(','), 'the first list row has 8dp corners (--shape-small)');
+      eq('8,8,8,8', geo.swsLastRadius.join(','), 'the last list row has 8dp corners (--shape-small)');
+      eq('8,8,8,8', geo.swsMiddleRadius.join(','), 'the middle list rows use 8dp corners (--shape-small)');
+      // #sws holds the three switches. The conventions are about the switches.
+      eq(3, geo.swsRows, 'the list holds the three switches');
+      eq(3, geo.swsSwitchRows, 'all three of those rows are switches');
+      eq(false, geo.swsHasIcons, 'switch rows carry no leading icons');
+      eq(0, geo.swsSwitchWithSecondary, 'switch rows carry no descriptions');
+      eq(56, geo.swsHeight, 'switch rows are single-line (56dp)');
+
+      // ── fields, segmented ──
+      // The only text field on this screen is the search bar: 56dp tall and a pill,
+      // which is the M3 search-bar spec rather than the filled-field one.
+      eq(56, geo.fieldHeight, 'the search bar is 56dp tall');
+      eq('9999,9999,9999,9999', geo.fieldRadius.join(','), 'the search bar is a pill (M3 search bar)');
+      truthy(geo.segCount === 3, 'the mode control renders three segments');
+      eq('9999,0,0,9999', geo.segFirst.join(','), 'the first segment is pill-shaped on the outside');
+      eq('0,9999,9999,0', geo.segLast.join(','), 'the last segment is pill-shaped on the outside');
+      truthy(Math.abs(geo.segGap) <= 1, 'segments are joined, not separated by a gap');
+
+      // ── icons ──
+      truthy(geo.iconCount > 10, `${geo.iconCount} icons are rendered`);
+      truthy(/rgb/.test(geo.iconFill) && geo.iconFill !== 'none', 'icons paint with currentColor (Material Symbols)');
+      truthy(geo.visibleIcons > 10, `${geo.visibleIcons} icons are visible`);
+      if (geo.zeroSizedIcons > 0) process.stdout.write('   DEBUG zero sized: ' + JSON.stringify(geo.zeroSizedIconsList) + '\n');
+      eq(0, geo.zeroSizedIcons, 'no visible icon collapsed to zero size');
+
+      // ── colour roles stay themable from CSS ──
+      truthy(!geo.inlineRoleVars, 'no colour role is applied as an inline style');
+      eq(':root{', geo.themeVarsRule, 'the generated palette lives in its own <style>');
+      await page.addStyleTag({ content: ':root{--md-sys-color-primary:rgb(1, 2, 3);}' });
+      const overridden = await page.evaluate(() =>
+        getComputedStyle(document.documentElement).getPropertyValue('--md-sys-color-primary').trim());
+      eq('rgb(1, 2, 3)', overridden, 'a plain CSS rule can override a colour role');
+
+      // ── overflow ──
+      eq('0,0,0', geo.overflow.join(','), 'no container overflows horizontally');
+      eq(0, geo.docOverflow, 'the document does not scroll sideways');
+      eq(0, geo.tinyTargets, 'no tappable control is below 32dp tall');
+
+      await ctx.close();
+    }
+  }
+
+  // Behaviour does not depend on the viewport or the theme, so it runs once
+  // instead of inside the loop above. That loop exists to measure geometry, and
+  // repeating these checks in all six of its passes only made the suite slower.
+  {
+    const ctx = await browser.newContext({
+      viewport: { width: 467, height: 900 }, deviceScaleFactor: 2.31,
+      isMobile: true, hasTouch: true,
+    });
+    await ctx.addInitScript(STUB);
+    const page = await ctx.newPage();
+    await page.goto(INDEX, { waitUntil: 'load' });
+    await page.waitForTimeout(700);
+
+    // ── the package search must not shell out per keystroke ──
+    // Every ctl call is a process on the device, and drawPk() used to re-read
+    // apps.list on each one. ctl() quotes every argument, so match on the
+    // pieces rather than on 'get-list apps'.
+    const listReads = () => page.evaluate(() =>
+      window.__calls.filter(c => c.indexOf('get-list') >= 0 && c.indexOf('apps') >= 0).length);
+
+    // The apps page has to be on screen: a hidden input cannot be typed into.
+    await page.evaluate(() => {
+      document.querySelectorAll('.page').forEach(s => s.classList.toggle('active', s.dataset.page === 'apps'));
+    });
+    await page.waitForTimeout(150);
+
+    await page.evaluate(() => { window.__calls = []; });
+    await page.evaluate(() => loadPk());
+    await page.waitForTimeout(400);
+    eq(1, await listReads(), 'opening the package list reads apps.list exactly once');
+    const listed = await page.evaluate(() => document.querySelectorAll('#pk input[data-pkg]').length);
+    eq(4, listed, 'the package list is rendered');
+
+    await page.evaluate(() => { window.__calls = []; });
+    await page.evaluate(() => { document.getElementById('pf').value = ''; });
+    await page.evaluate(() => {
+      window.__renders = 0;
+      new MutationObserver(() => { window.__renders++; })
+        .observe(document.getElementById('pk'), { childList: true });
+    });
+    await page.type('#pf', 'com.example', { delay: 20 });
+    await page.waitForTimeout(400);
+    eq(0, await listReads(), 'typing in the search does not re-read apps.list');
+    const renders = await page.evaluate(() => window.__renders);
+    truthy(renders === 1, `eleven keystrokes caused ${renders} re-render(s), not eleven`);
+    const filtered = await page.evaluate(() => document.querySelectorAll('#pk input[data-pkg]').length);
+    eq(2, filtered, 'the filter still narrows the list to the final query');
+
+    // ── an import name cannot escape its onclick handler ──
+    // Escaping for HTML alone is not enough: the attribute decoder turns
+    // &#39; back into a quote before the JS parser sees the string, so the
+    // value has to be quoted for JS first (see jsArg in index.html).
+    await page.evaluate(() => {
+      window.__pwned = undefined;
+      document.querySelectorAll('.page').forEach(s => s.classList.toggle('active', s.dataset.page === 'config'));
+    });
+    await page.waitForTimeout(150);
+    await page.evaluate(() => loadImports());
+    await page.waitForTimeout(300);
+    eq(1, await page.evaluate(() => document.querySelectorAll('#impList .li-primary').length),
+      'the hostile import name is rendered as a row');
+    await page.evaluate(() => {
+      const b = document.querySelector('#impList button[aria-label="Удалить импорт"]');
+      if (b) b.click();
+    });
+    await page.waitForTimeout(300);
+    eq(undefined, await page.evaluate(() => window.__pwned),
+      'clicking the delete button does not run the name as code');
+
+    // ── a superseded dialog resolves instead of hanging ──
+    // One dialog is on screen at a time but each call has its own promise, so
+    // opening a second one used to overwrite dialogCb and leave the first
+    // waiting forever — a fast double tap was enough.
+    const dialogs = await page.evaluate(async () => {
+      const race = p => Promise.race([p, new Promise(r => setTimeout(() => r('TIMEOUT'), 400))]);
+      const first = mdDialog({ title: 'first', text: 'a' });
+      const second = mdDialog({ title: 'second', text: 'b' });
+      const firstResult = await race(first);
+      const onScreen = document.getElementById('d-title').textContent;
+      dialogResolve(false);
+      const secondResult = await race(second);
+      return { firstResult, secondResult, onScreen };
+    });
+    eq(false, dialogs.firstResult, 'the superseded dialog resolves as cancelled, not never');
+    eq('second', dialogs.onScreen, 'the newer dialog is the one on screen');
+    eq(false, dialogs.secondResult, 'and it resolves when dismissed');
+
+    // ── reopening the theme sheet re-syncs it with the current state ──
+    // The drawThemeUI() in openMonetModal() looks like a duplicate of the one
+    // in applyTheme(), and it is not: applyTheme() redraws on change, this one
+    // re-syncs on open. The difference shows on the hex field, which can hold
+    // a half-typed value that was never applied — currentSeed only changes on
+    // six characters. This check exists to stop the call being "cleaned up".
+    const sheet = await page.evaluate(async () => {
+      const wait = () => new Promise(r => setTimeout(r, 80));
+      openMonetModal(); await wait();
+      const field = document.getElementById('custom-hex-input');
+      field.value = 'abc';
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+      const typed = field.value;
+      closeSheet(); await wait();
+      openMonetModal(); await wait();
+      const reopened = field.value;
+      closeSheet(); await wait();
+      return { typed, reopened };
+    });
+    eq('abc', sheet.typed, 'a half-typed hex value stays in the field while the sheet is open');
+    truthy(sheet.reopened !== sheet.typed, 'reopening the sheet discards the half-typed value');
+    truthy(/^[0-9A-F]{6}$/.test(sheet.reopened), 'the field shows the current seed again');
+
+    // ── the handlers that quote their arguments still pass them through ──
+    // setMode, setThemeMode, applyMonet and setp now take their value through
+    // jsArg(), so the argument reaches them as a JS string literal rather than a
+    // bare word. These three clicks check that the value survives the trip.
+    const handlers = await page.evaluate(async () => {
+      const wait = () => new Promise(r => setTimeout(r, 150));
+      // #mode is filled by renderMode(), which runs when the lists page is shown.
+      document.querySelectorAll('.page').forEach(s => s.classList.toggle('active', s.dataset.page === 'lists'));
+      await wait();
+      if (typeof listsInit === 'function') await listsInit();
+      else if (typeof renderMode === 'function') { renderMode(); if (typeof renderListFiles === 'function') renderListFiles(); }
+      await wait();
+      window.__calls = [];
+      const seg = document.querySelector('#mode button.seg');
+      if (seg) seg.click();
+      await wait();
+      const modeCall = window.__calls.find(c => c.indexOf('set-mode') >= 0) || '';
+      window.__calls = [];
+      const sw = document.querySelector('#sws input.switch');
+      if (sw) sw.click();
+      await wait();
+      const swCall = window.__calls.filter(c => c.indexOf("'set'") >= 0)[0] || '';
+      return { modeCall, swCall };
+    });
+    // ctl() quotes every argument, so the recorded command reads
+    // `sh '…/nfqws2-ctl' 'set-mode' 'auto'` — match on the quoted pieces.
+    truthy(handlers.modeCall.indexOf("'set-mode'") >= 0 && handlers.modeCall.indexOf("'auto'") >= 0,
+      `a mode segment reaches setMode() with its value intact (saw: ${handlers.modeCall || 'no call'})`);
+    truthy(handlers.swCall.indexOf("'set'") >= 0 && handlers.swCall.indexOf('AUTOSTART') >= 0,
+      `a switch row reaches setp() with its key intact (saw: ${handlers.swCall || 'no call'})`);
+
+    const swatch = await page.evaluate(async () => {
+      const wait = () => new Promise(r => setTimeout(r, 120));
+      const before = currentSeed;
+      openMonetModal(); await wait();
+      const b = document.querySelector('#palette-grid button:not(.on)') || document.querySelector('#palette-grid button');
+      if (!b) return { clicked: false };
+      b.click(); await wait();
+      closeSheet();
+      return { clicked: true, before, after: currentSeed };
+    });
+    truthy(swatch.clicked && /^#[0-9a-f]{6}$/.test(swatch.after) && swatch.after !== swatch.before,
+      'a palette swatch reaches applyMonet() and changes the seed');
+
+    await ctx.close();
+  }
+
+  await browser.close();
+
+  process.stdout.write('\n----------------------------------------\n');
+  if (failures.length === 0) {
+    process.stdout.write(`PASS  ${pass} checks\n`);
+    process.exit(0);
+  }
+  process.stdout.write(`FAIL  ${failures.length} of ${pass + failures.length} checks failed\n`);
+  for (const f of failures) process.stdout.write(`   - ${f}\n`);
+  process.exit(1);
+})();

@@ -1,0 +1,41 @@
+#!/bin/sh
+# Android command stubs, dispatched by the name they are invoked under.
+# The harness copies this file to bin/pm, bin/getprop, bin/sysctl, bin/modprobe.
+#
+# Every stub appends its invocation to $MOCK_DIR/<name>.log so tests can assert
+# what the module actually asked the system to do.
+
+NAME=$(basename "$0")
+[ -n "$MOCK_DIR" ] && printf '%s %s\n' "$NAME" "$*" >> "$MOCK_DIR/$NAME.log" 2>/dev/null
+
+case "$NAME" in
+  pm)
+    # `pm list packages -3` / `pm list packages -U`. Fixture: package:NAME uid:N
+    FIX="${MOCK_PM_FILE:-}"
+    case "$*" in
+      *-U*)
+        if [ -n "$FIX" ] && [ -f "$FIX" ]; then cat "$FIX"; else
+          printf 'package:com.example.browser uid:10123\n'
+          printf 'package:org.mozilla.firefox uid:10188\n'
+          printf 'package:com.termux uid:10201\n'
+        fi ;;
+      *)
+        if [ -n "$FIX" ] && [ -f "$FIX" ]; then sed 's/ uid:.*//' "$FIX"; else
+          printf 'package:com.example.browser\n'
+          printf 'package:org.mozilla.firefox\n'
+          printf 'package:com.termux\n'
+        fi ;;
+    esac
+    exit 0 ;;
+  getprop)
+    case "$1" in
+      ro.product.cpu.abi) printf '%s\n' "${MOCK_ABI:-arm64-v8a}" ;;
+      sys.boot_completed) printf '1\n' ;;
+      *) printf '\n' ;;
+    esac
+    exit 0 ;;
+  sysctl|modprobe|ip|iptables-save|killall)
+    exit 0 ;;
+  *)
+    exit 0 ;;
+esac
