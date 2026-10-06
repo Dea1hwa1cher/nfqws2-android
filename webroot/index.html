@@ -5,11 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#1c1b1f">
 <title>nfqws2</title>
-<link rel="stylesheet" href="https://mui.kernelsu.org/internal/insets.css" type="text/css">
-<link rel="stylesheet" href="https://mui.kernelsu.org/internal/colors.css" type="text/css">
+<!-- Вставки KSU грузятся асинхронно: без сети mui.kernelsu.org не задерживает первый кадр,
+     а инsets и цвета имеют локальные фолбэки ниже по CSS. -->
+<link rel="stylesheet" href="https://mui.kernelsu.org/internal/insets.css" media="print" onload="this.media='all'">
+<link rel="stylesheet" href="https://mui.kernelsu.org/internal/colors.css" media="print" onload="this.media='all'">
 <style>
 /* ══════════════════════════════════════════════════════════════════════════
    MATERIAL DESIGN 3 EXPRESSIVE — DESIGN TOKENS
+   Навигация: Navigation bar (4 раздела) + overflow-меню в top app bar.
    Роли цвета, typescale, shape, elevation и motion соответствуют M3 Expressive
    (MotionScheme.expressive(), Purple fallback из таблиц m3.material.io).
    Значения ролей перезаписывает рантайм-генератор палитры (см. applyTheme()).
@@ -37,6 +40,9 @@
   --ts-label-medium: 12px;    --lh-label-medium: 16px;
   --ts-label-small: 11px;     --lh-label-small: 16px;
   --ts-metric: 13px;          --lh-metric: 18px;
+  /* Трекинг M3: без него шкала «на глаз» ближе, чем надо */
+  --tr-headline-large: -.25px; --tr-title-medium: .15px; --tr-title-small: .1px;
+  --tr-body-large: .5px;       --tr-body-medium: .25px;  --tr-body-small: .4px;
   /* Emphasized weights M3 Expressive */
   --w-regular: 400; --w-medium: 500; --w-emph: 600; --w-bold: 700;
 
@@ -49,9 +55,42 @@
   --shape-card: 12px;          /* M3: радиус карточек 12dp */
   --shape-full: 9999px;
   --shape-inner: 8px;          /* split button / stacked list inner corners */
-  /* Единственный используемый алиас: его берёт инлайновый стиль из JS
-     (renameImportStart). Остальные старые имена не читает никто. */
+  /* Алиасы старых имён: инлайновые стили из JS их тоже используют */
+  --md-sys-shape-corner-extra-small: var(--shape-extra-small);
   --md-sys-shape-corner-small: var(--shape-small);
+  --md-sys-shape-corner-medium: var(--shape-medium);
+  --md-sys-shape-corner-large: var(--shape-large);
+  --md-sys-shape-corner-extra-large: var(--shape-extra-large);
+  --md-sys-shape-full: var(--shape-full);
+  /* Публичные имена M3: с ними к странице можно подключить компоненты Material Web,
+     которые читают --md-sys-typescale / --md-sys-motion / --md-sys-state, а не наши --ts- / --dur-. */
+  --md-sys-typescale-display-large-size: var(--ts-display-large);
+  --md-sys-typescale-headline-large-size: var(--ts-headline-large);
+  --md-sys-typescale-headline-medium-size: var(--ts-headline-medium);
+  --md-sys-typescale-headline-small-size: var(--ts-headline-small);
+  --md-sys-typescale-title-large-size: var(--ts-title-large);
+  --md-sys-typescale-title-medium-size: var(--ts-title-medium);
+  --md-sys-typescale-title-small-size: var(--ts-title-small);
+  --md-sys-typescale-body-large-size: var(--ts-body-large);
+  --md-sys-typescale-body-medium-size: var(--ts-body-medium);
+  --md-sys-typescale-body-small-size: var(--ts-body-small);
+  --md-sys-typescale-label-large-size: var(--ts-label-large);
+  --md-sys-typescale-label-medium-size: var(--ts-label-medium);
+  --md-sys-typescale-label-small-size: var(--ts-label-small);
+  --md-sys-motion-duration-short1: var(--dur-extra-short);
+  --md-sys-motion-duration-short2: var(--dur-short);
+  --md-sys-motion-duration-medium1: var(--dur-medium);
+  --md-sys-motion-duration-medium3: var(--dur-medium-long);
+  --md-sys-motion-duration-long1: var(--dur-long);
+  --md-sys-motion-easing-emphasized: var(--standard);
+  --md-sys-motion-easing-emphasized-decelerate: var(--emphasized-decelerate);
+  --md-sys-motion-easing-emphasized-accelerate: var(--emphasized-accelerate);
+  --md-sys-motion-easing-standard: var(--standard);
+  --md-sys-state-hover-opacity: var(--state-hover);
+  --md-sys-state-focus-opacity: var(--state-focus);
+  --md-sys-state-pressed-opacity: var(--state-pressed);
+  --md-sys-state-disabled-content-opacity: var(--state-disabled-content);
+  --md-sys-state-disabled-container-opacity: var(--state-disabled-container);
 
   /* ── Motion: MotionScheme.expressive() ── */
   --spring: cubic-bezier(.34, 1.41, .64, 1);
@@ -59,11 +98,21 @@
   --standard: cubic-bezier(.2, 0, 0, 1);
   --emphasized-decelerate: cubic-bezier(.05, .7, .1, 1);
   --emphasized-accelerate: cubic-bezier(.3, 0, .8, -.15);
-  --dur-extra-short: 50ms;
-  --dur-short: 120ms;
-  --dur-medium: 260ms;
-  --dur-medium-long: 350ms;
-  --dur-long: 420ms;
+  /* Длительности — значения таблицы motion-токенов M3 (short1..4, medium1..4, long1..4) */
+  --dur-extra-short: 50ms;   /* duration-short1 */
+  --dur-short: 100ms;        /* duration-short2 */
+  --dur-medium: 250ms;       /* duration-medium1 */
+  --dur-medium-long: 350ms;  /* duration-medium3 */
+  --dur-long: 450ms;         /* duration-long1 */
+  --md-ease-standard: var(--standard);
+  --md-ease-emphasized: var(--standard);
+  --md-ease-emphasized-decelerate: var(--emphasized-decelerate);
+  --md-ease-emphasized-accelerate: var(--emphasized-accelerate);
+  --md-dur-extra-short: var(--dur-extra-short);
+  --md-dur-short: var(--dur-short);
+  --md-dur-medium: var(--dur-medium);
+  --md-dur-medium-long: var(--dur-medium-long);
+  --md-dur-long: var(--dur-long);
 
   /* ── State layers ── */
   --state-hover: .08;
@@ -71,9 +120,15 @@
   --state-pressed: .12;
   --state-disabled-content: .38;
   --state-disabled-container: .12;
+  --md-state-hover: var(--state-hover);
+  --md-state-focus: var(--state-focus);
+  --md-state-pressed: var(--state-pressed);
+  --md-state-disabled-content: var(--state-disabled-content);
+  --md-state-disabled-container: var(--state-disabled-container);
 
   /* ── Elevation: key + ambient light ── */
   --md-elev-1: 0 1px 2px 0 rgba(0,0,0,.30), 0 1px 3px 1px rgba(0,0,0,.15);
+  --md-elev-2: 0 1px 2px 0 rgba(0,0,0,.30), 0 2px 6px 2px rgba(0,0,0,.15);
   --md-elev-3: 0 1px 3px 0 rgba(0,0,0,.30), 0 4px 8px 3px rgba(0,0,0,.15);
   --md-elev-4: 0 2px 3px 0 rgba(0,0,0,.30), 0 6px 10px 4px rgba(0,0,0,.15);
   --md-elev-5: 0 4px 4px 0 rgba(0,0,0,.30), 0 8px 12px 6px rgba(0,0,0,.15);
@@ -82,31 +137,36 @@
   --top-inset: var(--window-inset-top, env(safe-area-inset-top, 0px));
   --bottom-inset: var(--window-inset-bottom, env(safe-area-inset-bottom, 0px));
   --appbar-height: 64px;
+  --navbar-height: 80px;
   --content-max: 760px;
+  --gutter: 16px;
   --screen-margin: 16px;
   --gap: 12px;
 
-  /* ── Color roles ────────────────────────────────────────────────────────
-     Палитры здесь нет намеренно: все роли M3 генерируются в JS из seed —
-     roles() → applyTheme() → блок <style id="theme-vars">. Держать те же
-     значения ещё и в CSS нельзя: это две копии одного значения, и правка в
-     CSS молча не работала бы (инлайн/сгенерированный блок перекрывает её).
-     Здесь остаётся только то, чего applyTheme() не пишет. */
+  /* M3 не задаёт семантических success/info: тонированные значения около error */
+
+  /* ── Color roles: светлая схема (fallback Purple) ── */
+  /* fixed-роли не зависят от темы: tone 90/80/30/10 от той же палитры */
   --md-sys-color-scrim: rgba(0, 0, 0, .32);
+  /* Остальные цветовые роли сюда НЕ пишутся: единственный источник — roles() в JS,
+     а applyTheme() кладёт их в <style id="theme-vars">. Вторая копия в CSS однажды
+     уже делала палитру мёртвой. Scrim — исключение: applyTheme() его не пишет. */
 }
 
-/* Тёмная схема: роли приходят из roles(), здесь — только color-scheme и
-   значения, которые applyTheme() не пишет (см. комментарий в :root). */
+/* Color roles: тёмная схема (fallback Purple, tone 80) */
 html[data-mode="dark"] {
   color-scheme: dark;
-  --md-sys-color-scrim: rgba(0, 0, 0, .48);
+  /* fixed совпадают с темой light по определению — они не инвертируются */
 }
 
-/* Светлая схема: роли тоже из roles(), здесь нужен только color-scheme. */
+/* Светлая схема явно задана и в :root — блок оставлен для переопределений seed */
 html[data-mode="light"] { color-scheme: light; }
 
-/* AMOLED отдельным блоком не описан: surface-роли уходят в чёрный внутри
-   roles(seed, dark, amoled) — см. ветку amoled в роли генератора. */
+/* AMOLED: surface-роли уходят в чёрный (M3 dark + OLED-вариант).
+   Значения задаёт roles() через applyTheme() — здесь остаётся только признак
+   режима для color-scheme. Раньше тут лежала вторая копия палитры; убрана
+   ревью 2026-10-06, потому что любая правка темы в CSS не доезжала до экрана. */
+html[data-mode="dark"][data-amoled="true"] { color-scheme: dark; }
 
 /* ── Base ─────────────────────────────────────────────────────────────── */
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -128,7 +188,7 @@ svg.icon.s18 { width: 18px; height: 18px; }
 svg.icon.s20 { width: 20px; height: 20px; }
 svg.icon.s24 { width: 24px; height: 24px; }
 :where(button, a, input, select, textarea, label.clickable, [tabindex]):focus-visible {
-  outline: 2px solid var(--md-sys-color-primary); outline-offset: 2px;
+  outline: 3px solid var(--md-sys-color-secondary); outline-offset: 2px;
 }
 [hidden] { display: none !important; }
 .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -141,7 +201,9 @@ svg.icon.s24 { width: 24px; height: 24px; }
   pointer-events: none; border-radius: inherit; z-index: 0;
   transition: opacity var(--dur-short) var(--standard);
 }
-.state:hover::after { opacity: var(--state-hover); }
+/* Hover только для мыши/тачпада: на сенсорном экране :hover «залипает» после тапа
+   и оставляет полупрозрачный круг вокруг кнопки */
+@media (hover: hover) { .state:hover::after { opacity: var(--state-hover); } }
 .state:focus-visible::after { opacity: var(--state-focus); }
 .state:active { transform: scale(.97); }
 .state[disabled], .state.is-disabled { pointer-events: none; }
@@ -164,25 +226,13 @@ svg.icon.s24 { width: 24px; height: 24px; }
   background: var(--md-sys-color-surface);
   transition: background-color var(--dur-medium) var(--standard), box-shadow var(--dur-medium) var(--standard);
 }
-.app-bar.scrolled { background: var(--md-sys-color-surface-container); box-shadow: 0 1px 2px rgba(0,0,0,.14); }
+.app-bar.scrolled { background: var(--md-sys-color-surface-container); }
 .app-bar .title { flex: 1; min-width: 0; padding-left: 8px;
-  font-size: var(--ts-title-large); line-height: var(--lh-title-large); font-weight: var(--w-emph);
+  font-size: var(--ts-title-large); line-height: var(--lh-title-large); font-weight: var(--w-regular);
   color: var(--md-sys-color-on-surface); }
 .app-bar .title .ver { font-size: var(--ts-label-small); line-height: var(--lh-label-small); font-weight: var(--w-medium);
   color: var(--md-sys-color-on-surface-variant); vertical-align: 5px; margin-left: 8px; }
 /* 32dp чип состояния в баре: PID / выкл / нет связи */
-.status-pill {
-  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; flex: none;
-  border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: var(--shape-small);
-  background: transparent; color: var(--md-sys-color-on-surface-variant);
-  font-size: var(--ts-label-large); line-height: var(--lh-label-large); font-weight: var(--w-medium);
-}
-.status-pill.on { background: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container);
-  border-color: transparent; }
-.status-pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--md-sys-color-outline); flex: none;
-  transition: background-color var(--dur-medium) var(--spring); }
-.status-pill.on .dot { background: var(--md-sys-color-primary); }
 
 /* Icon button 48×48 */
 .icon-btn {
@@ -195,92 +245,108 @@ svg.icon.s24 { width: 24px; height: 24px; }
 .icon-btn.tone-primary { color: var(--md-sys-color-primary); }
 .icon-btn.sm { width: 40px; height: 40px; }
 
-/* ── Scrim / modal navigation drawer (320dp, 28dp end radius) ──────────── */
+/* ── Scrim ───────────────────────────────────────────────────────────── */
 .scrim {
   position: fixed; inset: 0; z-index: 40; background: var(--md-sys-color-scrim);
   opacity: 0; pointer-events: none;
   transition: opacity var(--dur-medium) var(--standard);
 }
 .scrim.show { opacity: 1; pointer-events: auto; }
-.nav-drawer {
-  position: fixed; top: 0; bottom: 0; left: 0; z-index: 50;
-  width: min(360px, 88vw);     /* M3: modal drawer 360dp; 88vw — чтобы не занимал весь узкий экран */
-  padding: calc(var(--top-inset) + 12px) 12px calc(var(--bottom-inset) + 12px);
-  background: var(--md-sys-color-surface-container-low); color: var(--md-sys-color-on-surface);
-  border-start-end-radius: var(--shape-extra-large);
-  border-end-end-radius: var(--shape-extra-large);
-  box-shadow: var(--md-elev-4);
-  transform: translateX(-102%);
-  transition: transform var(--dur-long) var(--spring);
-  display: flex; flex-direction: column; gap: 4px; overflow-y: auto;
+
+/* ── App bar: действия текущего экрана + overflow ─────────────────────── */
+.bar-actions { display: flex; align-items: center; flex: none; }
+.app-bar .title.swap { animation: title-in var(--dur-medium) var(--emphasized-decelerate); }
+@keyframes title-in { from { opacity: 0; transform: translateY(4px); } }
+
+/* ── Navigation bar (M3): 80dp, индикатор 64×32, подписи видны всегда ───
+   Индикатор раскрывается от иконки по горизонтали (scaleX .5 → 1) — так
+   M3 показывает смену выбранного раздела. Ripple ограничен индикатором. */
+.nav-bar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+  height: calc(var(--navbar-height) + var(--bottom-inset));
+  padding-bottom: var(--bottom-inset);
+  display: flex; justify-content: center;
+  background: var(--md-sys-color-surface-container);
+  transition: transform var(--dur-medium-long) var(--emphasized-decelerate),
+              background-color var(--dur-medium) var(--standard);
 }
-.nav-drawer.open { transform: none; }
-.drawer-head { padding: 16px 16px 20px; display: flex; align-items: center; gap: 16px; }
-.drawer-head .mark { width: 48px; height: 48px; flex: none; border-radius: var(--shape-large);
-  background: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container);
-  display: flex; align-items: center; justify-content: center; }
-.drawer-name { font-size: var(--ts-title-large); line-height: var(--lh-title-large); font-weight: var(--w-emph); }
-.drawer-subtitle { font-size: var(--ts-body-small); line-height: var(--lh-body-small);
-  color: var(--md-sys-color-on-surface-variant); }
-.drawer-label { font-size: var(--ts-label-small); line-height: var(--lh-label-small); font-weight: var(--w-emph);
-  letter-spacing: .6px; text-transform: uppercase;
-  color: var(--md-sys-color-on-surface-variant); padding: 16px 16px 8px; }
-.nav-item {
-  appearance: none; border: none; background: transparent; cursor: pointer; text-align: left;
-  display: flex; align-items: center; gap: 16px; width: 100%; height: 56px; padding: 0 16px;
-  border-radius: var(--shape-full);
-  font-size: var(--ts-body-large); line-height: var(--lh-body-large); font-weight: var(--w-medium);
+/* На дочерних экранах панель уезжает вниз: M3 показывает её только на разделах верхнего уровня */
+body.nav-hidden .nav-bar {
+  transform: translateY(100%);
+  transition: transform var(--dur-medium) var(--emphasized-accelerate);
+}
+.nav-bar-inner { display: flex; width: 100%; max-width: var(--content-max); }
+.nav-dest {
+  appearance: none; border: 0; background: none; cursor: pointer;
+  flex: 1 1 0; min-width: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 4px;
+  padding: 12px 0 16px;
   color: var(--md-sys-color-on-surface-variant);
-  transition: background-color var(--dur-short) var(--standard);
 }
-.nav-item .nav-icon { width: 24px; height: 24px; flex: none; }
-.nav-item .nav-text { flex: 1; min-width: 0; }
-.nav-item .nav-badge {
-  min-width: 24px; height: 24px; padding: 0 7px; border-radius: var(--shape-full); flex: none;
-  background: var(--md-sys-color-tertiary-container); color: var(--md-sys-color-on-tertiary-container);
-  font-size: var(--ts-label-small); line-height: var(--lh-label-small); font-weight: var(--w-emph);
-  display: flex; align-items: center; justify-content: center;
+.nav-dest:focus-visible { outline: none; }
+.nav-dest:focus-visible .nav-ind { outline: 3px solid var(--md-sys-color-secondary); outline-offset: 2px; }
+.nav-ind {
+  width: 64px; height: 32px; flex: none; border-radius: var(--shape-full);
+  display: grid; place-items: center;
+  transition: color var(--dur-short) var(--standard);
 }
-.nav-item.active { background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container);
-  font-weight: var(--w-bold); }
+.nav-ind::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; z-index: 0;
+  background: var(--md-sys-color-secondary-container);
+  transform: scaleX(.5); opacity: 0;
+  transition: transform var(--dur-medium-long) var(--spring), opacity var(--dur-short) var(--standard);
+}
+@media (hover: hover) {
+  .nav-dest:hover .nav-ind::after { opacity: var(--state-hover); }
+}
+.nav-dest[aria-current="page"] .nav-ind { color: var(--md-sys-color-on-secondary-container); }
+.nav-dest[aria-current="page"] .nav-ind::before { transform: none; opacity: 1; }
+.nav-label {
+  max-width: 100%; padding: 0 4px;
+  font-size: var(--ts-label-medium); line-height: var(--lh-label-medium); font-weight: var(--w-medium);
+  letter-spacing: .5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.nav-dest[aria-current="page"] .nav-label { color: var(--md-sys-color-on-surface); font-weight: var(--w-bold); }
 
 /* ── Content / pages ─────────────────────────────────────────────────── */
 .content {
-  padding: calc(var(--top-inset) + var(--appbar-height) + 12px) var(--screen-margin)
-           calc(var(--bottom-inset) + 96px);
+  position: relative;
+  padding: calc(var(--top-inset) + var(--appbar-height) + 8px) var(--screen-margin)
+           calc(var(--bottom-inset) + var(--navbar-height) + 24px);
   max-width: var(--content-max); margin: 0 auto;
 }
+body.nav-hidden .content { padding-bottom: calc(var(--bottom-inset) + 24px); }
 .page { display: none; flex-direction: column; gap: var(--gap); }
-.page.active { display: flex; animation: screen-enter var(--dur-long) var(--spring-strong); }
-@keyframes screen-enter {
-  from { opacity: 0; transform: translateX(28px) scale(.98); }
-  to { opacity: 1; transform: none; }
-}
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.page.active, .page.leaving { display: flex; }
+/* Уходящий экран закреплён fixed на своём месте, пока новый появляется в потоке:
+   так оба видны одновременно и прокрутка не дёргается. */
+.page.leaving { pointer-events: none; z-index: 1; }
+
+/* ── Переходы M3 ─────────────────────────────────────────────────────────
+   Fade through — между разделами Navigation bar: старый гаснет за 90ms,
+   новый проявляется с масштабом .92 → 1 за 210ms.
+   Shared axis X — переход на дочерний экран и обратно: сдвиг на 30dp по оси
+   навигации, прозрачность меняется в первые 30% / последние 70% времени.
+   Сдвиг и прозрачность — отдельные анимации, чтобы easing не дробился. */
+@keyframes fade-in { from { opacity: 0; } }
+@keyframes fade-out { to { opacity: 0; } }
+@keyframes ft-scale-in { from { transform: scale(.92); } }
+@keyframes sx-in-fwd { from { transform: translateX(30px); } }
+@keyframes sx-out-fwd { to { transform: translateX(-30px); } }
+@keyframes sx-in-back { from { transform: translateX(-30px); } }
+@keyframes sx-out-back { to { transform: translateX(30px); } }
+.page.enter-fade { transform-origin: 50% 0;
+  animation: fade-in 210ms var(--emphasized-decelerate) 90ms both,
+             ft-scale-in 210ms var(--emphasized-decelerate) 90ms both; }
+.page.leave-fade { animation: fade-out 90ms var(--emphasized-accelerate) both; }
+.page.enter-forward { animation: sx-in-fwd 300ms var(--standard) both, fade-in 210ms var(--standard) 90ms both; }
+.page.leave-forward { animation: sx-out-fwd 300ms var(--standard) both, fade-out 90ms var(--standard) both; }
+.page.enter-back { animation: sx-in-back 300ms var(--standard) both, fade-in 210ms var(--standard) 90ms both; }
+.page.leave-back { animation: sx-out-back 300ms var(--standard) both, fade-out 90ms var(--standard) both; }
 
 /* ── Cards: filled 20dp, elevated, outlined ──────────────────────────── */
-.card {
-  position: relative;
-  border-radius: var(--shape-card); padding: 20px;
-  display: flex; flex-direction: column; gap: 12px;
-  background: var(--md-sys-color-surface-container-highest); /* filled */
-  color: var(--md-sys-color-on-surface);
-  transition: background-color var(--dur-medium) var(--standard);
-}
-.card.filled { background: var(--md-sys-color-surface-container-highest); }
-.card-head { display: flex; align-items: center; gap: 16px; }
-.card-head .card-icon { width: 40px; height: 40px; flex: none; border-radius: var(--shape-full);
-  background: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container);
-  display: flex; align-items: center; justify-content: center; }
-.card-title { flex: 1; min-width: 0;
-  font-size: var(--ts-title-medium); line-height: var(--lh-title-medium); font-weight: var(--w-emph);
-  color: var(--md-sys-color-on-surface); }
-.card-desc { margin-top: -4px; font-size: var(--ts-body-medium); line-height: var(--lh-body-medium);
-  color: var(--md-sys-color-on-surface-variant); }
 .stack { display: flex; flex-direction: column; gap: var(--gap); }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.row > .grow, .grow { flex: 1 1 0; min-width: 0; }
-.divider:not(.list) { height: 1px; background: var(--md-sys-color-outline-variant); }
 
 /* ── Banner ──────────────────────────────────────────────────────────── */
 .banner {
@@ -288,44 +354,68 @@ svg.icon.s24 { width: 24px; height: 24px; }
   border-radius: var(--shape-card);
   background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container);
   font-size: var(--ts-body-medium); line-height: var(--lh-body-medium);
-  animation: screen-enter var(--dur-medium) var(--emphasized-decelerate);
+  animation: fade-in var(--dur-medium) var(--emphasized-decelerate);
 }
 .banner.danger { background: var(--md-sys-color-error-container); color: var(--md-sys-color-on-error-container); }
 
-/* ── Hero: карточка состояния 204dp ───────────────────────────────────── */
+/* ── Карточка состояния: единственный «громкий» элемент экрана ──────────
+   Цвет карточки и форма иконки отражают состояние службы: остановлена —
+   нейтральный контейнер и скруглённый квадрат, работает — primary-container
+   и круг. Морфинг формы (M3 Expressive) показывает смену состояния. */
 .hero {
   --hero-bg: var(--md-sys-color-surface-container-highest);
-  border-radius: var(--shape-card); padding: 20px; min-height: 204px;
-  display: flex; flex-direction: column; gap: 2px;
+  border-radius: var(--shape-extra-large); padding: 20px;
+  display: flex; flex-direction: column; gap: 20px;
   background: var(--hero-bg); color: var(--md-sys-color-on-surface);
   transition: background-color var(--dur-medium-long) var(--standard), color var(--dur-medium-long) var(--standard);
 }
-.hero.running { --hero-bg: var(--md-sys-color-primary-container);
-  color: var(--md-sys-color-on-primary-container); box-shadow: var(--md-elev-1); }
-.hero-top { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.hero-label { font-size: var(--ts-label-large); line-height: var(--lh-label-large); font-weight: var(--w-emph);
-  letter-spacing: .6px; opacity: .75; }
-.hero-state { font-size: var(--ts-headline-medium); line-height: var(--lh-headline-medium); font-weight: var(--w-bold); }
-.hero-sub { font-size: var(--ts-body-small); line-height: var(--lh-body-small); opacity: .85;
-  word-break: break-word; }
-/* Строки состояния: label слева, значение инлайн — переноса нет никогда */
-.hero-line { display: flex; flex-direction: row; align-items: center; gap: 10px;
-  font-size: var(--ts-metric); line-height: var(--lh-metric); font-weight: var(--w-medium); opacity: .9; }
-.hero-line span { white-space: nowrap; }
-.hero-line b { font-weight: var(--w-bold); font-variant-numeric: tabular-nums; }
-.hero-line.up { margin-top: 10px; }
-.hero-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+.hero.running { --hero-bg: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); }
+.hero-head { display: flex; align-items: center; gap: 16px; }
+.hero-icon {
+  width: 56px; height: 56px; flex: none; display: grid; place-items: center;
+  border-radius: var(--shape-large);
+  background: var(--md-sys-color-surface-container); color: var(--md-sys-color-on-surface-variant);
+  transition: border-radius var(--dur-long) var(--spring-strong),
+              background-color var(--dur-medium) var(--standard), color var(--dur-medium) var(--standard);
+}
+.hero.running .hero-icon { border-radius: 28px; background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); }
+.hero.offline .hero-icon { background: var(--md-sys-color-error-container); color: var(--md-sys-color-on-error-container); }
+.hero-titles { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.hero-state { font-size: var(--ts-headline-small); line-height: var(--lh-headline-small); font-weight: var(--w-emph); }
+.hero-sub { font-size: var(--ts-body-medium); line-height: var(--lh-body-medium);
+  letter-spacing: var(--tr-body-medium); opacity: .8; word-break: break-word; }
+/* Время работы шире: «1 д 12:34:56» не должно переноситься */
+.hero-stats { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.hstat { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.hstat-label { font-size: var(--ts-label-medium); line-height: var(--lh-label-medium); font-weight: var(--w-medium);
+  opacity: .75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hstat-value { font-size: var(--ts-title-large); line-height: var(--lh-title-large); font-weight: var(--w-emph);
+  font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hstat-value.bad { color: var(--md-sys-color-error); }
+/* Основное действие растянуто; перезапуск — outlined icon button рядом (M3 button group) */
+.hero-actions { display: flex; align-items: center; gap: 8px; }
+.hero-actions #bt { flex: 1 1 auto; min-width: 0; }
+.hero-restart { width: 48px; height: 48px; color: inherit;
+  border: 1px solid color-mix(in srgb, currentColor 45%, transparent); }
 
-/* ── Metrics: счётчики списков в отдельной карточке ───────────────────── */
-.metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 20px; }
-.metrics .metric { display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
-  min-height: 44px; padding: 8px 0;
-  border-bottom: 1px solid var(--md-sys-color-outline-variant); }
-.metrics .metric-label { font-family: var(--md-font-code); font-size: var(--ts-body-small);
-  line-height: var(--lh-body-small); color: var(--md-sys-color-on-surface-variant); }
-.metrics .metric-value { font-size: var(--ts-title-medium); line-height: var(--lh-title-medium);
-  font-weight: var(--w-emph); font-variant-numeric: tabular-nums; }
-
+/* ── Chips / status ──────────────────────────────────────────────────── */
+.chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip {
+  position: relative;
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 14px; flex: none;
+  border-radius: var(--shape-small); border: 1px solid var(--md-sys-color-outline-variant);
+  background: transparent; color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--ts-label-large); line-height: var(--lh-label-large); font-weight: var(--w-medium);
+  cursor: pointer; white-space: nowrap;
+}
+/* M3: чип остаётся 32dp по высоте, но зона касания дотянута до 48dp.
+   Без overflow:visible Blink обрезает псевдоэлемент по box кнопки, и он не ловит pointer. */
+.chip::before { content: ""; position: absolute; inset: -8px -4px; }
+.chip { overflow: visible; }
+.chip.mono { font-family: var(--md-font-code); font-size: 12px; }
+.chip.selected { background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container);
+  border-color: transparent; }
+/* горизонтальная прокрутка вместо переноса */
 .status {
   display: inline-flex; align-items: center; justify-content: center; gap: 4px;
   min-width: 26px; height: 26px; padding: 0 6px; flex: none;
@@ -355,33 +445,11 @@ svg.icon.s24 { width: 24px; height: 24px; }
 .btn[disabled] { pointer-events: none;
   background: color-mix(in srgb, var(--md-sys-color-on-surface) calc(var(--state-disabled-container) * 100%), transparent);
   color: color-mix(in srgb, var(--md-sys-color-on-surface) calc(var(--state-disabled-content) * 100%), transparent); }
+.btn.text[disabled], .btn.outlined[disabled] { background: transparent; }
 /* sm = компактные отступы; высота всё равно 40dp — минимум для кнопки в M3 */
 .btn.sm { height: 40px; padding: 0 14px; }
 .btn.sm.with-icon { padding: 0 12px 0 8px; }
-
-/* ── Split button (M3 Expressive, 56dp, сегменты через 2dp) ────────────
-   Внешние углы — ровно половина высоты, а НЕ --shape-full: при смешивании
-   9999px с малым внутренним радиусом CSS пропорционально ужимает ВСЕ радиусы
-   (сумма радиусов на стороне не может превышать длину стороны), и внутренний
-   угол схлопывался в 0. Внешний радиус = --split-r = высота / 2. */
-.split { --split-h: 56px; --split-r: calc(var(--split-h) / 2);
-  display: inline-flex; align-items: stretch; height: var(--split-h); gap: 2px; }
-.split .seg-main, .split .seg-menu {
-  appearance: none; border: 0; cursor: pointer;
-  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary);
-  font-size: var(--ts-label-large); line-height: var(--lh-label-large); font-weight: var(--w-bold);
-}
-.split .seg-main { border-radius: var(--split-r) var(--shape-inner) var(--shape-inner) var(--split-r);
-  padding: 0 24px; }
-.split .seg-menu { border-radius: var(--shape-inner) var(--split-r) var(--split-r) var(--shape-inner);
-  width: var(--split-h); padding: 0; }
-.split.stop .seg-main, .split.stop .seg-menu { background: var(--md-sys-color-error); color: var(--md-sys-color-on-error); }
-.split.open .seg-menu { background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container);
-  border-radius: var(--shape-full); }
-.split .seg-menu .caret { transition: transform var(--dur-medium) var(--spring-strong); }
-.split.open .seg-menu .caret { transform: rotate(180deg); }
-.split .btn, .split .seg-main { min-width: 0; }
+.btn.height-m { height: 48px; padding: 0 28px; }
 
 /* ── Menu: открывается снизу, переворачивается вверх без места ─────────
    Ширина по M3: 112dp min / 280dp max. Радиус 16dp — вариант M3 Expressive
@@ -389,17 +457,20 @@ svg.icon.s24 { width: 24px; height: 24px; }
 .menu {
   position: absolute; z-index: 60; min-width: 112px; max-width: 280px;
   padding: 8px 0; border-radius: var(--shape-large);
-  background: var(--md-sys-color-surface-container-high); color: var(--md-sys-color-on-surface);
-  box-shadow: var(--md-elev-3); transform-origin: top left;
+  background: var(--md-sys-color-surface-container); color: var(--md-sys-color-on-surface);
+  box-shadow: var(--md-elev-2); transform-origin: top left;
   animation: menu-in var(--dur-medium) var(--spring-strong);
 }
+.menu.end { transform-origin: top right; }
+.menu.end.up { transform-origin: bottom right; animation-name: menu-in-up; }
 .menu.up { transform-origin: bottom left; animation-name: menu-in-up; }
 @keyframes menu-in { from { opacity: 0; transform: scale(.86) translateY(-8px); } to { opacity: 1; transform: none; } }
 @keyframes menu-in-up { from { opacity: 0; transform: scale(.86) translateY(8px); } to { opacity: 1; transform: none; } }
 .menu .mi {
   appearance: none; display: flex; align-items: center; gap: 12px; width: 100%;
-  min-height: 48px; padding: 0 16px; border: 0; background: none; cursor: pointer; text-align: left;
-  font-size: var(--ts-body-large); line-height: var(--lh-body-large); color: var(--md-sys-color-on-surface);
+  min-height: 48px; padding: 0 16px; border: 0; background: none; cursor: pointer; text-align: start;
+  font-size: var(--ts-body-large); line-height: var(--lh-body-large);
+  letter-spacing: var(--tr-body-large); color: var(--md-sys-color-on-surface);
 }
 .menu .mi .mi-icon { color: var(--md-sys-color-on-surface-variant); flex: none; display: grid; place-items: center; }
 .menu .mi .mi-text { flex: 1 1 auto; min-width: 0; }
@@ -446,7 +517,7 @@ svg.icon.s24 { width: 24px; height: 24px; }
 }
 .switch:checked { background: var(--md-sys-color-primary); border-color: var(--md-sys-color-primary); }
 .switch:checked::before { left: 22px; width: 24px; height: 24px; background: var(--md-sys-color-on-primary); }
-.switch:hover { border-color: var(--md-sys-color-on-surface); }
+@media (hover: hover) { .switch:hover { border-color: var(--md-sys-color-on-surface); } }
 .switch:disabled { background: color-mix(in srgb, var(--md-sys-color-on-surface) calc(var(--state-disabled-container) * 100%), transparent);
   border-color: transparent; pointer-events: none; }
 .switch:disabled::before { background: color-mix(in srgb, var(--md-sys-color-on-surface) calc(var(--state-disabled-content) * 100%), transparent); }
@@ -473,11 +544,10 @@ svg.icon.s24 { width: 24px; height: 24px; }
 .list > .list-item:where(:first-child) { border-start-start-radius: var(--shape-large); border-start-end-radius: var(--shape-large); }
 .list > .list-item:where(:last-child) { border-end-start-radius: var(--shape-large); border-end-end-radius: var(--shape-large); }
 .list > .list-item:where(:not(:first-child)):where(:not(:last-child)) { border-radius: var(--shape-extra-small); }
-.list.divider > .list-item + .list-item { border-top: 0; }
 /* Одиночный list-item, положенный прямо в .card/.sheet (мимо .list), правил
    выше не получает и остаётся с квадратными углами внутри скруглённой
    карточки. Задаём внешний радиус явно (дефект 2026-10-04). */
-.card > .list-item, .sheet > .list-item { border-radius: var(--shape-large); }
+.sheet > .list-item { border-radius: var(--shape-large); }
 .list-item {
   display: flex; align-items: center; gap: 16px; min-height: 56px; padding: 8px 16px;
   appearance: none; border: none; background: var(--md-sys-color-surface-container-low); text-align: left;
@@ -493,14 +563,15 @@ svg.icon.s24 { width: 24px; height: 24px; }
 .list-item .li-icon svg.icon { width: 24px; height: 24px; }
 .list-item .li-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .list-item .li-primary { font-size: var(--ts-body-large); line-height: var(--lh-body-large); font-weight: var(--w-medium);
+  letter-spacing: var(--tr-body-large);
   color: var(--md-sys-color-on-surface); overflow: hidden; text-overflow: ellipsis; }
 .list-item .li-secondary { font-size: var(--ts-body-medium); line-height: var(--lh-body-medium);
+  letter-spacing: var(--tr-body-medium);
   color: var(--md-sys-color-on-surface-variant); word-break: break-word; }
 .list-item .li-mono { font-family: var(--md-font-code); font-size: 13px; }
 .list-item .li-trail { flex: none; display: flex; align-items: center; gap: 8px;
   color: var(--md-sys-color-on-surface-variant);
-  font-size: var(--ts-label-large); line-height: var(--lh-label-large); font-weight: var(--w-medium); }
-.list-item .li-trail .caret { display: grid; place-items: center; }
+  font-size: var(--ts-label-small); line-height: var(--lh-label-small); font-weight: var(--w-medium); }
 .list-item .switch { margin-left: auto; }
 .list-item.selected { background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container);
   border-radius: var(--shape-large); }
@@ -508,15 +579,12 @@ svg.icon.s24 { width: 24px; height: 24px; }
 .list-item.selected .li-secondary { color: inherit; opacity: .8; }
 .list-item.selected .li-icon { background: color-mix(in srgb, var(--md-sys-color-on-secondary-container) 18%, transparent);
   color: var(--md-sys-color-on-secondary-container); }
-.list-scroll { max-height: 46vh; overflow-y: auto; }
 
 /* ── Text fields (filled) ────────────────────────────────────────────── */
 .field { display: flex; flex-direction: column; gap: 4px; }
 .field > label { font-size: var(--ts-label-medium); line-height: var(--lh-label-medium); font-weight: var(--w-emph);
   color: var(--md-sys-color-on-surface-variant); padding-left: 4px; }
 .field .control { position: relative; display: flex; align-items: center; }
-.field .control > .lead { position: absolute; left: 12px; display: flex; color: var(--md-sys-color-on-surface-variant); pointer-events: none; }
-.field .control > .trail { position: absolute; right: 8px; display: flex; align-items: center; color: var(--md-sys-color-on-surface-variant); pointer-events: none; }
 /* M3 filled text field: высота 56dp, верхние углы 4dp, индикатор 1dp снизу */
 .field input, .field select, .field textarea {
   width: 100%; height: 56px; padding: 0 16px;
@@ -530,31 +598,17 @@ svg.icon.s24 { width: 24px; height: 24px; }
   transition: border-color var(--dur-short) var(--standard), box-shadow var(--dur-short) var(--standard),
               background-color var(--dur-short) var(--standard);
 }
-.field .control.has-lead input, .field .control.has-lead textarea { padding-left: 44px; }
-.field .control.has-trail select, .field .control.has-trail input { padding-right: 44px; }
 /* Индикатор M3: 1dp в покое, 2dp в фокусе — без сдвига вёрстки на 1px */
 .field input:focus, .field select:focus, .field textarea:focus {
   border-bottom-color: var(--md-sys-color-primary);
   box-shadow: inset 0 -1px 0 var(--md-sys-color-primary), inset 0 -1px 0 0 var(--md-sys-color-primary);
   background: color-mix(in srgb, var(--md-sys-color-primary) 6%, var(--md-sys-color-surface-container-highest));
 }
-.field select { cursor: pointer; }
 .helper { font-size: var(--ts-body-small); line-height: var(--lh-body-small);
+  letter-spacing: var(--tr-body-small);
   color: var(--md-sys-color-on-surface-variant); padding-left: 4px; }
 .helper.err { color: var(--md-sys-color-error); }
-.field.num input { text-align: center; }
 .field ::placeholder { color: var(--md-sys-color-on-surface-variant); opacity: .7; }
-input.search { width: 100%; height: 100%; border: 0; background: none; outline: none;
-  color: var(--md-sys-color-on-surface); caret-color: var(--md-sys-color-primary); }
-textarea.mono {
-  background: var(--md-sys-color-surface-container-lowest); color: var(--md-sys-color-on-surface);
-  border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: var(--shape-card); caret-color: var(--md-sys-color-primary);
-  font-family: var(--md-font-code); font-size: 13px; line-height: 1.55;
-  height: auto; min-height: 170px; padding: 14px 16px; resize: vertical; cursor: pointer;
-  white-space: pre; overflow: auto;
-}
-
 /* ── Code / logs ─────────────────────────────────────────────────────── */
 .code-block, .log-view {
   background: var(--md-sys-color-surface-container-lowest);
@@ -588,7 +642,7 @@ textarea.mono {
   max-width: var(--content-max);
   background: var(--md-sys-color-surface-container-low); color: var(--md-sys-color-on-surface);
   border-radius: var(--shape-extra-large) var(--shape-extra-large) 0 0;
-  box-shadow: var(--md-elev-4); padding: 12px var(--screen-margin) calc(20px + var(--bottom-inset));
+  box-shadow: var(--md-elev-1); padding: 0 var(--screen-margin) calc(20px + var(--bottom-inset));
   display: flex; flex-direction: column; gap: 16px;
   max-height: 86vh; overflow-y: auto; transform: translateY(102%);
   transition: transform var(--dur-long) var(--spring);
@@ -631,14 +685,12 @@ textarea.mono {
   position: relative; width: 100%; max-width: 380px;
   background: var(--md-sys-color-surface-container-high); color: var(--md-sys-color-on-surface);
   border-radius: var(--shape-extra-large); padding: 24px;
-  display: flex; flex-direction: column; gap: 16px; box-shadow: var(--md-elev-5);
+  display: flex; flex-direction: column; gap: 16px; box-shadow: var(--md-elev-3);
   animation: dialogIn var(--dur-long) var(--spring-strong);
 }
 @keyframes dialogIn { from { opacity: 0; transform: scale(.86); } to { opacity: 1; transform: none; } }
-.dialog .d-icon { width: 56px; height: 56px; border-radius: var(--shape-large); flex: none;
-  background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container);
-  display: flex; align-items: center; justify-content: center; }
-.dialog .d-icon.danger { background: var(--md-sys-color-error-container); color: var(--md-sys-color-on-error-container); }
+.dialog .d-icon { align-self: center; flex: none; display: grid; place-items: center; color: var(--md-sys-color-secondary); }
+.dialog .d-icon.danger { color: var(--md-sys-color-error); }
 .dialog .d-title { font-size: var(--ts-headline-small); line-height: var(--lh-headline-small); font-weight: var(--w-emph); }
 .dialog .d-body { font-size: var(--ts-body-medium); line-height: var(--lh-body-medium); color: var(--md-sys-color-on-surface-variant); }
 .dialog .d-actions { display: flex; justify-content: flex-end; gap: 8px; }
@@ -646,15 +698,16 @@ textarea.mono {
 /* ── Snackbar ────────────────────────────────────────────────────────── */
 .snackbar {
   position: fixed; left: var(--screen-margin); right: var(--screen-margin);
-  bottom: calc(var(--bottom-inset) + 16px); z-index: 90; margin: 0 auto;
+  bottom: calc(var(--bottom-inset) + var(--navbar-height) + 12px); z-index: 90; margin: 0 auto;
   max-width: calc(var(--content-max) - var(--screen-margin) * 2);
   min-height: 48px; padding: 12px 16px; display: flex; align-items: center; gap: 12px;
   background: var(--md-sys-color-inverse-surface); color: var(--md-sys-color-inverse-on-surface);
-  border-radius: var(--shape-small); box-shadow: var(--md-elev-3);
+  border-radius: var(--shape-extra-small); box-shadow: var(--md-elev-3);
   font-size: var(--ts-body-medium); line-height: var(--lh-body-medium);
   opacity: 0; transform: translateY(24px) scale(.94); pointer-events: none;
   transition: opacity var(--dur-medium) var(--standard), transform var(--dur-long) var(--spring-strong);
 }
+body.nav-hidden .snackbar { bottom: calc(var(--bottom-inset) + 16px); }
 .snackbar.show { opacity: 1; transform: none; pointer-events: auto; }
 .snackbar .snack-msg { flex: 1; min-width: 0; word-break: break-word; }
 .snackbar .btn.text { color: var(--md-sys-color-inverse-primary); }
@@ -691,7 +744,7 @@ textarea.mono {
   border-radius: var(--shape-full); background: var(--md-sys-color-primary);
   transition: box-shadow var(--dur-short) var(--standard);
 }
-.slider:hover::-webkit-slider-thumb,
+@media (hover: hover) { .slider:hover::-webkit-slider-thumb { box-shadow: 0 0 0 6px color-mix(in srgb, var(--md-sys-color-primary) 16%, transparent); } }
 .slider:focus-visible::-webkit-slider-thumb {
   box-shadow: 0 0 0 6px color-mix(in srgb, var(--md-sys-color-primary) 16%, transparent);
 }
@@ -703,13 +756,171 @@ textarea.mono {
   border: 1px solid var(--md-sys-color-outline);
   transition: background-color var(--dur-short) var(--standard); }
 
+/* ── Пустое состояние / pill / kv ────────────────────────────────────── */
+.empty { display: flex; flex-direction: column; align-items: center; gap: 12px;
+  padding: 32px 24px; text-align: center; color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--ts-body-medium); line-height: var(--lh-body-medium); }
+.empty .empty-icon { width: 64px; height: 64px; border-radius: var(--shape-full);
+  display: flex; align-items: center; justify-content: center;
+  background: var(--md-sys-color-surface-container-high); color: var(--md-sys-color-secondary); }
+
+/* ── Подзаголовки групп и контейнеры (стиль настроек Android 16) ────────
+   Списки — стопки list-item с общей формой; всё, что не список
+   (сегменты, поле ввода, описание), живёт в .group того же тона. */
+.subhead {
+  font-size: var(--ts-title-small); line-height: var(--lh-title-small); font-weight: var(--w-emph);
+  letter-spacing: var(--tr-title-small);
+  color: var(--md-sys-color-primary); padding: 12px 16px 0; margin: 0 0 -4px;
+}
+.subhead.plain { padding: 0; margin: 0 0 8px; color: var(--md-sys-color-on-surface-variant); }
+.subhead-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; }
+.subhead-row .btn { margin-bottom: -6px; }
+.group {
+  background: var(--md-sys-color-surface-container-low); border-radius: var(--shape-large);
+  padding: 16px; display: flex; flex-direction: column; gap: 12px;
+}
+.muted { color: var(--md-sys-color-on-surface-variant); }
+.clamp2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* Кнопка внутри trail-слота поля: сам слот прозрачен для касаний, кнопка — нет */
+
+/* Деструктивные строки: цвет error только на тексте и иконке */
+.list-item.danger .li-primary { color: var(--md-sys-color-error); }
+.list-item.danger .li-icon { background: var(--md-sys-color-error-container); color: var(--md-sys-color-on-error-container); }
+.list-item .li-value { font-variant-numeric: tabular-nums; }
+label.list-item { cursor: pointer; }
+
+/* ── M3 radio: кольцо 20dp, точка 10dp, пружина при выборе ───────────── */
+.radio {
+  appearance: none; -webkit-appearance: none; position: relative; cursor: pointer;
+  width: 20px; height: 20px; flex: 0 0 20px; margin: 0 2px; border-radius: 50%;
+  border: 2px solid var(--md-sys-color-on-surface-variant); background: transparent;
+  transition: border-color var(--dur-short) var(--standard);
+}
+.radio::after {
+  content: ""; position: absolute; inset: 3px; border-radius: 50%;
+  background: var(--md-sys-color-primary); transform: scale(0);
+  transition: transform var(--dur-medium) var(--spring-strong);
+}
+.radio:checked { border-color: var(--md-sys-color-primary); }
+.radio:checked::after { transform: scale(1); }
+.list-item.selected .radio:checked { border-color: var(--md-sys-color-on-secondary-container); }
+.list-item.selected .radio:checked::after { background: var(--md-sys-color-on-secondary-container); }
+
+/* ── Filter chips: у выбранного появляется галочка ───────────────────── */
+
+/* ── Журнал занимает всю свободную высоту экрана ─────────────────────── */
+.log-view {
+  min-height: 240px; max-height: none;
+  height: calc(100dvh - var(--top-inset) - var(--appbar-height) - var(--navbar-height) - var(--bottom-inset) - 300px);
+}
+
+/* ── Bottom sheet со списком: прокручивается список, кнопки на месте ─── */
+.sheet.list-sheet { overflow: hidden; }
+.sheet-desc { margin-top: -8px; font-size: var(--ts-body-medium); line-height: var(--lh-body-medium);
+  color: var(--md-sys-color-on-surface-variant); }
+.sheet-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+/* строки не сжимаются: прокручивается список, а не схлопываются элементы */
+.sheet-scroll > * { flex-shrink: 0; }
+.sheet-actions { display: flex; justify-content: flex-end; gap: 8px; flex: none; }
+
+/* ── Пустое состояние внутри экрана ──────────────────────────────────── */
+.empty .empty-title { font-size: var(--ts-title-medium); line-height: var(--lh-title-medium); font-weight: var(--w-emph);
+  color: var(--md-sys-color-on-surface); }
+
+/* ── Закрытые оверлеи скрыты целиком, а не просто сдвинуты за экран:
+   иначе они остаются в дереве доступности и ловят фокус с клавиатуры.
+   visibility переключается с задержкой, чтобы анимация закрытия доигрывала. */
+.fs-dialog, .sheet { transition: transform var(--dur-long) var(--spring), visibility 0s linear var(--dur-long); }
+.fs-dialog:not(.open), .sheet:not(.open) { visibility: hidden; }
+.fs-dialog.open, .sheet.open { transition: transform var(--dur-long) var(--spring), visibility 0s; }
+
+/* ── Клавиатура открыта: нижняя панель не едет вверх вместе с окном ───── */
+body.kb-open .nav-bar { visibility: hidden; transform: translateY(100%); transition: none; }
+body.kb-open .snackbar { bottom: 16px; }
+
+/* ── M3 filled text field: метка внутри поля, всплывает при фокусе/вводе ──
+   Индикатор снизу 1dp, в фокусе 2dp primary. Подсказка-placeholder видна
+   только в фокусе, чтобы не спорить с меткой. Фокус показывает индикатор,
+   а не общее кольцо фокуса. */
+.tf {
+  position: relative; display: flex; align-items: center; height: 56px;
+  background: var(--md-sys-color-surface-container-highest);
+  border-radius: var(--shape-extra-small) var(--shape-extra-small) 0 0;
+  box-shadow: inset 0 -1px 0 var(--md-sys-color-on-surface-variant);
+  transition: box-shadow var(--dur-short) var(--standard);
+}
+.tf:focus-within { box-shadow: inset 0 -2px 0 var(--md-sys-color-primary); }
+.tf input {
+  flex: 1; min-width: 0; height: 100%; padding: 24px 16px 6px;
+  border: 0; outline: none; background: none; appearance: none; -webkit-appearance: none;
+  color: var(--md-sys-color-on-surface); caret-color: var(--md-sys-color-primary);
+  font-size: var(--ts-body-large); line-height: var(--lh-body-large);
+}
+.tf input:focus-visible { outline: none; }
+.tf input::placeholder { color: var(--md-sys-color-on-surface-variant); opacity: 0; transition: opacity var(--dur-short) var(--standard); }
+.tf input:focus::placeholder { opacity: .7; }
+.tf label {
+  position: absolute; left: 16px; top: 16px; pointer-events: none; transform-origin: left top;
+  font-size: var(--ts-body-large); line-height: var(--lh-body-large);
+  color: var(--md-sys-color-on-surface-variant);
+  transition: transform var(--dur-short) var(--standard), color var(--dur-short) var(--standard);
+}
+.tf input:focus + label, .tf input:not(:placeholder-shown) + label { transform: translateY(-9px) scale(.75); }
+.tf input:focus + label { color: var(--md-sys-color-primary); }
+.tf > .icon-btn { margin-right: 4px; }
+
+/* ── M3 search bar: 56dp, полностью скруглённый ─────────────────────────── */
+.search-bar {
+  display: flex; align-items: center; gap: 16px; height: 56px; padding: 0 16px;
+  border-radius: var(--shape-full);
+  background: var(--md-sys-color-surface-container-high); color: var(--md-sys-color-on-surface-variant);
+}
+.search-bar input {
+  flex: 1; min-width: 0; height: 100%; border: 0; outline: none; background: none;
+  appearance: none; -webkit-appearance: none;
+  color: var(--md-sys-color-on-surface); caret-color: var(--md-sys-color-primary);
+  font-size: var(--ts-body-large); line-height: var(--lh-body-large);
+}
+.search-bar input::placeholder { color: var(--md-sys-color-on-surface-variant); }
+.search-bar input:focus-visible { outline: none; }
+.search-bar:has(input:focus-visible) { outline: 3px solid var(--md-sys-color-secondary); outline-offset: 2px; }
+
+/* ── Плашки с выпадающим меню (журналы): стрелка разворачивается при открытии ── */
+.chip.dropdown { padding: 0 8px 0 16px; gap: 8px; color: var(--md-sys-color-on-surface); }
+.chip.dropdown svg { transition: transform var(--dur-medium) var(--spring-strong); }
+.chip.dropdown[aria-expanded="true"] {
+  background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container);
+  border-color: transparent;
+}
+.chip.dropdown[aria-expanded="true"] svg { transform: rotate(180deg); }
+
+/* ── Drag handle листа: 32×4 в зоне касания 48dp, тянется вниз ──────────── */
+.sheet-drag {
+  appearance: none; border: 0; background: none; cursor: grab; touch-action: none;
+  flex: none; align-self: stretch; height: 48px; margin-bottom: -16px;
+  display: grid; place-items: center;
+}
+.sheet-drag:focus-visible { outline: none; }
+.sheet-drag:focus-visible .handle { outline: 3px solid var(--md-sys-color-secondary); outline-offset: 4px; }
+
+/* ── Меню: исчезает за 100ms, а не пропадает мгновенно ──────────────────── */
+.menu.closing { animation: fade-out 100ms var(--emphasized-accelerate) forwards; pointer-events: none; }
+
+/* ── Switch: при нажатии ручка увеличивается до 28dp ────────────────────── */
+.switch:active::before { width: 28px; height: 28px; left: 0; }
+.switch:checked:active::before { left: 20px; }
+
+/* ── Диалог: иконка 24dp secondary над заголовком, заголовок тогда по центру ── */
+.dialog:focus { outline: none; }
+.dialog.has-icon .d-title { text-align: center; }
 
 /* overlay host: меню живут здесь и позиционируются от окна */
 #layer { position: fixed; inset: 0; z-index: 88; pointer-events: none; }
 #layer > * { pointer-events: auto; }
 
 @media (min-width: 720px) {
-  :root { --screen-margin: 24px; }
+  :root { --gutter: 24px; --screen-margin: 24px; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; }
@@ -718,17 +929,11 @@ textarea.mono {
 /* ── Type-роли M3 ────────────────────────────────────────────────────────
    В конце файла намеренно: это одноклассовые селекторы, они выигрывают у
    компонентных правил (.card-title, .li-primary, …) только порядком. */
-/* Единственный класс шкалы, который где-то применён — в диалоге цвета
-   (index.html, #cd-hex). Остальные тринадцать ступеней были объявлены, но не
-   использовались ни разу: типографика везде задаётся напрямую через var(--ts-*).
-   Удалены ревью 2026-10-06. Если понадобится ещё одна — добавить вместе с местом,
-   где она применяется: страж в test_static.js требует, чтобы класс был достижим. */
 .t-title-medium { font-size: var(--ts-title-medium); line-height: var(--lh-title-medium); font-weight: var(--w-emph); }
+.t-body-medium { font-size: var(--ts-body-medium); line-height: var(--lh-body-medium); font-weight: var(--w-regular); }
 </style>
-<!-- Сгенерированная палитра. Отдельный <style>, а не инлайн-стили на корневом
-     элементе: инлайн нельзя перекрыть из CSS, поэтому любая правка ролей в
-     таблице стилей молча терялась бы. Здесь блок идёт последним и выигрывает
-     по порядку, но остаётся обычным CSS-правилом. -->
+<!-- Сюда applyTheme() кладёт палитру, сгенерированную из seed. Отдельным блоком,
+     а не инлайном: инлайн-стиль нельзя переопределить из CSS. -->
 <style id="theme-vars"></style>
 </head>
 <body>
@@ -763,414 +968,317 @@ textarea.mono {
 <symbol id="i-info" viewBox="0 -960 960 960"><path d="M440-280h80v-240h-80v240Zm40-320q17 0 28.5-11.5T520-640q0-17-11.5-28.5T480-680q-17 0-28.5 11.5T440-640q0 17 11.5 28.5T480-600Zm0 520q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-80q134 0 227-93t93-227q0-134-93-227t-227-93q-134 0-227 93t-93 227q0 134 93 227t227 93Zm0-320Z"/></symbol>
 <symbol id="i-warn" viewBox="0 -960 960 960"><path d="m40-120 440-760 440 760H40Zm138-80h604L480-720 178-200Zm302-40q17 0 28.5-11.5T520-280q0-17-11.5-28.5T480-320q-17 0-28.5 11.5T440-280q0 17 11.5 28.5T480-240Zm-40-120h80v-200h-80v200Zm40-100Z"/></symbol>
 <symbol id="i-error" viewBox="0 -960 960 960"><path d="m336-280 144-144 144 144 56-56-144-144 144-144-56-56-144 144-144-144-56 56 144 144-144 144 56 56ZM480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-80q134 0 227-93t93-227q0-134-93-227t-227-93q-134 0-227 93t-93 227q0 134 93 227t227 93Zm0-320Z"/></symbol>
-<symbol id="i-terminal" viewBox="0 -960 960 960"><path d="M160-160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h640q33 0 56.5 23.5T880-720v480q0 33-23.5 56.5T800-160H160Zm0-80h640v-400H160v400Zm140-40-56-56 103-104-104-104 57-56 160 160-160 160Zm180 0v-80h240v80H480Z"/></symbol>
 <symbol id="i-file" viewBox="0 -960 960 960"><path d="M240-80q-33 0-56.5-23.5T160-160v-640q0-33 23.5-56.5T240-880h320l240 240v480q0 33-23.5 56.5T720-80H240Zm280-520v-200H240v640h480v-440H520ZM240-800v200-200 640-640Z"/></symbol>
 <symbol id="i-chevron-right" viewBox="0 -960 960 960"><path d="M504-480 320-664l56-56 240 240-240 240-56-56 184-184Z"/></symbol>
 <symbol id="i-globe" viewBox="0 -960 960 960"><path d="M480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm-40-82v-78q-33 0-56.5-23.5T360-320v-40L168-552q-3 18-5.5 36t-2.5 36q0 121 79.5 212T440-162Zm276-102q20-22 36-47.5t26.5-53q10.5-27.5 16-56.5t5.5-59q0-98-54.5-179T600-776v16q0 33-23.5 56.5T520-680h-80v80q0 17-11.5 28.5T400-560h-80v80h240q17 0 28.5 11.5T600-440v120h40q26 0 47 15.5t29 40.5Z"/></symbol>
 <symbol id="i-medical" viewBox="0 -960 960 960"><path d="M160-80q-33 0-56.5-23.5T80-160v-480q0-33 23.5-56.5T160-720h160v-80q0-33 23.5-56.5T400-880h160q33 0 56.5 23.5T640-800v80h160q33 0 56.5 23.5T880-640v480q0 33-23.5 56.5T800-80H160Zm0-80h640v-480H160v480Zm240-560h160v-80H400v80ZM160-160v-480 480Zm280-200v120h80v-120h120v-80H520v-120h-80v120H320v80h120Z"/></symbol>
 <symbol id="i-status" viewBox="0 -960 960 960"><path d="M80-600v-120q0-33 23.5-56.5T160-800h640q33 0 56.5 23.5T880-720v120h-80v-120H160v120H80Zm80 440q-33 0-56.5-23.5T80-240v-120h80v120h640v-120h80v120q0 33-23.5 56.5T800-160H160Zm240-120q11 0 21-5.5t15-16.5l124-248 44 88q5 11 15 16.5t21 5.5h240v-80H665l-69-138q-5-11-15-15.5t-21-4.5q-11 0-21 4.5T524-658L400-410l-44-88q-5-11-15-16.5t-21-5.5H80v80h215l69 138q5 11 15 16.5t21 5.5Zm80-200Z"/></symbol>
-<symbol id="i-route" viewBox="0 -960 960 960"><path d="M440-80v-200q0-56-17-83t-45-53l57-57q12 11 23 23.5t22 26.5q14-19 28.5-33.5T538-485q38-35 69-81t33-161l-63 63-57-56 160-160 160 160-56 56-64-63q-2 143-44 203.5T592-425q-32 29-52 56.5T520-280v200h-80ZM248-633q-4-20-5.5-44t-2.5-50l-64 63-56-56 160-160 160 160-57 56-63-62q0 21 2 39.5t4 34.5l-78 19Zm86 176q-20-21-38.5-49T263-575l77-19q10 27 23 46t28 34l-57 57Z"/></symbol>
 <symbol id="i-tune" viewBox="0 -960 960 960"><path d="M440-120v-240h80v80h320v80H520v80h-80Zm-320-80v-80h240v80H120Zm160-160v-80H120v-80h160v-80h80v240h-80Zm160-80v-80h400v80H440Zm160-160v-240h80v80h160v80H680v80h-80Zm-480-80v-80h400v80H120Z"/></symbol>
+<symbol id="i-back" viewBox="0 -960 960 960"><path d="m313-440 224 224-57 56-320-320 320-320 57 56-224 224h487v80H313Z"/></symbol>
+<symbol id="i-more" viewBox="0 -960 960 960"><path d="M480-160q-33 0-56.5-23.5T400-240q0-33 23.5-56.5T480-320q33 0 56.5 23.5T560-240q0 33-23.5 56.5T480-160ZM480-400q-33 0-56.5-23.5T400-480q0-33 23.5-56.5T480-560q33 0 56.5 23.5T560-480q0 33-23.5 56.5T480-400ZM480-640q-33 0-56.5-23.5T400-720q0-33 23.5-56.5T480-800q33 0 56.5 23.5T560-720q0 33-23.5 56.5T480-640Z"/></symbol>
+<symbol id="i-copy" viewBox="0 -960 960 960"><path d="M360-240q-33 0-56.5-23.5T280-320v-480q0-33 23.5-56.5T360-880h360q33 0 56.5 23.5T800-800v480q0 33-23.5 56.5T720-240H360Zm0-80h360v-480H360v480ZM200-80q-33 0-56.5-23.5T120-160v-560h80v560h440v80H200Zm160-240v-480 480Z"/></symbol>
 </defs></svg>
 
-<!-- ═══ Small top app bar ════════════════════════════════════════════════ -->
+<!-- ═══ Small top app bar: заголовок экрана, его действия и overflow-меню ═══ -->
 <header class="app-bar" id="app-bar">
-  <button class="icon-btn state" id="menu-btn" aria-label="Открыть меню навигации" aria-expanded="false" aria-controls="drawer">
-    <svg class="icon"><use href="#i-menu"/></svg>
+  <button class="icon-btn state tone-on" id="back-btn" aria-label="Назад" hidden onclick="goBack()">
+    <svg aria-hidden="true" class="icon"><use href="#i-back"/></svg>
   </button>
-  <h1 class="title truncate">nfqws2 <span class="ver" id="header-version">v1.3.6</span></h1>
-  <span class="status-pill" id="hs" aria-live="polite"><span class="dot"></span><span id="hs-text">…</span></span>
-  <button class="icon-btn state" onclick="openMonetModal()" aria-label="Настройки темы">
-    <svg class="icon"><use href="#i-palette"/></svg>
+  <h1 class="title truncate" id="app-title">nfqws2</h1>
+  <div class="bar-actions" id="bar-actions"></div>
+  <button class="icon-btn state" id="more-btn" aria-label="Ещё" aria-haspopup="menu" aria-expanded="false"
+          onclick="openOverflow(this)">
+    <svg aria-hidden="true" class="icon"><use href="#i-more"/></svg>
   </button>
 </header>
 
-<div class="progress-top" id="progress-top" hidden><div class="progress-linear"><div class="bar"></div></div></div>
-
-<!-- ═══ Modal navigation drawer: 6 destinations → drawer per M3 ══════════ -->
-<div class="scrim" id="drawer-scrim" onclick="closeDrawer()" aria-hidden="true"></div>
-<nav class="nav-drawer" id="drawer" aria-label="Навигация модуля">
-  <div class="drawer-head">
-    <span class="mark"><svg class="icon"><use href="#i-shield"/></svg></span>
-    <div>
-      <div class="drawer-name">nfqws2</div>
-      <div class="drawer-subtitle">Обход блокировок DPI</div>
-    </div>
-  </div>
-  <div class="drawer-label">Управление</div>
-  <button class="nav-item state active" data-page="control" aria-current="page">
-    <svg class="icon nav-icon"><use href="#i-status"/></svg><span class="nav-text">Состояние</span>
-  </button>
-  <button class="nav-item state" data-page="lists">
-    <svg class="icon nav-icon"><use href="#i-list"/></svg><span class="nav-text">Списки доменов</span>
-  </button>
-  <button class="nav-item state" data-page="apps">
-    <svg class="icon nav-icon"><use href="#i-apps"/></svg><span class="nav-text">Приложения</span>
-    <span class="nav-badge" id="nav-apps-badge" hidden>0</span>
-  </button>
-  <div class="drawer-label">Расширенное</div>
-  <button class="nav-item state" data-page="config">
-    <svg class="icon nav-icon"><use href="#i-config"/></svg><span class="nav-text">Конфигурация</span>
-  </button>
-  <button class="nav-item state" data-page="logs">
-    <svg class="icon nav-icon"><use href="#i-logs"/></svg><span class="nav-text">Журналы</span>
-  </button>
-  <button class="nav-item state" data-page="test">
-    <svg class="icon nav-icon"><use href="#i-test"/></svg><span class="nav-text">Тестирование</span>
-  </button>
-</nav>
+<div class="progress-top" id="progress-top" hidden><div class="progress-linear" role="progressbar"
+     aria-label="Выполняется запрос к службе" aria-busy="true"><div class="bar"></div></div></div>
 
 <main class="content" id="content">
 
-  <!-- 1. СОСТОЯНИЕ -->
-  <section class="page active" data-page="control" aria-label="Состояние службы">
+  <!-- ═══ СОСТОЯНИЕ ═════════════════════════════════════════════════════ -->
+  <section class="page active" data-page="control" aria-label="Состояние">
     <div class="hero" id="hero-status">
-      <div class="hero-top">
-        <div class="hero-label">СЛУЖБА</div>
-        <div class="hero-state" id="st">Опрос службы…</div>
-        <div class="hero-sub" id="sub">—</div>
-      </div>
-      <div class="hero-line up"><span>Аптайм <b id="upt">—</b></span></div>
-      <div class="hero-line queue"><span>Очередь <b id="queue-num">—</b></span></div>
-      <div class="hero-line drop"><span>Сброс пакетов <b id="qdrop-num">0</b></span></div>
-      <div class="hero-foot">
-        <div class="split" id="act-split">
-          <button class="seg-main state" id="bt" onclick="toggle()">
-            <svg class="icon s20"><use href="#i-play"/></svg><span>Запустить</span>
-          </button>
-          <button class="seg-menu state" id="bt-menu" aria-haspopup="menu" aria-expanded="false"
-                  aria-label="Дополнительные действия службы" onclick="openServiceMenu(this)">
-            <span class="caret"><svg class="icon s20"><use href="#i-caret"/></svg></span>
-          </button>
+      <div class="hero-head">
+        <span class="hero-icon" aria-hidden="true"><svg aria-hidden="true" class="icon"><use href="#i-shield"/></svg></span>
+        <div class="hero-titles">
+          <div class="hero-state" id="st" aria-live="polite">Опрос службы…</div>
+          <div class="hero-sub" id="sub"></div>
         </div>
+      </div>
+      <div class="hero-stats">
+        <div class="hstat"><span class="hstat-label">Время работы</span><span class="hstat-value" id="upt">—</span></div>
+        <div class="hstat"><span class="hstat-label">Очередь</span><span class="hstat-value" id="queue-num">—</span></div>
+        <div class="hstat"><span class="hstat-label">Потери</span><span class="hstat-value" id="qdrop-num">—</span></div>
+      </div>
+      <div class="hero-actions">
+        <button class="btn height-m with-icon state" id="bt" onclick="toggle()">
+          <svg aria-hidden="true" class="icon s20"><use href="#i-play"/></svg><span>Запустить</span>
+        </button>
+        <button class="icon-btn hero-restart state" id="bt-restart" onclick="restartSvc()" hidden
+                aria-label="Перезапустить службу" title="Перезапустить службу">
+          <svg aria-hidden="true" class="icon"><use href="#i-restart"/></svg>
+        </button>
       </div>
     </div>
 
     <div id="warn" class="stack"></div>
 
-    <div class="card filled">
-      <div class="card-head">
-        <span class="card-icon"><svg class="icon s20"><use href="#i-list"/></svg></span>
-        <div class="card-title">Счётчики списков</div>
-      </div>
-      <div class="metrics" id="cnt" aria-label="Счётчики списков"></div>
-    </div>
-
-    <div class="card filled">
-      <div class="list-item two-line clickable state" id="strategy-row" role="button" tabindex="0"
-           aria-haspopup="menu" aria-label="Выбрать готовую стратегию" onclick="openStrategyMenu(this)">
-        <span class="li-icon"><svg class="icon s24"><use href="#i-globe"/></svg></span>
+    <h2 class="subhead">Стратегия обхода</h2>
+    <div class="list">
+      <div class="list-item two-line clickable state" role="button" tabindex="0" aria-haspopup="dialog"
+           onclick="openStrategySheet()">
+        <span class="li-icon"><svg aria-hidden="true" class="icon s24"><use href="#i-globe"/></svg></span>
         <span class="li-text">
-          <span class="li-primary">Готовые стратегии</span>
-          <span class="li-secondary" id="strategy-current">Выбрана: по умолчанию</span>
+          <span class="li-primary" id="strategy-current">—</span>
+          <span class="li-secondary clamp2" id="strategy-desc"></span>
         </span>
-        <span class="li-trail"><span class="caret"><svg class="icon s24"><use href="#i-chevron-right"/></svg></span></span>
-      </div>
-      <select id="strategy-sel" onchange="onStrategySelectChange()" hidden></select>
-      <div class="helper" id="strategy-desc">—</div>
-      <div class="card-desc">Стратегия под вашего провайдера: конфиг будет перезаписан, служба перезапущена.</div>
-      <div class="row">
-        <button class="btn with-icon state" onclick="applySelectedStrategy()">
-          <svg class="icon s18"><use href="#i-check"/></svg>Применить и перезапустить
-        </button>
+        <span class="li-trail"><svg aria-hidden="true" class="icon s24"><use href="#i-chevron-right"/></svg></span>
       </div>
     </div>
 
-    <div class="card filled">
-      <div class="card-head">
-        <span class="card-icon"><svg class="icon s20"><use href="#i-tune"/></svg></span>
-        <div class="card-title">Параметры ядра и сети</div>
-      </div>
-      <div class="list divider" id="sws"></div>
-      <div class="divider"></div>
-      <div class="row">
-        <div class="field num" style="flex:1 1 132px;">
-          <label for="pkout">Исходящие пакеты</label>
-          <div class="control"><input type="number" id="pkout" min="1" max="15" inputmode="numeric"
-            onchange="setp('PKT_LIMIT_OUT',this.value)"></div>
-          <div class="helper">на соединение, 1–15</div>
-        </div>
-        <div class="field num" style="flex:1 1 132px;">
-          <label for="pkin">Входящие пакеты</label>
-          <div class="control"><input type="number" id="pkin" min="1" max="15" inputmode="numeric"
-            onchange="setp('PKT_LIMIT_IN',this.value)"></div>
-          <div class="helper">только при xt_connbytes</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="card filled">
-      <div class="list-item two-line clickable state" id="doctor-row" role="button" tabindex="0"
-           aria-label="Диагностика и лимит пакетов" onclick="doctor()">
-        <span class="li-icon"><svg class="icon s24"><use href="#i-medical"/></svg></span>
-        <span class="li-text">
-          <span class="li-primary">Диагностика и лимит пакетов</span>
-          <span class="li-secondary">Проверка ядра, очереди и правил iptables</span>
-        </span>
-        <span class="li-trail"><span class="caret"><svg class="icon s24"><use href="#i-chevron-right"/></svg></span></span>
-      </div>
-      <div class="list" id="doc"></div>
-      <div class="row">
-        <button class="btn text with-icon state" onclick="showArgs()">
-          <svg class="icon s18"><use href="#i-terminal"/></svg>Аргументы запуска
-        </button>
-      </div>
-      <pre class="code-block" id="args" hidden></pre>
-    </div>
+    <h2 class="subhead">Параметры</h2>
+    <div class="list" id="sws"></div>
   </section>
 
-  <!-- 2. СПИСКИ -->
-  <section class="page" data-page="lists" aria-label="Списки доменов">
-    <div class="card filled">
-      <div class="card-head">
-        <span class="card-icon"><svg class="icon s20"><use href="#i-route"/></svg></span>
-        <div class="card-title">Режим обработки доменов</div>
-      </div>
-      <div class="segmented" id="mode" role="group" aria-label="Режим обработки"></div>
-      <div class="card-desc">auto — автообучение; list — строго user.list; all — всё, кроме exclude.</div>
+  <!-- ═══ СПИСКИ ════════════════════════════════════════════════════════ -->
+  <section class="page" data-page="lists" aria-label="Списки">
+    <h2 class="subhead">Режим обработки</h2>
+    <div class="group">
+      <div class="segmented" id="mode" role="group" aria-label="Режим обработки доменов"></div>
+      <div class="helper" id="mode-desc"></div>
     </div>
 
-    <div class="card filled">
-      <div class="card-head">
-        <span class="card-icon"><svg class="icon s20"><use href="#i-add"/></svg></span>
-        <div class="card-title">Быстрое добавление в user.list</div>
-      </div>
+    <h2 class="subhead">Добавить домен</h2>
+    <div class="group">
       <div class="field">
-        <div class="control has-trail">
+        <div class="tf">
           <input type="text" id="dom" placeholder="например, youtube.com" autocapitalize="off" autocorrect="off"
-                 spellcheck="false" onkeydown="if(event.key==='Enter')addDom()" aria-label="Домен для добавления">
-          <span class="trail">
-            <button class="icon-btn sm state tone-primary" aria-label="Добавить домен" onclick="addDom()">
-              <svg class="icon s20"><use href="#i-add"/></svg>
-            </button>
-          </span>
+                 spellcheck="false" enterkeyhint="done" onkeydown="if(event.key==='Enter')addDom()"
+                 aria-describedby="dom-help">
+          <label for="dom">Домен</label>
+          <button class="icon-btn state tone-primary" aria-label="Добавить домен" onclick="addDom()">
+            <svg aria-hidden="true" class="icon s24"><use href="#i-add"/></svg>
+          </button>
         </div>
-        <div class="helper">Домен нормализуется на устройстве и попадает в user.list.</div>
+        <div class="helper" id="dom-help">Домен попадёт в user.list.</div>
       </div>
     </div>
 
-    <div class="card filled">
-      <div class="card-head">
-        <span class="card-icon"><svg class="icon s20"><use href="#i-list"/></svg></span>
-        <div class="card-title">Редактор списков</div>
+    <h2 class="subhead">Файлы</h2>
+    <div class="list" id="list-files"></div>
+
+    <h2 class="subhead">Обслуживание</h2>
+    <div class="list">
+      <div class="list-item two-line clickable state danger" role="button" tabindex="0" onclick="clearAuto()">
+        <span class="li-icon"><svg aria-hidden="true" class="icon s24"><use href="#i-trash"/></svg></span>
+        <span class="li-text">
+          <span class="li-primary">Очистить auto.list</span>
+          <span class="li-secondary">Удалить домены, выученные автоматически</span>
+        </span>
       </div>
-      <div class="field">
-        <label for="lsel">Файл</label>
-        <div class="control has-trail">
-          <select id="lsel" onchange="loadList()"></select>
-          <span class="trail"><svg class="icon s20"><use href="#i-caret"/></svg></span>
-        </div>
-      </div>
-      <textarea id="ltx" class="mono" spellcheck="false" onclick="openSlideEditor('list')"
-                readonly aria-label="Содержимое списка"></textarea>
-      <div class="row">
-        <button class="btn with-icon state" onclick="openSlideEditor('list')">
-          <svg class="icon s18"><use href="#i-edit"/></svg>Открыть во весь экран
-        </button>
-        <button class="btn text state" onclick="clearAuto()">Очистить auto</button>
-        <button class="btn text danger state" onclick="resetLists()">Сброс списков</button>
+      <div class="list-item two-line clickable state danger" role="button" tabindex="0" onclick="resetLists()">
+        <span class="li-icon"><svg aria-hidden="true" class="icon s24"><use href="#i-restart"/></svg></span>
+        <span class="li-text">
+          <span class="li-primary">Вернуть стандартные списки</span>
+          <span class="li-secondary">Правки в user, exclude, ipset и probe_hosts будут удалены</span>
+        </span>
       </div>
     </div>
   </section>
 
-  <!-- 3. ПРИЛОЖЕНИЯ -->
-  <section class="page" data-page="apps" aria-label="Фильтр по приложениям">
-    <div class="card filled">
-      <div class="card-head">
-        <span class="card-icon"><svg class="icon s20"><use href="#i-apps"/></svg></span>
-        <div class="card-title">Фильтрация по приложениям</div>
-      </div>
-      <div class="field">
-        <label for="amode">Режим фильтра</label>
-        <div class="control has-trail">
-          <select id="amode">
-            <option value="off">Выключен — обрабатывается весь трафик</option>
-            <option value="include">Только выбранные приложения</option>
-            <option value="exclude">Все, кроме выбранных</option>
-          </select>
-          <span class="trail"><svg class="icon s20"><use href="#i-caret"/></svg></span>
-        </div>
-        <div class="helper">В режиме «только выбранные» трафик hotspot не обрабатывается. Изменения применяются сразу, без перезапуска службы.</div>
-      </div>
-      <div class="row">
-        <button class="btn with-icon state" onclick="saveApps()">
-          <svg class="icon s18"><use href="#i-check"/></svg>Сохранить и применить
-        </button>
-        <button class="btn tonal with-icon state" onclick="loadPk()">
-          <svg class="icon s18"><use href="#i-search"/></svg>Выбрать из установленных
-        </button>
-        <button class="btn text state" onclick="openSlideEditor('apps')">Вручную (пакеты)</button>
-      </div>
-      <div class="divider"></div>
-      <div class="list-item">
-        <span class="li-icon"><svg class="icon s20"><use href="#i-info"/></svg></span>
-        <span class="li-text"><span class="li-secondary" id="apps-info">Фильтр не активен</span></span>
-      </div>
+  <!-- ═══ ЖУРНАЛЫ ═══════════════════════════════════════════════════════ -->
+  <section class="page" data-page="logs" aria-label="Журналы">
+    <div class="chips" id="log-chips" role="group" aria-label="Параметры журнала"></div>
+    <pre class="log-view" id="lg" tabindex="0" aria-label="Содержимое журнала">Загрузка…</pre>
+    <div class="row">
+      <button class="btn tonal with-icon state" onclick="exportLogs()">
+        <svg aria-hidden="true" class="icon s18"><use href="#i-download"/></svg>Экспорт в Download
+      </button>
+      <button class="btn text danger state" onclick="clearLogs()">Очистить журналы</button>
     </div>
-
-    <div class="card filled" id="pk-card" hidden>
-      <div class="card-head">
-        <span class="card-icon"><svg class="icon s20"><use href="#i-search"/></svg></span>
-        <div class="card-title">Установленные приложения</div>
-      </div>
-      <div class="field">
-        <div class="control has-lead">
-          <span class="lead"><svg class="icon s20"><use href="#i-search"/></svg></span>
-          <input type="search" id="pf" placeholder="Поиск пакета…" autocapitalize="off" spellcheck="false" oninput="pkSearchInput()">
-        </div>
-        <div class="helper" id="pk-count"></div>
-      </div>
-      <div class="list divider list-scroll" id="pk"></div>
+    <div class="list">
+      <label class="list-item two-line clickable state">
+        <span class="li-text">
+          <span class="li-primary">Подробный журнал отладки</span>
+          <span class="li-secondary">Замедляет обработку пакетов, включайте только на время диагностики</span>
+        </span>
+        <span class="li-trail">
+          <input type="checkbox" class="switch" role="switch" id="dbg" aria-label="Подробный журнал отладки"
+                 onchange="setp('LOG_LEVEL', this.checked ? 1 : 0)">
+        </span>
+      </label>
     </div>
   </section>
 
-  <!-- 4. КОНФИГУРАЦИЯ -->
+  <!-- ═══ КОНФИГУРАЦИЯ ══════════════════════════════════════════════════ -->
   <section class="page" data-page="config" aria-label="Конфигурация">
-    <div class="card filled">
-      <div class="card-head">
-        <span class="card-icon"><svg class="icon s20"><use href="#i-config"/></svg></span>
-        <div class="card-title truncate">nfqws2.conf</div>
+    <h2 class="subhead">Действующий конфиг</h2>
+    <div class="list">
+      <div class="list-item two-line clickable state" role="button" tabindex="0" onclick="openSlideEditor('conf')">
+        <span class="li-icon"><svg aria-hidden="true" class="icon s24"><use href="#i-config"/></svg></span>
+        <span class="li-text">
+          <span class="li-primary li-mono">nfqws2.conf</span>
+          <span class="li-secondary">Открыть редактор</span>
+        </span>
+        <span class="li-trail"><svg aria-hidden="true" class="icon s24"><use href="#i-chevron-right"/></svg></span>
       </div>
-      <textarea id="ctx" class="mono" spellcheck="false" onclick="openSlideEditor('conf')" readonly
-                aria-label="Текст конфигурации"></textarea>
-      <div class="row">
-        <button class="btn with-icon state" onclick="openSlideEditor('conf')">
-          <svg class="icon s18"><use href="#i-edit"/></svg>Редактировать во весь экран
-        </button>
-        <button class="btn text danger state" onclick="resetConf()">Сбросить конфиг</button>
+      <div class="list-item clickable state danger" role="button" tabindex="0" onclick="resetConf()">
+        <span class="li-icon"><svg aria-hidden="true" class="icon s24"><use href="#i-restart"/></svg></span>
+        <span class="li-text"><span class="li-primary">Сбросить к стандартному</span></span>
       </div>
     </div>
 
-    <div class="card filled">
-      <div class="card-head">
-        <span class="card-icon"><svg class="icon s20"><use href="#i-upload"/></svg></span>
-        <div class="card-title">Импорт пресетов Keenetic</div>
-      </div>
-      <div class="card-desc">Можно выбрать сразу несколько файлов (.txt/.conf/.bat/.ini). Клик по имени — переименование.</div>
-      <input type="file" id="impFile" multiple hidden accept=".txt,.conf,.ini,.cfg,.list,.bat" onchange="importFiles(this.files)">
+    <h2 class="subhead">Импорт конфигов nfqws2-keenetic</h2>
+    <div class="group">
+      <div class="t-body-medium muted">Файлы .txt, .conf, .bat, .ini или вставленный текст. Можно выбрать несколько файлов сразу.</div>
+      <input type="file" id="impFile" multiple hidden onchange="importFiles(this.files)">
       <div class="row">
         <button class="btn tonal with-icon state" onclick="$('impFile').click()">
-          <svg class="icon s18"><use href="#i-file"/></svg>Импортировать файлы…
+          <svg aria-hidden="true" class="icon s18"><use href="#i-upload"/></svg>Выбрать файлы
         </button>
         <button class="btn text with-icon state" onclick="importPaste()">
-          <svg class="icon s18"><use href="#i-edit"/></svg>Вставить текст…
+          <svg aria-hidden="true" class="icon s18"><use href="#i-edit"/></svg>Вставить текст
         </button>
       </div>
-      <div class="helper" id="impMsg"></div>
-      <div class="list divider" id="impList"></div>
+      <div class="helper err" id="impMsg" hidden></div>
+    </div>
+    <div class="list" id="impList"></div>
+  </section>
+
+  <!-- ═══ ПРИЛОЖЕНИЯ (дочерний экран) ═══════════════════════════════════ -->
+  <section class="page" data-page="apps" aria-label="Приложения">
+    <h2 class="subhead">Режим фильтра</h2>
+    <div class="list" id="amode-list" role="radiogroup" aria-label="Режим фильтра"></div>
+    <div class="helper" id="apps-info"></div>
+
+    <h2 class="subhead">Установленные приложения</h2>
+    <div class="search-bar">
+      <svg aria-hidden="true" class="icon"><use href="#i-search"/></svg>
+      <input type="search" id="pf" placeholder="Поиск приложений" autocapitalize="off" spellcheck="false"
+             enterkeyhint="search" oninput="pkSearchInput()" aria-label="Поиск приложений" aria-describedby="pk-count">
+    </div>
+    <div class="helper" id="pk-count"></div>
+    <div class="list" id="pk"></div>
+    <div class="row">
+      <button class="btn text with-icon state" onclick="openSlideEditor('apps')">
+        <svg aria-hidden="true" class="icon s18"><use href="#i-edit"/></svg>Редактировать список вручную
+      </button>
     </div>
   </section>
 
-  <!-- 5. ЖУРНАЛЫ -->
-  <section class="page" data-page="logs" aria-label="Журналы">
-    <div class="card filled">
-      <div class="card-head">
-        <span class="card-icon"><svg class="icon s20"><use href="#i-logs"/></svg></span>
-        <div class="card-title">Журналы</div>
-      </div>
-      <div class="row">
-        <div class="field" style="flex:1 1 220px;">
-          <label for="lt">Источник</label>
-          <div class="control has-trail">
-            <select id="lt" onchange="loadLog()">
-              <option value="service">Служба (service.log)</option>
-              <option value="nfqws">Процесс (nfqws2.log)</option>
-              <option value="auto">Автообучение (auto.log)</option>
-              <option value="debug">Отладка (debug.log)</option>
-            </select>
-            <span class="trail"><svg class="icon s20"><use href="#i-caret"/></svg></span>
-          </div>
-        </div>
-        <div class="field" style="width:108px; flex:none;">
-          <label for="ln">Строк</label>
-          <div class="control">
-            <select id="ln" onchange="loadLog()"><option>100</option><option>300</option><option>1000</option></select>
-          </div>
-        </div>
-      </div>
-      <pre class="log-view" id="lg">Загрузка…</pre>
-      <div class="row">
-        <button class="btn tonal with-icon state" onclick="loadLog()">
-          <svg class="icon s18"><use href="#i-refresh"/></svg>Обновить
-        </button>
-        <button class="btn text with-icon state" onclick="exportLogs()">
-          <svg class="icon s18"><use href="#i-download"/></svg>Экспорт в Download
-        </button>
-        <button class="btn text danger state" onclick="clearLogs()">Очистить</button>
-      </div>
-      <div class="divider"></div>
-      <div class="list-item">
-        <span class="li-text"><span class="li-primary">Подробный Debug-лог</span></span>
-        <span class="li-trail">
-          <input type="checkbox" class="switch" role="switch" id="dbg" aria-label="Подробный debug-лог"
-                 onchange="setp('LOG_LEVEL',this.checked?1:0)">
-        </span>
-      </div>
-    </div>
-  </section>
-
-  <!-- 6. ТЕСТИРОВАНИЕ -->
-  <section class="page" data-page="test" aria-label="Тестирование доступности">
-    <div class="card filled">
-      <div class="card-head">
-        <span class="card-icon"><svg class="icon s20"><use href="#i-wifi"/></svg></span>
-        <div class="card-title">Проверка доступности ресурсов</div>
-      </div>
-      <div class="card-desc">Прямой опрос fetch: 3 попытки без кэша. Список адресов — probe_hosts.list.</div>
+  <!-- ═══ ТЕСТИРОВАНИЕ (дочерний экран) ═════════════════════════════════ -->
+  <section class="page" data-page="test" aria-label="Тестирование">
+    <div class="group">
+      <div class="t-body-medium muted">Каждый адрес из probe_hosts.list открывается три раза без кэша. Зелёный — прошли все попытки, жёлтый — часть, красный — ни одной.</div>
       <div class="row">
         <button class="btn with-icon state" id="tb" onclick="runTest()">
-          <svg class="icon s18"><use href="#i-play"/></svg>Запустить тест связи
+          <svg aria-hidden="true" class="icon s18"><use href="#i-play"/></svg>Запустить проверку
         </button>
       </div>
-      <div class="list divider" id="tr"></div>
+    </div>
+    <div class="list" id="tr"></div>
+    <div class="empty" id="test-empty">
+      <span class="empty-icon"><svg aria-hidden="true" class="icon"><use href="#i-wifi"/></svg></span>
+      <span class="empty-title">Проверка ещё не запускалась</span>
+      <span>Результаты по каждому адресу появятся здесь.</span>
     </div>
   </section>
+
+  <!-- ═══ ДИАГНОСТИКА (дочерний экран) ══════════════════════════════════ -->
+  <section class="page" data-page="diag" aria-label="Диагностика">
+    <h2 class="subhead">Ядро и правила</h2>
+    <div class="list" id="doc"></div>
+    <div class="subhead-row">
+      <h2 class="subhead">Аргументы запуска</h2>
+      <button class="btn text sm with-icon state" onclick="copyArgs()">
+        <svg aria-hidden="true" class="icon s18"><use href="#i-copy"/></svg>Копировать
+      </button>
+    </div>
+    <pre class="code-block" id="args">—</pre>
+  </section>
 </main>
+
+<!-- ═══ Navigation bar: 4 раздела верхнего уровня ═════════════════════════ -->
+<nav class="nav-bar" id="nav-bar" aria-label="Разделы">
+  <div class="nav-bar-inner">
+    <button class="nav-dest" data-page="control" aria-current="page">
+      <span class="nav-ind state"><svg aria-hidden="true" class="icon"><use href="#i-status"/></svg></span>
+      <span class="nav-label">Состояние</span>
+    </button>
+    <button class="nav-dest" data-page="lists">
+      <span class="nav-ind state"><svg aria-hidden="true" class="icon"><use href="#i-list"/></svg></span>
+      <span class="nav-label">Списки</span>
+    </button>
+    <button class="nav-dest" data-page="logs">
+      <span class="nav-ind state"><svg aria-hidden="true" class="icon"><use href="#i-logs"/></svg></span>
+      <span class="nav-label">Журналы</span>
+    </button>
+    <button class="nav-dest" data-page="config">
+      <span class="nav-ind state"><svg aria-hidden="true" class="icon"><use href="#i-config"/></svg></span>
+      <span class="nav-label">Конфиг</span>
+    </button>
+  </div>
+</nav>
 
 <!-- ═══ Full-screen dialog: редактор конфига и списков ═══════════════════ -->
 <div class="fs-dialog" id="editor-panel" role="dialog" aria-modal="true" aria-labelledby="panel-title-text">
   <div class="fs-bar">
     <button class="icon-btn state tone-on" onclick="closeSlideEditor()" aria-label="Закрыть редактор">
-      <svg class="icon"><use href="#i-close"/></svg>
+      <svg aria-hidden="true" class="icon"><use href="#i-close"/></svg>
     </button>
     <span class="fs-title truncate" id="panel-title-text">Редактор</span>
-    <button class="btn with-icon state" id="panel-save-btn">
-      <svg class="icon s18"><use href="#i-check"/></svg>Сохранить
-    </button>
+    <button class="btn text state" id="panel-save-btn">Сохранить</button>
   </div>
   <div class="fs-body">
     <textarea id="panel-editor-text" spellcheck="false" autocapitalize="off" autocorrect="off"
-              placeholder="# Конфигурация…" aria-label="Полноэкранный редактор"></textarea>
-    <div class="helper" id="panel-hint">Значения валидируются на устройстве: при ошибке сохранение отклоняется.</div>
+              placeholder="# Конфигурация…" aria-label="Текст файла"></textarea>
+    <div class="helper" id="panel-hint"></div>
   </div>
 </div>
 
-<!-- ═══ Modal bottom sheet: тема оформления ══════════════════════════════ -->
-<div class="scrim" id="theme-scrim" onclick="closeMonetModal()" aria-hidden="true"></div>
-<div class="sheet" id="monet-modal" role="dialog" aria-modal="true" aria-label="Настройки темы">
-  <span class="handle"></span>
-  <div class="sheet-title">Тема оформления</div>
+<!-- ═══ Modal bottom sheets ═══════════════════════════════════════════════ -->
+<div class="scrim" id="sheet-scrim" onclick="closeSheet()" aria-hidden="true"></div>
+
+<div class="sheet list-sheet" id="strategy-sheet" role="dialog" aria-modal="true" aria-labelledby="strategy-sheet-title">
+  <button type="button" class="sheet-drag" aria-label="Закрыть"><span class="handle"></span></button>
+  <div class="sheet-title" id="strategy-sheet-title">Стратегия обхода</div>
+  <div class="sheet-desc">Выбранная стратегия заменит nfqws2.conf, прежний сохранится как .bak.</div>
+  <div class="list sheet-scroll" id="strategy-list" role="radiogroup" aria-label="Стратегии"></div>
+  <div class="sheet-actions">
+    <button class="btn text state" onclick="closeSheet()">Отмена</button>
+    <button class="btn with-icon state" id="strategy-apply" onclick="applySelectedStrategy()">Применить</button>
+  </div>
+</div>
+
+<div class="sheet" id="monet-modal" role="dialog" aria-modal="true" aria-labelledby="theme-sheet-title">
+  <button type="button" class="sheet-drag" aria-label="Закрыть"><span class="handle"></span></button>
+  <div class="sheet-title" id="theme-sheet-title">Тема оформления</div>
 
   <div class="stack">
-    <div class="drawer-label" style="padding:0 0 8px;">Режим цвета</div>
+    <h2 class="subhead plain">Режим цвета</h2>
     <div class="segmented" id="theme-mode" role="group" aria-label="Режим цвета"></div>
   </div>
 
-  <div class="list-item">
-    <span class="li-text"><span class="li-primary">AMOLED</span></span>
+  <label class="list-item clickable state">
+    <span class="li-text">
+      <span class="li-primary">Чёрный фон AMOLED</span>
+      <span class="li-secondary">Только в тёмной теме</span>
+    </span>
     <span class="li-trail">
-      <input type="checkbox" class="switch" role="switch" id="amoled-toggle" aria-label="Режим AMOLED"
+      <input type="checkbox" class="switch" role="switch" id="amoled-toggle" aria-label="Чёрный фон AMOLED"
              onchange="toggleAmoled(this.checked)">
     </span>
-  </div>
+  </label>
 
   <div class="stack">
-    <div class="drawer-label" style="padding:0 0 8px;">Готовые палитры</div>
+    <h2 class="subhead plain">Готовые палитры</h2>
     <div class="palette" id="palette-grid"></div>
   </div>
 
   <div class="field">
-    <label for="custom-hex-input">Свой цвет (seed)</label>
+    <label for="custom-hex-input">Свой цвет</label>
     <div class="control">
       <div class="hex-group">
         <button type="button" class="hex-swatch state" id="custom-swatch" onclick="openColorDialog()"
@@ -1180,21 +1288,21 @@ textarea.mono {
                autocapitalize="characters" spellcheck="false" oninput="onHexInput(this.value)">
       </div>
     </div>
-    <div class="helper">Из seed строятся все роли M3: primary, container, surface, outline.</div>
+    <div class="helper">Из одного цвета строятся все роли M3: основной, контейнеры, поверхности, контуры.</div>
   </div>
 
   <div class="row">
     <button class="btn with-icon state" onclick="applyCustomHex()">
-      <svg class="icon s18"><use href="#i-check"/></svg>Применить цвет
+      <svg aria-hidden="true" class="icon s18"><use href="#i-check"/></svg>Применить цвет
     </button>
     <button class="btn tonal with-icon state" onclick="detectSystemMonet(true)">
-      <svg class="icon s18"><use href="#i-refresh"/></svg>С обоями
+      <svg aria-hidden="true" class="icon s18"><use href="#i-refresh"/></svg>Цвет обоев
     </button>
-    <button class="btn text state" onclick="resetTheme()">Сбросить тему</button>
+    <button class="btn text state" onclick="resetTheme()">Сбросить</button>
   </div>
 </div>
 
-<!-- ═══ Диалог выбора цвета: системный input[type=color] вне темы M3 ═════ -->
+<!-- ═══ Диалог выбора цвета ═══════════════════════════════════════════════ -->
 <div class="dialog-wrap" id="color-wrap" role="presentation">
   <div class="dialog-scrim" onclick="closeColorDialog()" aria-hidden="true"></div>
   <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="cd-title">
@@ -1225,13 +1333,13 @@ textarea.mono {
 <!-- ═══ Basic dialog (замена native confirm/prompt) ══════════════════════ -->
 <div class="dialog-wrap" id="dialog-wrap" role="presentation">
   <div class="dialog-scrim" onclick="dialogResolve(false)"></div>
-  <div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="d-title" aria-describedby="d-body">
-    <span class="d-icon" id="d-icon"><svg class="icon"><use href="#i-warn"/></svg></span>
+  <div class="dialog" id="dialog" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="d-title" aria-describedby="d-body">
+    <span class="d-icon" id="d-icon" aria-hidden="true"><svg aria-hidden="true" class="icon"><use href="#i-warn"/></svg></span>
     <div class="d-title" id="d-title">Заголовок</div>
     <div class="d-body" id="d-body">Текст</div>
-    <div class="field" id="d-field" hidden>
-      <label for="d-input">Значение</label>
-      <div class="control"><input type="text" id="d-input" spellcheck="false" autocomplete="off"></div>
+    <div class="tf" id="d-field" hidden>
+      <input type="text" id="d-input" spellcheck="false" autocomplete="off" placeholder=" ">
+      <label for="d-input" id="d-label">Значение</label>
     </div>
     <div class="d-actions">
       <button class="btn text state" id="d-cancel" onclick="dialogResolve(false)">Отмена</button>
@@ -1240,15 +1348,14 @@ textarea.mono {
   </div>
 </div>
 
-<!-- ═══ Overlay host: меню позиционируются от окна и не попадают в overflow карточек
-     NB: без aria-hidden — в этот слой рендерятся role="menu"/"menuitem",
-     и aria-hidden="true" выкидывал бы их из дерева доступности. -->
+<!-- ═══ Overlay host: меню позиционируются от окна
+     NB: без aria-hidden — сюда рендерятся role="menu"/"menuitem". -->
 <div id="layer"></div>
 
-<!-- ═══ Snackbar ═════════════════════════════════════════════════════════ -->
+<!-- ═══ Snackbar: над Navigation bar ═══════════════════════════════════════ -->
 <div class="snackbar" id="prompt-container" role="status" aria-live="polite">
   <span class="snack-msg" id="prompt-msg"></span>
-  <button class="btn text sm state" id="prompt-action" hidden>ОТМЕНИТЬ</button>
+  <button class="btn text sm state" id="prompt-action" hidden>Отменить</button>
 </div>
 <script>
 /* ══════════════════════════════════════════════════════════════════════════
@@ -1268,11 +1375,12 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&': '&amp
    кавычим для JS (JSON.stringify экранирует кавычки, слэши и переводы строк),
    а потом получившуюся двойную кавычку прячем от HTML через esc(). */
 const jsArg = v => esc(JSON.stringify(String(v == null ? '' : v)));
-const icon = (name, cls) => '<svg class="icon ' + (cls || 's20') + '"><use href="#i-' + name + '"/></svg>';
+const icon = (name, cls) => '<svg aria-hidden="true" class="icon ' + (cls || 's20') + '"><use href="#i-' + name + '"/></svg>';
 
 /* ── Ripple: pointerdown на любой .state, делегирование переживает innerHTML ── */
 document.addEventListener('pointerdown', e => {
-  const el = e.target.closest && e.target.closest('.state');
+  let el = e.target.closest && e.target.closest('.state, .nav-dest');
+  if(el && el.classList.contains('nav-dest')) el = el.querySelector('.nav-ind');
   if(!el || el.classList.contains('is-disabled') || el.disabled) return;
   const r = el.getBoundingClientRect();
   const size = Math.max(r.width, r.height) * 2.2;
@@ -1292,48 +1400,69 @@ document.addEventListener('keydown', e => {
   if(el && !el.classList.contains('is-disabled')){ e.preventDefault(); el.click(); }
 });
 
-/* ── Menu: открывается под якорем, переворачивается вверх без места ─────── */
+/* ── Menu: открывается под якорем, переворачивается вверх без места ───────
+   Повторное нажатие на якорь закрывает меню (как anchor.onclick → menu.open =
+   !menu.open в Material Web). Касание вне меню только закрывает его: слой
+   menu-back ловит click целиком, и элемент под пальцем не срабатывает. */
 let openMenuEntry = null;
 function closeMenu(){ if(openMenuEntry) openMenuEntry.close(); }
 function openMenu(anchor, items){
+  if(openMenuEntry && openMenuEntry.anchor === anchor){ closeMenu(); return null; }
   closeMenu();
+  const viaKeyboard = anchor.matches(':focus-visible');
   const menu = document.createElement('div');
   menu.className = 'menu';
   menu.setAttribute('role', 'menu');
   for(const it of items){
-    if(it === '-'){ const sep = document.createElement('div'); sep.className = 'sep'; menu.append(sep); continue; }
+    if(it === '-'){ const sep = document.createElement('div'); sep.className = 'sep'; sep.setAttribute('role', 'separator'); menu.append(sep); continue; }
     const mi = document.createElement('button');
     mi.className = 'mi state';
     mi.type = 'button';
     mi.setAttribute('role', 'menuitem');
-    mi.innerHTML = (it.icon ? '<span class="mi-icon">' + icon(it.icon, 's24') + '</span>' : '') +
+    mi.innerHTML = ('icon' in it ? '<span class="mi-icon">' + (it.icon ? icon(it.icon, 's24') :
+        '<span style="display:block;width:24px;height:24px"></span>') + '</span>' : '') +
       '<span class="mi-text">' + esc(it.label) + '</span>';
     mi.onclick = () => { close(); if(it.onClick) it.onClick(); };
     menu.append(mi);
   }
   const back = document.createElement('div');
   back.className = 'menu-back';
-  back.addEventListener('pointerdown', () => close());
+  back.addEventListener('click', e => { e.preventDefault(); close(); });
   $('layer').append(back, menu);
   const r = anchor.getBoundingClientRect(), mw = menu.offsetWidth, mh = menu.offsetHeight;
   let top = r.bottom + 4;
   if(top + mh > innerHeight - 8){ top = Math.max(8, r.top - mh - 4); menu.classList.add('up'); }
-  menu.style.left = Math.max(8, Math.min(r.left, innerWidth - mw - 8)) + 'px';
+  const end = r.left + r.width / 2 > innerWidth / 2;
+  if(end) menu.classList.add('end');
+  menu.style.left = Math.max(8, Math.min(end ? r.right - mw : r.left, innerWidth - mw - 8)) + 'px';
   menu.style.top = top + 'px';
   anchor.setAttribute('aria-expanded', 'true');
-  const split = anchor.closest('.split'); if(split) split.classList.add('open');
-  const esc2 = e => { if(e.key === 'Escape'){ e.stopPropagation(); close(); } };
-  addEventListener('keydown', esc2, true);
+  const itemsEls = () => [...menu.querySelectorAll('.mi')];
+  const onKey = e => {
+    if(e.key === 'Escape'){ e.stopPropagation(); e.preventDefault(); close(); anchor.focus(); return; }
+    if(e.key === 'ArrowDown' || e.key === 'ArrowUp'){
+      e.preventDefault();
+      const els = itemsEls(), i = els.indexOf(document.activeElement);
+      const n = e.key === 'ArrowDown' ? (i + 1) % els.length : (i - 1 + els.length) % els.length;
+      els[i < 0 ? 0 : n].focus();
+    }
+    if(e.key === 'Tab') close();
+  };
+  addEventListener('keydown', onKey, true);
+  if(viaKeyboard){ const f = itemsEls()[0]; if(f) f.focus(); }
   let closed = false;
-  const entry = { close };
+  const entry = { close, anchor };
   openMenuEntry = entry;
+  scheduleSync();
   function close(){
     if(closed) return; closed = true;
-    removeEventListener('keydown', esc2, true);
-    menu.remove(); back.remove();
+    removeEventListener('keydown', onKey, true);
+    back.remove();
+    menu.classList.add('closing');
+    setTimeout(() => menu.remove(), 110);
     anchor.setAttribute('aria-expanded', 'false');
-    const sp = anchor.closest('.split'); if(sp) sp.classList.remove('open');
     if(openMenuEntry === entry) openMenuEntry = null;
+    scheduleSync();
   }
   return entry;
 }
@@ -1364,11 +1493,11 @@ function toast(m, action){
   const b = $('prompt-action');
   snackAction = action || null;
   b.hidden = !action;
-  if(action) b.textContent = action.label || 'ПОВТОРИТЬ';
+  if(action) b.textContent = action.label || 'Повторить';
   const pc = $('prompt-container');
   pc.classList.add('show');
   clearTimeout(pc._t);
-  pc._t = setTimeout(() => pc.classList.remove('show'), action ? 8000 : 3500);
+  pc._t = setTimeout(() => pc.classList.remove('show'), action ? 8000 : 4000);
 }
 $('prompt-action').onclick = () => {
   $('prompt-container').classList.remove('show');
@@ -1380,34 +1509,44 @@ $('prompt-action').onclick = () => {
 let busyCount = 0;
 function busy(on){
   busyCount = Math.max(0, busyCount + (on ? 1 : -1));
-  $('progress-top').hidden = busyCount === 0;
+  const idle = busyCount === 0;
+  $('progress-top').hidden = idle;
+  $('content').setAttribute('aria-busy', idle ? 'false' : 'true');
 }
 async function withBusy(a, ms){
   busy(true);
   try { return await ctlx(a, ms); } finally { busy(false); }
 }
 
-/* ── Basic dialog вместо native confirm/prompt ────────────────────────── */
-let dialogCb = null;
+/* ── Basic dialog (M3) вместо native confirm/prompt ──────────────────────
+   Как md-dialog: фокус удерживается внутри (Tab не уходит под scrim), после
+   закрытия возвращается туда, откуда диалог открыли. Иконка — 24dp цвета
+   secondary над заголовком, заголовок тогда по центру. */
+let dialogCb = null, dialogReturnFocus = null;
 function dialogResolve(val){
+  if(!$('dialog-wrap').classList.contains('open')) return;
   const cb = dialogCb; dialogCb = null;
   $('dialog-wrap').classList.remove('open');
+  const back = dialogReturnFocus; dialogReturnFocus = null;
+  if(back && document.contains(back)) try { back.focus({preventScroll: true}); } catch(e) {}
+  scheduleSync();
   if(cb) cb(val);
 }
 function mdDialog(opts){
-  /* Диалог на экране один, а промис у каждого свой. Если вызвать mdDialog
-     поверх открытого, dialogCb будет перезаписан и первый промис не разрешится
-     никогда — тот, кто его ждёт, зависнет навсегда (например, быстрый двойной
-     тап по «Удалить»). Закрываем прежний как отменённый: вызывающий получит
-     false, а не вечное ожидание. */
   if(dialogCb) dialogResolve(false);
   return new Promise(res => {
     dialogCb = res;
+    dialogReturnFocus = document.activeElement;
+    const dlg = $('dialog');
     $('d-title').textContent = opts.title || '';
     $('d-body').textContent = opts.text || '';
+    $('d-body').hidden = !opts.text;
+    const showIcon = opts.icon !== false;
     const ic = $('d-icon');
+    ic.hidden = !showIcon;
     ic.className = 'd-icon' + (opts.danger ? ' danger' : '');
-    ic.innerHTML = icon(opts.danger ? 'error' : 'warn');
+    ic.innerHTML = icon(opts.danger ? 'error' : 'warn', 's24');
+    dlg.classList.toggle('has-icon', showIcon);
     const ok = $('d-ok');
     ok.className = 'btn text state' + (opts.danger ? ' danger' : '');
     ok.textContent = opts.ok || 'ОК';
@@ -1416,67 +1555,285 @@ function mdDialog(opts){
     cancel.textContent = typeof opts.cancel === 'string' ? opts.cancel : 'Отмена';
     const f = $('d-field');
     f.hidden = !opts.input;
-    if(opts.input){ $('d-input').value = opts.input.value || ''; $('d-input').placeholder = opts.input.placeholder || ''; }
+    if(opts.input){
+      const di = $('d-input');
+      di.type = opts.input.type || 'text';
+      di.inputMode = opts.input.inputmode || '';
+      di.value = opts.input.value || '';
+      $('d-label').textContent = opts.input.label || 'Значение';
+    }
+    /* alertdialog — только для прерывающих подтверждений; ввод значения это обычный dialog */
+    dlg.setAttribute('role', opts.input ? 'dialog' : 'alertdialog');
     $('dialog-wrap').classList.add('open');
-    if(opts.input) setTimeout(() => $('d-input').focus(), 80);
+    scheduleSync();
+    setTimeout(() => { (opts.input ? $('d-input') : dlg).focus(); }, 80);
   });
 }
 const mdConfirm = (title, text, o) => mdDialog(Object.assign({title, text}, o || {})).then(v => !!v);
-async function mdPrompt(title, text, value, placeholder){
-  return mdDialog({title, text, ok: 'Сохранить', input: {value, placeholder}})
+async function mdPrompt(title, text, value, label, extra){
+  extra = extra || {};
+  return mdDialog({title, text, ok: 'Сохранить', icon: false,
+    input: {value, label, type: extra.type, inputmode: extra.inputmode}})
     .then(v => (v === false ? null : v));
 }
 $('d-ok').onclick = () => dialogResolve($('d-field').hidden ? true : $('d-input').value.trim());
 $('d-input').onkeydown = e => { if(e.key === 'Enter') dialogResolve($('d-input').value.trim()); };
-
-/* ── Navigation drawer ────────────────────────────────────────────────── */
-function drawerOpen(){ return $('drawer').classList.contains('open'); }
-function openDrawer(){ $('drawer').classList.add('open'); $('drawer-scrim').classList.add('show'); $('menu-btn').setAttribute('aria-expanded', 'true'); }
-function closeDrawer(){ $('drawer').classList.remove('open'); $('drawer-scrim').classList.remove('show'); $('menu-btn').setAttribute('aria-expanded', 'false'); }
-$('menu-btn').onclick = () => drawerOpen() ? closeDrawer() : openDrawer();
-
-document.querySelectorAll('.nav-item').forEach(btn => {
-  btn.onclick = () => {
-    document.querySelectorAll('.nav-item').forEach(b => { b.classList.remove('active'); b.removeAttribute('aria-current'); });
-    btn.classList.add('active');
-    btn.setAttribute('aria-current', 'page');
-    const page = btn.getAttribute('data-page');
-    document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.getAttribute('data-page') === page));
-    closeDrawer();
-    scrollTo(0, 0);
-    ({control: stat, lists: listsInit, apps: appsInit, config: confInit, logs: loadLog}[page] || (() => {}))();
-  };
+$('dialog-wrap').addEventListener('keydown', e => {
+  if(e.key !== 'Tab') return;
+  const els = [...$('dialog').querySelectorAll('button, input')].filter(el => el.offsetParent !== null && !el.disabled);
+  if(!els.length) return;
+  const first = els[0], last = els[els.length - 1], a = document.activeElement;
+  if(e.shiftKey && (a === first || a === $('dialog'))){ e.preventDefault(); last.focus(); }
+  else if(!e.shiftKey && a === last){ e.preventDefault(); first.focus(); }
 });
+
+/* ══ Навигация: Navigation bar + дочерние экраны ═════════════════════════
+   Разделы верхнего уровня — в Navigation bar, переход между ними fade through.
+   Приложения, Тестирование, Диагностика — дочерние экраны из overflow-меню:
+   shared axis X вперёд/назад, стрелка «Назад», панель навигации скрыта. */
+const PAGE_META = {
+  control: {title: 'nfqws2', init: () => stat()},
+  lists:   {title: 'Списки', init: () => listsInit()},
+  logs:    {title: 'Журналы', init: () => loadLog(),
+            actions: [{icon: 'refresh', label: 'Обновить журнал', fn: () => loadLog()}]},
+  config:  {title: 'Конфигурация', init: () => confInit()},
+  apps:    {title: 'Приложения', child: true, init: () => appsInit(),
+            actions: [{icon: 'refresh', label: 'Обновить список приложений', fn: () => loadPk()}]},
+  test:    {title: 'Тестирование', child: true, init: () => {}},
+  diag:    {title: 'Диагностика', child: true, init: () => diagInit(),
+            actions: [{icon: 'refresh', label: 'Проверить снова', fn: () => diagInit()}]}
+};
+let currentPage = 'control', lastTop = 'control', transitionCleanup = null;
+
+function renderAppBar(page, animate){
+  const m = PAGE_META[page];
+  $('back-btn').hidden = !m.child;
+  $('more-btn').hidden = !!m.child;
+  const t = $('app-title');
+  t.innerHTML = esc(m.title) +
+    (page === 'control' && S.version ? ' <span class="ver" id="header-version">' + esc(S.version) + '</span>' : '');
+  if(animate !== false){ t.classList.remove('swap'); void t.offsetWidth; t.classList.add('swap'); }
+  const box = $('bar-actions');
+  box.innerHTML = '';
+  (m.actions || []).forEach(a => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'icon-btn state';
+    b.title = a.label;
+    b.setAttribute('aria-label', a.label);
+    b.innerHTML = icon(a.icon, 's24');
+    b.onclick = a.fn;
+    box.append(b);
+  });
+}
+function renderNavBar(page){
+  document.querySelectorAll('.nav-dest').forEach(b => {
+    if(b.dataset.page === page) b.setAttribute('aria-current', 'page');
+    else b.removeAttribute('aria-current');
+  });
+  document.body.classList.toggle('nav-hidden', !!PAGE_META[page].child);
+}
+function showPage(page, mode){
+  if(transitionCleanup) transitionCleanup();
+  const from = document.querySelector('.page.active');
+  const to = document.querySelector('.page[data-page="' + page + '"]');
+  if(!to || from === to) return;
+  const animate = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if(from){
+    if(animate){
+      const r = from.getBoundingClientRect();
+      from.style.cssText = 'position:fixed;top:' + r.top + 'px;left:' + r.left + 'px;width:' + r.width + 'px';
+      from.classList.add('leaving', 'leave-' + mode);
+    }
+    from.classList.remove('active');
+  }
+  to.classList.add('active');
+  if(animate) to.classList.add('enter-' + mode);
+  scrollTo(0, 0);
+  $('app-bar').classList.remove('scrolled');
+  let timer = 0;
+  const cleanup = () => {
+    clearTimeout(timer);
+    if(from){ from.classList.remove('leaving', 'leave-' + mode); from.style.cssText = ''; }
+    to.classList.remove('enter-' + mode);
+    if(transitionCleanup === cleanup) transitionCleanup = null;
+  };
+  transitionCleanup = cleanup;
+  timer = setTimeout(cleanup, animate ? 420 : 0);
+}
+function navigate(page){
+  if(page === currentPage){
+    if(!PAGE_META[page].child) scrollTo({top: 0, behavior: 'smooth'});
+    return;
+  }
+  closeMenu();
+  const fromChild = !!PAGE_META[currentPage].child, toChild = !!PAGE_META[page].child;
+  const mode = toChild ? 'forward' : (fromChild ? 'back' : 'fade');
+  currentPage = page;
+  if(!toChild) lastTop = page;
+  renderNavBar(page);
+  renderAppBar(page);
+  showPage(page, mode);
+  PAGE_META[page].init();
+  scheduleSync();
+}
+function goBack(){ navigate(lastTop); }
+document.querySelectorAll('.nav-dest').forEach(b => { b.onclick = () => navigate(b.dataset.page); });
+
+function openOverflow(anchor){
+  openMenu(anchor, [
+    {label: 'Приложения', icon: 'apps', onClick: () => navigate('apps')},
+    {label: 'Тестирование', icon: 'test', onClick: () => navigate('test')},
+    {label: 'Диагностика', icon: 'medical', onClick: () => navigate('diag')},
+    '-',
+    {label: 'Тема оформления', icon: 'palette', onClick: openMonetModal}
+  ]);
+}
 
 /* elevation on scroll: surface → surface-container */
 addEventListener('scroll', () => $('app-bar').classList.toggle('scrolled', scrollY > 8), {passive: true});
 
+/* ── Modal bottom sheets: один scrim на все листы ──────────────────────── */
+let openSheetId = null, sheetReturnFocus = null;
+/* Фон за модальным листом должен выходить из порядка обхода и из AT.
+   inert появился в Chromium 102; старше — остаётся только scrim без ловушки. */
+function setBackgroundInert(on){
+  if(!('inert' in HTMLElement.prototype)) return;
+  ['#content', '.app-bar', '.nav-bar'].forEach(sel => {
+    const el = document.querySelector(sel);
+    if(el) el.inert = on;
+  });
+}
+function openSheet(id){
+  if(openSheetId && openSheetId !== id) closeSheet();
+  openSheetId = id;
+  const el = $(id);
+  sheetReturnFocus = document.activeElement;
+  el.tabIndex = -1;
+  el.classList.add('open');
+  $('sheet-scrim').classList.add('show');
+  setBackgroundInert(true);
+  setTimeout(() => el.focus({ preventScroll: true }), 60);
+  scheduleSync();
+}
+function closeSheet(){
+  if(!openSheetId) return;
+  const el = $(openSheetId);
+  el.classList.remove('open');
+  el.style.transform = '';
+  $('sheet-scrim').classList.remove('show');
+  setBackgroundInert(false);
+  if(sheetReturnFocus && sheetReturnFocus.focus) sheetReturnFocus.focus({ preventScroll: true });
+  sheetReturnFocus = null;
+  openSheetId = null;
+  scheduleSync();
+}
+function openMonetModal(){ drawThemeUI(); openSheet('monet-modal'); }
+function closeMonetModal(){ if(openSheetId === 'monet-modal') closeSheet(); }
+
+/* ── «Назад»: сначала оверлеи, потом дочерний экран, потом домой, потом выход ── */
+function handleBack(allowExit){
+  if(openMenuEntry){ closeMenu(); return true; }
+  if($('dialog-wrap').classList.contains('open')){ dialogResolve(false); return true; }
+  if($('color-wrap').classList.contains('open')){ closeColorDialog(); return true; }
+  if($('editor-panel').classList.contains('open')){ closeSlideEditor(); return true; }
+  if(openSheetId){ closeSheet(); return true; }
+  if(PAGE_META[currentPage].child){ goBack(); return true; }
+  if(allowExit && currentPage !== 'control'){ navigate('control'); return true; }
+  return false;
+}
 /* config.json: backInterceptor = javascript */
 window.onBackKeyPressed = function(){
-  if(openMenuEntry) return closeMenu();
-  if($('dialog-wrap').classList.contains('open')) return dialogResolve(false);
-  if($('color-wrap').classList.contains('open')) return closeColorDialog();
-  if($('editor-panel').classList.contains('open')) return closeSlideEditor();
-  if($('monet-modal').classList.contains('open')) return closeMonetModal();
-  if(drawerOpen()) return closeDrawer();
-  const active = document.querySelector('.page.active');
-  if(active && active.getAttribute('data-page') !== 'control'){
-    const home = document.querySelector('.nav-item[data-page="control"]');
-    if(home) home.click();
-    return;
-  }
+  if(handleBack(true)) return;
   try { window.ksu && window.ksu.exit && window.ksu.exit(); } catch(e) {}
 };
-document.addEventListener('keydown', e => {
-  if(e.key !== 'Escape') return;
-  if($('dialog-wrap').classList.contains('open')) return dialogResolve(false);
-  if($('color-wrap').classList.contains('open')) return closeColorDialog();
-  if($('editor-panel').classList.contains('open')) return closeSlideEditor();
-  if($('monet-modal').classList.contains('open')) return closeMonetModal();
-  if(drawerOpen()) closeDrawer();
+document.addEventListener('keydown', e => { if(e.key === 'Escape') handleBack(false); });
+
+/* ── Жест «Назад» через историю WebView ──────────────────────────────────
+   Большинство менеджеров (KernelSU, KsuWebUI) на жест «Назад» делают
+   webView.goBack(), если в истории есть запись, иначе закрывают WebUI.
+   Поэтому, пока есть что закрывать (оверлей, дочерний экран, не главная
+   вкладка), в истории держится ровно одна «сторожевая» запись: жест
+   «Назад» снимает её, срабатывает popstate, и мы делаем один шаг назад
+   внутри интерфейса. Когда закрывать нечего, запись убирается, и следующий
+   жест закрывает WebUI, как и положено на главном экране. */
+let histGuard = false, histIgnorePop = 0, syncTimer = 0;
+function needsGuard(){
+  return !!(openMenuEntry || openSheetId || editorCtx || currentPage !== 'control' ||
+    $('dialog-wrap').classList.contains('open') || $('color-wrap').classList.contains('open'));
+}
+function syncHistory(){
+  syncTimer = 0;
+  if(histIgnorePop > 0) return;            // ждём popstate от нашего history.back()
+  const need = needsGuard();
+  try {
+    if(need && !histGuard){ history.pushState({nfqGuard: true}, ''); histGuard = true; }
+    else if(!need && histGuard){ histGuard = false; histIgnorePop++; history.back(); }
+  } catch(e) {}
+}
+/* Откладываем на такт: «закрыть меню → открыть экран» должно дать одно итоговое состояние */
+function scheduleSync(){ if(!syncTimer) syncTimer = setTimeout(syncHistory, 0); }
+addEventListener('popstate', () => {
+  if(histIgnorePop > 0){ histIgnorePop--; scheduleSync(); return; }
+  histGuard = false;
+  handleBack(true);
+  scheduleSync();
 });
 
-/* ── Аптайм: tabular-nums, тик раз в секунду ──────────────────────────── */
+/* ── Клавиатура: нижняя панель не поднимается вместе с ней ───────────────
+   При adjustResize окно WebView сжимается, и fixed-панель выезжает над
+   клавиатурой. На время ввода прячем её, как это делают приложения Google.
+   Признак клавиатуры: фокус в текстовом поле и высота окна заметно меньше
+   эталонной; сразу после фокуса — авансом, пока клавиатура выезжает. */
+const isTextInput = el => !!el && (el.tagName === 'TEXTAREA' ||
+  (el.tagName === 'INPUT' && !/^(checkbox|radio|range|button|submit|file|color)$/i.test(el.type)));
+const vpHeight = () => (window.visualViewport ? visualViewport.height : innerHeight);
+let vpBase = vpHeight(), kbPendingUntil = 0;
+function updateKeyboard(){
+  const h = vpHeight(), focused = isTextInput(document.activeElement);
+  if(!focused) vpBase = Math.max(vpBase, h);
+  const open = focused && (vpBase - h > 120 || Date.now() < kbPendingUntil);
+  document.body.classList.toggle('kb-open', open);
+}
+document.addEventListener('focusin', e => {
+  if(!isTextInput(e.target)) return;
+  kbPendingUntil = Date.now() + 700;
+  updateKeyboard();
+  setTimeout(updateKeyboard, 750);
+});
+document.addEventListener('focusout', () => setTimeout(updateKeyboard, 60));
+(window.visualViewport || window).addEventListener('resize', updateKeyboard);
+addEventListener('orientationchange', () => { vpBase = 0; setTimeout(updateKeyboard, 300); });
+
+/* ── Bottom sheet: смахивание вниз за drag handle, нажатие на него закрывает ── */
+function initSheetDrag(sheet){
+  const zone = sheet.querySelector('.sheet-drag');
+  let y0 = null, dy = 0, dragged = false;
+  zone.addEventListener('pointerdown', e => {
+    y0 = e.clientY; dy = 0; dragged = false;
+    sheet.style.transition = 'none';
+    zone.setPointerCapture(e.pointerId);
+  });
+  zone.addEventListener('pointermove', e => {
+    if(y0 == null) return;
+    dy = Math.max(0, e.clientY - y0);
+    if(dy > 4) dragged = true;
+    sheet.style.transform = 'translateY(' + dy + 'px)';
+  });
+  const end = () => {
+    if(y0 == null) return;
+    y0 = null;
+    sheet.style.transition = '';
+    if(dy > Math.min(120, sheet.offsetHeight * .25)) requestAnimationFrame(() => closeSheet());
+    else sheet.style.transform = '';
+  };
+  zone.addEventListener('pointerup', end);
+  zone.addEventListener('pointercancel', end);
+  zone.addEventListener('click', () => { if(dragged){ dragged = false; return; } closeSheet(); });
+}
+document.querySelectorAll('.sheet').forEach(initSheetDrag);
+
+/* ── Время работы: tabular-nums, тик раз в секунду ─────────────────────── */
 let uptTimer = null;
 function fmtUptime(sec){
   sec = Math.max(0, Math.floor(sec));
@@ -1490,7 +1847,7 @@ function fmtUptime(sec){
 }
 function stopUptTimer(){ if(uptTimer){ clearInterval(uptTimer); uptTimer = null; } $('upt').textContent = '—'; }
 function startUptTimer(baseSec){
-  stopUptTimer();
+  if(uptTimer){ clearInterval(uptTimer); uptTimer = null; }
   let cur = Math.max(0, Math.floor(baseSec));
   const tick = () => { $('upt').textContent = fmtUptime(cur++); };
   tick();
@@ -1528,55 +1885,102 @@ const STRATEGY_INFO = {
   'eduncey': 'Eduncey: 4 стратегии (fonts.google, ozon, www.google) + STUN кастом.',
   'exp': 'EXP: Экспериментальный профиль STUN2 + max_ru с защитой Discord/unknown.'
 };
+let strategies = ['default'], currentStrategy = 'default', pendingStrategy = 'default';
+const strategyName = s => s === 'default' ? 'По умолчанию' : s;
+const strategyDesc = s => STRATEGY_INFO[s] || 'Пользовательская стратегия.';
 
 async function initStrategySelector(){
-  const strats = (await ctl(['list-strategies'])).trim().split('\n').filter(Boolean);
-  const cur = (await ctl(['get-strategy'])).trim() || 'default';
-  const options = ['default', ...strats.filter(s => s !== 'default')];
-  $('strategy-sel').innerHTML = options.map(s =>
-    '<option value="' + esc(s) + '"' + (s === cur ? ' selected' : '') + '>' +
-    (s === 'default' ? 'По умолчанию (nfqws2.conf)' : esc(s)) + '</option>').join('');
-  onStrategySelectChange();
+  const [r1, r2] = await Promise.all([ctlx(['list-strategies']), ctlx(['get-strategy'])]);
+  const list = r1.code ? [] : r1.out.split('\n').map(s => s.trim()).filter(Boolean);
+  strategies = ['default', ...list.filter(s => s !== 'default')];
+  currentStrategy = (!r2.code && r2.out.trim()) || 'default';
+  renderStrategyRow();
 }
-function onStrategySelectChange(){
-  const sel = $('strategy-sel'), opt = sel.options[sel.selectedIndex];
-  $('strategy-current').textContent = 'Выбрана: ' + ((opt && opt.textContent) || sel.value);
-  $('strategy-desc').textContent = STRATEGY_INFO[sel.value] || 'Пользовательская конфигурация стратегии.';
+function renderStrategyRow(){
+  $('strategy-current').textContent = strategyName(currentStrategy);
+  $('strategy-desc').textContent = strategyDesc(currentStrategy);
 }
-function openStrategyMenu(anchor){
-  const sel = $('strategy-sel');
-  const items = Array.prototype.map.call(sel.options, o => ({
-    label: o.textContent, icon: o.value === sel.value ? 'check' : null,
-    onClick: () => { sel.value = o.value; onStrategySelectChange(); }
-  }));
-  openMenu(anchor, items.length ? items : [{label: 'Стратегии не загружены', icon: null}]);
+function openStrategySheet(){
+  pendingStrategy = currentStrategy;
+  $('strategy-list').innerHTML = strategies.map(s =>
+    '<label class="list-item two-line clickable state' + (s === pendingStrategy ? ' selected' : '') + '">' +
+      '<input type="radio" class="radio" name="strategy" value="' + esc(s) + '"' + (s === pendingStrategy ? ' checked' : '') + '>' +
+      '<span class="li-text">' +
+        '<span class="li-primary">' + esc(strategyName(s)) + '</span>' +
+        '<span class="li-secondary">' + esc(strategyDesc(s)) + '</span>' +
+      '</span>' +
+      (s === currentStrategy ? '<span class="li-trail"><span class="pill">Текущая</span></span>' : '') +
+    '</label>').join('');
+  $('strategy-list').querySelectorAll('input.radio').forEach(r => {
+    r.onchange = () => {
+      pendingStrategy = r.value;
+      $('strategy-list').querySelectorAll('.list-item').forEach(li =>
+        li.classList.toggle('selected', li.querySelector('input').value === pendingStrategy));
+    };
+  });
+  $('strategy-apply').innerHTML = icon('check', 's18') + (S.running ? 'Применить и перезапустить' : 'Применить');
+  openSheet('strategy-sheet');
+  const list = $('strategy-list'), sel = list.querySelector('.selected');
+  if(sel) list.scrollTop = sel.offsetTop - list.offsetTop - (list.clientHeight - sel.offsetHeight) / 2;
 }
 async function applySelectedStrategy(){
-  const val = $('strategy-sel').value;
-  const ok = await mdConfirm('Применить стратегию «' + val + '»?',
-    'Действующий nfqws2.conf сохранится как .bak, затем служба перезапустится.', {ok: 'Применить'});
-  if(!ok) return;
+  const val = pendingStrategy;
+  closeSheet();
   const r = await withBusy(['set-strategy', val]);
-  if(r.code){ toast((r.err || 'Ошибка применения стратегии').trim()); return; }
-  toast(r.out.trim() || 'Стратегия применена');
-  await act('restart');
+  if(r.code){ toast((r.err || 'Не удалось применить стратегию').trim()); return; }
+  currentStrategy = val;
+  renderStrategyRow();
+  if(S.running) await act('restart');
+  else { toast('Стратегия «' + strategyName(val) + '» применится при следующем запуске'); stat(); }
 }
 
-/* ══ 1. СОСТОЯНИЕ ════════════════════════════════════════════════════════ */
-/* Только [ключ, подпись]: строки-переключатели в M3 однострочные.
-   Описания и ведущие иконки здесь были лишними и ломали ритм списка. */
+/* ══ СОСТОЯНИЕ ═══════════════════════════════════════════════════════════ */
+/* [ключ, подпись, пояснение]: пояснение только там, где подпись сама не объясняет эффект */
 const SW = [
-  ['AUTOSTART', 'Автозапуск при загрузке'],
-  ['WATCHDOG', 'Контроль работы'],
-  ['IPV6_ENABLED', 'Обрабатывать IPv6'],
-  ['BLOCK_QUIC', 'Блокировать QUIC'],
-  ['WAKELOCK', 'Не давать телефону спать']
+  ['AUTOSTART', 'Автозапуск при загрузке', ''],
+  ['WATCHDOG', 'Контроль работы', 'Перезапускает службу и восстанавливает правила'],
+  ['IPV6_ENABLED', 'Обрабатывать IPv6', ''],
+  ['BLOCK_QUIC', 'Блокировать QUIC', 'Браузеры перейдут с HTTP/3 на TCP'],
+  ['WAKELOCK', 'Не давать телефону спать', 'Повышает расход батареи']
 ];
 const KEY = {AUTOSTART: 'autostart', WATCHDOG: 'watchdog', IPV6_ENABLED: 'ipv6', BLOCK_QUIC: 'block_quic', WAKELOCK: 'wakelock_on'};
+const LIMITS = [
+  ['PKT_LIMIT_OUT', 'Исходящие пакеты', 'Сколько первых пакетов соединения обрабатывать', 'pkt_limit_out'],
+  ['PKT_LIMIT_IN', 'Входящие пакеты', 'Сколько первых ответных пакетов обрабатывать', 'pkt_limit_in']
+];
 
 function banner(kind, ic, text){
   return '<div class="banner' + (kind ? ' ' + kind : '') + '">' + icon(ic) +
     '<span class="grow">' + esc(text) + '</span></div>';
+}
+
+let svcBusy = '';
+function renderHeroActions(){
+  const run = !!S.running, bt = $('bt'), rs = $('bt-restart');
+  const busyLabel = {start: 'Запуск…', stop: 'Остановка…', restart: 'Перезапуск…'}[svcBusy];
+  bt.disabled = !!svcBusy;
+  bt.innerHTML = busyLabel
+    ? '<span class="spinner"></span><span>' + busyLabel + '</span>'
+    : icon(run ? 'stop' : 'play') + '<span>' + (run ? 'Остановить' : 'Запустить') + '</span>';
+  rs.hidden = !run || !!svcBusy;
+}
+
+function renderParams(j){
+  const sw = SW.map(([k, label, hint]) =>
+    '<label class="list-item clickable state' + (hint ? ' two-line' : '') + '">' +
+      '<span class="li-text"><span class="li-primary">' + esc(label) + '</span>' +
+        (hint ? '<span class="li-secondary">' + esc(hint) + '</span>' : '') + '</span>' +
+      '<span class="li-trail"><input type="checkbox" class="switch" role="switch" aria-label="' + esc(label) + '"' +
+        (j[KEY[k]] == 1 ? ' checked' : '') + ' onchange="setp(' + jsArg(k) + ', this.checked ? 1 : 0)"></span>' +
+    '</label>');
+  const lim = LIMITS.map(([k, label, hint, jk]) =>
+    '<div class="list-item two-line clickable state" role="button" tabindex="0" aria-haspopup="dialog"' +
+      ' onclick="editLimit(' + jsArg(k) + ', ' + jsArg(label) + ', ' + (+j[jk] || 15) + ')">' +
+      '<span class="li-text"><span class="li-primary">' + esc(label) + '</span>' +
+        '<span class="li-secondary">' + esc(hint) + '</span></span>' +
+      '<span class="li-trail li-value">' + esc(j[jk] != null ? j[jk] : '—') + '</span>' +
+    '</div>');
+  $('sws').innerHTML = sw.concat(lim).join('');
 }
 
 async function stat(){
@@ -1586,173 +1990,406 @@ async function stat(){
   let j = null, a = raw.indexOf('{'), b = raw.lastIndexOf('}');
   if(a >= 0 && b > a){ try { j = JSON.parse(raw.slice(a, b + 1)); } catch(e) {} }
   if(!j){
+    $('hero-status').className = 'hero offline';
     $('st').textContent = 'Нет связи с модулем';
     $('sub').textContent = 'Проверьте root-доступ и наличие ' + CTL;
-    $('hs').className = 'status-pill';
-    $('hs-text').textContent = 'нет связи';
-    $('warn').innerHTML = banner('danger', 'error', 'json-status: ' + (raw.trim() || '(пустой ответ)').slice(0, 200));
+    $('queue-num').textContent = '—';
+    $('qdrop-num').textContent = '—';
     stopUptTimer();
+    renderHeroActions();
+    $('warn').innerHTML = banner('danger', 'error', 'json-status: ' + (raw.trim() || '(пустой ответ)').slice(0, 200));
     return;
   }
   S = j;
-  $('header-version').textContent = j.version || 'v1.3.6';
+  const hv = $('header-version');
+  if(hv) hv.textContent = j.version || '';
+  else if(currentPage === 'control') renderAppBar('control', false);
+
   $('hero-status').className = 'hero' + (j.running ? ' running' : '');
-  $('st').textContent = j.running ? 'Служба запущена' : 'Служба остановлена';
-  $('hs').className = 'status-pill' + (j.running ? ' on' : '');
-  $('hs-text').textContent = j.running ? 'PID ' + j.pid : 'выкл';
-  const lim = {connbytes: 'лимит на обе стороны', connmark_out: 'лимит только на исходящие'}[j.limiter] || '';
-  $('sub').textContent = 'Режим: ' + (j.mode || '—') +
-    (j.strategy ? ' · пресет ' + j.strategy : '') + (j.running && lim ? ' · ' + lim : '');
+  $('st').textContent = j.running ? 'Служба работает' : 'Служба остановлена';
+  const lim = {connbytes: 'лимит connbytes', connmark_out: 'лимит connmark'}[j.limiter] || '';
+  // PID и пресет — из нашей версии: ctl их отдаёт, и без читателя они были
+  // мёртвым грузом в json-status (проверка контракта это ловила).
+  $('sub').textContent = (j.running && j.pid ? 'PID ' + j.pid + ' · ' : '') +
+    'Режим ' + (j.mode || '—') + (j.strategy ? ' · пресет ' + j.strategy : '') +
+    (j.running && lim ? ', ' + lim : '');
   $('queue-num').textContent = j.running ? (j.queue || '—') : '—';
-  $('qdrop-num').textContent = j.qdrop || 0;
-
+  const qd = $('qdrop-num');
+  qd.textContent = j.running ? (j.qdrop || 0) : '—';
+  qd.classList.toggle('bad', j.running && j.qdrop > 0);
   if(j.running) startUptTimer(j.uptime || 0); else stopUptTimer();
-
-  $('act-split').className = 'split' + (j.running ? ' stop' : '');
-  $('bt').innerHTML = icon(j.running ? 'stop' : 'play') +
-    '<span>' + (j.running ? 'Остановить' : 'Запустить') + '</span>';
-
-  const c = j.counts || {};
-  const tiles = [['user', c.user], ['auto', c.auto], ['exclude', c.exclude],
-                 ['ipset', c.ipset], ['ipset_excl', c.ipset_exclude], ['apps', c.apps]];
-  if(j.app_uids > 0) tiles.push(['uid', j.app_uids]);
-  $('cnt').innerHTML = tiles.filter(t => t[1] != null)
-    .map(t => '<div class="metric"><span class="metric-label">' + esc(t[0]) + '</span>' +
-      '<span class="metric-value">' + esc(t[1]) + '</span></div>').join('');
-
-  $('sws').innerHTML = SW.map(s =>
-    '<div class="list-item">' +
-      '<span class="li-text"><span class="li-primary">' + esc(s[1]) + '</span></span>' +
-      '<span class="li-trail"><input type="checkbox" class="switch" role="switch" aria-label="' + esc(s[1]) + '"' +
-        (j[KEY[s[0]]] == 1 ? ' checked' : '') + ' onchange="setp(' + jsArg(s[0]) + ', this.checked ? 1 : 0)"></span>' +
-    '</div>').join('');
-
+  renderHeroActions();
+  renderParams(j);
   $('dbg').checked = (j.log_level == 1);
-  $('pkout').value = j.pkt_limit_out;
-  $('pkin').value = j.pkt_limit_in;
-
-  const badge = $('nav-apps-badge');
-  badge.hidden = !(j.app_uids > 0);
-  badge.textContent = j.app_uids;
 
   let w = '';
   if(j.qdrop > 0) w += banner('danger', 'warn',
     'Ядро сбросило ' + j.qdrop + ' пакетов: nfqws2 не успевает обрабатывать очередь ' + j.queue + '.');
-  if(j.log_level == 1) w += banner('', 'info', 'Подробный debug-лог включён — обработка заметно медленнее.');
+  if(j.log_level == 1) w += banner('', 'info', 'Включён подробный журнал отладки: обработка заметно медленнее.');
   $('warn').innerHTML = w;
+
+  if(currentPage === 'lists'){ renderMode(); renderListFiles(); }
 }
 
 async function setp(k, v){
   const r = await withBusy(['set', k, String(v)]);
-  const msg = r.code ? r.err.trim() : (r.out.trim().split('\n').pop() || 'OK');
-  toast(msg, {label: 'ОБНОВИТЬ', fn: stat});
+  const msg = r.code ? (r.err || 'Не удалось сохранить').trim() : (r.out.trim().split('\n').pop() || 'Сохранено');
+  const needRestart = !r.code && S.running && /перезапуск/i.test(r.out);
+  toast(msg, needRestart ? {label: 'Перезапустить', fn: restartSvc} : null);
   stat();
+}
+async function editLimit(key, title, cur){
+  const v = await mdPrompt(title, 'Целое число от 1 до 15.', String(cur), 'Пакетов на соединение', {type: 'number', inputmode: 'numeric'});
+  if(v == null || v === '') return;
+  const n = parseInt(v, 10);
+  if(!(n >= 1 && n <= 15)){ toast('Нужно целое число от 1 до 15'); return; }
+  if(n !== cur) setp(key, n);
 }
 async function act(a){
+  svcBusy = a;
+  if(a === 'stop') stopUptTimer();
+  renderHeroActions();
   const r = await withBusy([a], 40000);
+  svcBusy = '';
   toast(((r.out || '') + (r.err || '')).trim().split('\n').pop() || 'Готово');
-  stat();
-}
-function toggle(){ stopUptTimer(); act(S.running ? 'stop' : 'start'); }
-
-function openServiceMenu(anchor){
-  openMenu(anchor, [
-    {label: 'Перезапустить', icon: 'restart', onClick: () => { stopUptTimer(); act('restart'); }},
-    {label: 'Проверить ядро и правила', icon: 'medical', onClick: doctor},
-    {label: 'Аргументы запуска', icon: 'terminal', onClick: showArgs},
-    '-',
-    {label: 'Экспорт журналов', icon: 'download', onClick: exportLogs}
-  ]);
-}
-
-async function doctor(){
-  $('doc').innerHTML = '<div class="list-item"><span class="spinner"></span>' +
-    '<span class="li-text"><span class="li-secondary">Проверка ядра и правил…</span></span></div>';
-  const t = await ctl(['doctor'], 30000);
-  const map = {ok: ['ok', 'check'], warn: ['warn', 'warn'], fail: ['bad', 'error'], info: ['info', 'info']};
-  $('doc').innerHTML = t.trim().split('\n').filter(Boolean).map(l => l.split('\t')).map(([s, n, d]) => {
-    const m = map[s] || map.info;
-    return '<div class="list-item two-line">' +
-      '<span class="status ' + m[0] + '">' + icon(m[1], 's16') + '</span>' +
-      '<span class="li-text"><span class="li-primary">' + esc(n || '') + '</span>' +
-      '<span class="li-secondary">' + esc(d || '') + '</span></span></div>';
-  }).join('') || '<div class="list-item"><span class="li-text"><span class="li-secondary">Нет данных</span></span></div>';
-}
-async function showArgs(){
-  const e = $('args');
-  e.hidden = !e.hidden;
-  if(!e.hidden) e.textContent = await ctl(['get-logs', 'args', '5']);
-}
-
-/* ══ 2. СПИСКИ ═══════════════════════════════════════════════════════════ */
-const LISTS = [
-  ['auto', 'auto.list — выучено'],
-  ['user', 'user.list — обходить'],
-  ['exclude', 'exclude.list — не трогать'],
-  ['ipset', 'ipset.list — IP для обхода'],
-  ['ipset_exclude', 'ipset_exclude.list — IP-исключения'],
-  ['probe_hosts', 'probe_hosts — для проверки']
-];
-$('lsel').innerHTML = LISTS.map(l => '<option value="' + l[0] + '">' + l[1] + '</option>').join('');
-
-async function listsInit(){
   await stat();
+}
+function toggle(){ act(S.running ? 'stop' : 'start'); }
+function restartSvc(){ act('restart'); }
+
+/* ══ СПИСКИ ══════════════════════════════════════════════════════════════ */
+const MODE_INFO = {
+  auto: 'Обходит домены из user.list и сам добавляет в auto.list те, что оказались заблокированы.',
+  list: 'Обходит только домены из user.list.',
+  all: 'Обходит всё, кроме доменов из exclude.list.'
+};
+const LIST_FILES = [
+  ['auto', 'auto.list', 'Выученные автоматически', 'list'],
+  ['user', 'user.list', 'Домены для обхода', 'list'],
+  ['exclude', 'exclude.list', 'Домены-исключения', 'list'],
+  ['ipset', 'ipset.list', 'IP-адреса и подсети для обхода', 'globe'],
+  ['ipset_exclude', 'ipset_exclude.list', 'IP-исключения', 'globe'],
+  ['probe_hosts', 'probe_hosts.list', 'Адреса для проверки связи', 'wifi']
+];
+const fmtCount = n => Number(n).toLocaleString('ru-RU');
+
+async function listsInit(){ await stat(); renderMode(); renderListFiles(); }
+function renderMode(){
   $('mode').innerHTML = ['auto', 'list', 'all'].map(m =>
     '<button class="seg state' + (S.mode === m ? ' on' : '') + '" aria-pressed="' + (S.mode === m) + '"' +
     ' onclick="setMode(' + jsArg(m) + ')"><span class="check">' + icon('check', 's18') + '</span>' + m + '</button>').join('');
-  loadList();
+  $('mode-desc').textContent = MODE_INFO[S.mode] || '';
 }
-async function setMode(m){ await withBusy(['set-mode', m]); toast('Режим: ' + m); listsInit(); }
-async function loadList(){ $('ltx').value = await ctl(['get-list', $('lsel').value]); }
-async function clearAuto(){ await withBusy(['clear-auto']); toast('auto.list очищен'); loadList(); stat(); }
+function renderListFiles(){
+  const c = S.counts || {};
+  $('list-files').innerHTML = LIST_FILES.map(([key, file, desc, ic]) =>
+    '<div class="list-item two-line clickable state" role="button" tabindex="0"' +
+      ' onclick="openSlideEditor(' + jsArg('list') + ', ' + jsArg(key) + ')">' +
+      '<span class="li-icon">' + icon(ic, 's24') + '</span>' +
+      '<span class="li-text"><span class="li-primary li-mono">' + file + '</span>' +
+        '<span class="li-secondary">' + desc + '</span></span>' +
+      '<span class="li-trail">' + (c[key] != null ? '<span class="li-value">' + fmtCount(c[key]) + '</span>' : '') +
+        icon('chevron-right', 's24') + '</span>' +
+    '</div>').join('');
+}
+async function setMode(m){
+  const r = await withBusy(['set-mode', m]);
+  const needRestart = !r.code && S.running && /перезапуск/i.test(r.out);
+  toast(r.code ? (r.err || 'Не удалось сменить режим').trim() : 'Режим: ' + m,
+    needRestart ? {label: 'Перезапустить', fn: restartSvc} : null);
+  listsInit();
+}
+async function clearAuto(){
+  if(!await mdConfirm('Очистить auto.list?', 'Выученные автоматически домены будут удалены.', {ok: 'Очистить', danger: true})) return;
+  const r = await withBusy(['clear-auto']);
+  toast(r.code ? (r.err || 'Не удалось очистить').trim() : 'auto.list очищен');
+  stat();
+}
 async function addDom(){
   const d = $('dom').value.trim();
   if(!d) return;
   const r = await withBusy(['add-domain', d]);
-  toast((r.out + r.err).trim());
-  $('dom').value = '';
-  if($('lsel').value === 'user') loadList();
+  toast((r.out + r.err).trim() || 'Добавлено');
+  if(!r.code) $('dom').value = '';
   stat();
 }
 async function resetLists(){
-  const ok = await mdConfirm('Вернуть списки к стандартным?',
-    'Правки в user / exclude / ipset / probe_hosts будут удалены.', {ok: 'Сбросить', danger: true});
+  const ok = await mdConfirm('Вернуть стандартные списки?',
+    'Правки в user, exclude, ipset и probe_hosts будут удалены.', {ok: 'Вернуть', danger: true});
   if(!ok) return;
-  await withBusy(['reset-lists']); toast('Списки сброшены'); loadList(); stat();
+  await withBusy(['reset-lists']);
+  toast('Списки возвращены к стандартным');
+  stat();
 }
 
-/* ══ 3. ПРИЛОЖЕНИЯ ═══════════════════════════════════════════════════════ */
+/* ══ ЖУРНАЛЫ ═════════════════════════════════════════════════════════════ */
+const LOG_SOURCES = [['service', 'Служба'], ['nfqws', 'Процесс'], ['auto', 'Автообучение'], ['debug', 'Отладка']];
+let logSource = 'service', logLines = '100';
+function renderLogChips(){
+  const src = (LOG_SOURCES.find(s => s[0] === logSource) || LOG_SOURCES[0])[1];
+  $('log-chips').innerHTML =
+    '<button class="chip dropdown state" aria-haspopup="menu" aria-expanded="false" aria-label="Журнал: ' + src + '"' +
+      ' onclick="pickLogSource(this)"><span>' + src + '</span>' + icon('caret', 's18') + '</button>' +
+    '<button class="chip dropdown state" aria-haspopup="menu" aria-expanded="false" aria-label="Показывать строк: ' + logLines + '"' +
+      ' onclick="pickLogLines(this)"><span>' + logLines + ' строк</span>' + icon('caret', 's18') + '</button>';
+}
+function pickLogSource(anchor){
+  openMenu(anchor, LOG_SOURCES.map(([k, label]) => ({
+    label, icon: k === logSource ? 'check' : '',
+    onClick: () => { logSource = k; loadLog(); }
+  })));
+}
+function pickLogLines(anchor){
+  openMenu(anchor, ['100', '300', '1000'].map(n => ({
+    label: n + ' строк', icon: n === logLines ? 'check' : '',
+    onClick: () => { logLines = n; loadLog(); }
+  })));
+}
+async function loadLog(){
+  renderLogChips();
+  const r = await ctlx(['get-logs', logSource, logLines], 30000);
+  $('lg').textContent = (r.code ? (r.err || 'Не удалось прочитать журнал') : r.out).trim() || 'Журнал пуст';
+  $('lg').scrollTop = $('lg').scrollHeight;
+}
+async function exportLogs(){
+  const r = await withBusy(['export-logs'], 30000);
+  toast((r.out + r.err).trim() || 'Журналы сохранены в Download');
+}
+async function clearLogs(){
+  if(!await mdConfirm('Очистить журналы?', 'service.log, nfqws2.log, отладочный и журнал автообучения будут обнулены.',
+    {ok: 'Очистить', danger: true})) return;
+  await withBusy(['clear-logs']);
+  toast('Журналы очищены');
+  loadLog();
+}
+
+/* ══ КОНФИГУРАЦИЯ И ИМПОРТ ═══════════════════════════════════════════════ */
+const IMPORT_EXTS = ['.txt', '.conf', '.ini', '.cfg', '.list', '.bat'];
+async function confInit(){ await loadImports(); }
+async function resetConf(){
+  const ok = await mdConfirm('Сбросить конфиг к стандартному?',
+    'Действующий nfqws2.conf сохранится как .bak.', {ok: 'Сбросить', danger: true});
+  if(!ok) return;
+  const r = await withBusy(['reset-conf']);
+  toast(r.code ? (r.err || 'Не удалось сбросить').trim() : 'Конфиг сброшен',
+    !r.code && S.running ? {label: 'Перезапустить', fn: restartSvc} : null);
+  stat();
+}
+async function loadImports(){
+  const r = await ctlx(['list-imports']);
+  const names = r.code ? [] : r.out.split('\n').map(s => s.trim()).filter(Boolean);
+  $('impList').innerHTML = names.length ? names.map(n =>
+    '<div class="list-item clickable state" role="button" tabindex="0" data-imp="' + esc(n) + '"' +
+      ' onclick="openImport(this.dataset.imp)">' +
+      '<span class="li-icon">' + icon('file', 's24') + '</span>' +
+      '<span class="li-text"><span class="li-primary truncate">' + esc(n) + '</span></span>' +
+      '<button class="icon-btn sm state" aria-haspopup="menu" aria-label="Действия с конфигом ' + esc(n) + '"' +
+        ' data-imp="' + esc(n) + '" onclick="event.stopPropagation(); importMenu(this, this.dataset.imp)">' +
+        icon('more', 's24') + '</button>' +
+    '</div>').join('')
+    : '<div class="empty"><span class="empty-icon">' + icon('upload', 's24') + '</span>' +
+      '<span>Импортированные конфиги появятся здесь. Откройте любой, чтобы посмотреть его вместе с вашими настройками Android и сохранить как nfqws2.conf.</span></div>';
+}
+function importMenu(anchor, name){
+  openMenu(anchor, [
+    {label: 'Открыть', icon: 'edit', onClick: () => openImport(name)},
+    {label: 'Переименовать', icon: 'tune', onClick: () => renameImport(name)},
+    '-',
+    {label: 'Удалить', icon: 'trash', onClick: () => delImport(name)}
+  ]);
+}
+async function openImport(name){
+  const r = await withBusy(['get-import-merged-b64', name]);
+  if(r.code){ toast((r.err || 'Импорт не найден').trim()); return; }
+  openEditorWith({
+    target: 'conf', title: name,
+    hint: 'Предпросмотр импорта с вашими настройками Android. «Сохранить» заменит nfqws2.conf.',
+    text: unb64(r.out.trim()), dirty: true
+  });
+}
+async function renameImport(name){
+  const v = await mdPrompt('Переименовать конфиг', 'Слэши, кавычки и $ будут убраны.', name, 'Имя');
+  if(!v || v === name) return;
+  const r = await withBusy(['rename-import', name, v]);
+  toast(r.code ? (r.err || 'Не удалось переименовать').trim() : 'Переименовано');
+  loadImports();
+}
+async function delImport(name){
+  if(!await mdConfirm('Удалить «' + name + '»?', 'Файл импорта будет удалён безвозвратно.', {ok: 'Удалить', danger: true})) return;
+  await withBusy(['delete-import', name]);
+  toast('Удалено');
+  loadImports();
+}
+function showImportMsg(text){
+  $('impMsg').textContent = text || '';
+  $('impMsg').hidden = !text;
+}
+async function importFiles(files){
+  if(!files || !files.length) return;
+  let ok = 0, fail = 0;
+  const errs = [];
+  for(const f of files){
+    const ext = (f.name.match(/\.[^.]+$/) || [''])[0].toLowerCase();
+    if(!IMPORT_EXTS.includes(ext)){ fail++; errs.push(f.name + ': расширение не подходит (' + IMPORT_EXTS.join(' ') + ')'); continue; }
+    const r = await withBusy(['import-add-b64', b64(f.name.replace(/\.[^.]+$/, '')), b64(await f.text())]);
+    if(!r.code) ok++; else { fail++; errs.push(f.name + ': ' + (r.err || 'отклонён').trim()); }
+  }
+  $('impFile').value = '';
+  showImportMsg(errs.join('\n'));
+  toast('Импортировано: ' + ok + (fail ? ', отклонено: ' + fail : ''));
+  loadImports();
+}
+function importPaste(){
+  openEditorWith({target: 'import-new', title: 'Новый импорт', saveLabel: 'Импортировать', text: '',
+    hint: 'Вставьте конфиг nfqws2-keenetic целиком. Перед сохранением модуль проверит, что это действительно он.'});
+}
+
+/* ══ Full-screen dialog: редактор ════════════════════════════════════════
+   Ошибка сохранения не закрывает редактор: правки остаются на месте.
+   Закрытие с несохранёнными правками спрашивает подтверждение. */
+let editorCtx = null, editorReturnFocus = null;
+function openSlideEditor(type, key){
+  if(type === 'conf') openEditorWith({target: 'conf', title: 'nfqws2.conf',
+    hint: 'Конфиг проверяется на устройстве: при ошибке сохранение отклоняется. Изменения вступят в силу после перезапуска службы.',
+    load: ['get-conf']});
+  else if(type === 'list') openEditorWith({target: 'list', key, title: key + '.list',
+    hint: 'По одной записи на строку. Строки с # игнорируются.', load: ['get-list', key]});
+  else if(type === 'apps') openEditorWith({target: 'list', key: 'apps', title: 'apps.list',
+    hint: 'Имена пакетов по одному на строку, например com.example.app.', load: ['get-list', 'apps']});
+}
+async function openEditorWith(o){
+  editorCtx = o;
+  const t = $('panel-editor-text');
+  $('panel-title-text').textContent = o.title;
+  $('panel-hint').textContent = o.hint;
+  $('panel-hint').className = 'helper';
+  $('panel-save-btn').disabled = !!o.load;
+  $('panel-save-btn').textContent = o.saveLabel || 'Сохранить';
+  t.value = o.load ? 'Загрузка…' : o.text;
+  t.readOnly = !!o.load;
+  editorReturnFocus = document.activeElement;
+  $('editor-panel').classList.add('open');
+  setBackgroundInert(true);
+  scheduleSync();
+  if(o.load){
+    const r = await ctlx(o.load, 30000);
+    if(editorCtx !== o) return;
+    if(r.code){
+      $('editor-panel').classList.remove('open');
+      setBackgroundInert(false);
+      editorCtx = null;
+      scheduleSync();
+      toast((r.err || 'Не удалось открыть файл').trim());
+      return;
+    }
+    t.value = r.out;
+    t.readOnly = false;
+    $('panel-save-btn').disabled = false;
+  }
+  o.original = o.dirty ? null : t.value;
+  t.focus({ preventScroll: true });
+}
+async function closeSlideEditor(force){
+  const o = editorCtx;
+  if(!force && o && o.original !== $('panel-editor-text').value){
+    const discard = await mdConfirm('Закрыть без сохранения?', 'Изменения в «' + o.title + '» будут потеряны.',
+      {ok: 'Закрыть', cancel: 'Продолжить правку'});
+    if(!discard) return;
+  }
+  $('editor-panel').classList.remove('open');
+  setBackgroundInert(false);
+  if(editorReturnFocus && editorReturnFocus.focus) editorReturnFocus.focus({ preventScroll: true });
+  editorReturnFocus = null;
+  editorCtx = null;
+  scheduleSync();
+}
+$('panel-save-btn').onclick = async () => {
+  const o = editorCtx;
+  if(!o) return;
+  const val = $('panel-editor-text').value;
+  if(o.target === 'import-new'){
+    if(!val.trim()){ toast('Вставьте текст конфига'); return; }
+    const name = await mdPrompt('Имя конфига', 'Можно по-русски. Слэши, кавычки и $ будут убраны.', 'import', 'Имя');
+    if(!name) return;
+    const ri = await withBusy(['import-add-b64', b64(name), b64(val)]);
+    if(ri.code){
+      $('panel-hint').textContent = (ri.err || 'Конфиг отклонён').trim();
+      $('panel-hint').className = 'helper err';
+      toast('Конфиг отклонён');
+      return;
+    }
+    closeSlideEditor(true);
+    showImportMsg('');
+    toast('Импортировано');
+    loadImports();
+    return;
+  }
+  const r = o.target === 'conf'
+    ? await withBusy(['save-conf-b64', b64(val)])
+    : await withBusy(['save-list-b64', o.key, b64(val)], 30000);
+  if(r.code){ toast((r.err || 'Сохранение отклонено').trim()); return; }
+  closeSlideEditor(true);
+  if(o.target === 'conf') toast('Конфиг сохранён', S.running ? {label: 'Перезапустить', fn: restartSvc} : null);
+  else toast(o.key + '.list сохранён');
+  stat();
+  // Список правили вручную мимо togglePkg() — кэш выбранных приложений устарел.
+  if(o.key === 'apps') appsCache = null;
+  if(o.key === 'apps' && currentPage === 'apps') appsInit();
+};
+
+/* ══ ПРИЛОЖЕНИЯ ══════════════════════════════════════════════════════════ */
+const APP_MODES = [
+  ['off', 'Выключен', 'Обрабатывается трафик всех приложений'],
+  ['include', 'Только выбранные', 'Трафик раздачи (hotspot) не обрабатывается'],
+  ['exclude', 'Все, кроме выбранных', 'Выбранные приложения идут напрямую']
+];
 async function appsInit(){
   await stat();
-  $('amode').value = S.app_mode || 'off';
-  $('apps-info').textContent = (S.app_uids > 0)
-    ? 'Фильтр активен · UID разрешено: ' + S.app_uids + ' · пакетов в apps.list: ' + ((S.counts || {}).apps || 0)
-    : 'Фильтр не активен (APP_MODE = ' + (S.app_mode || 'off') + ')';
+  renderAppModes();
+  if(pkgs.length) drawPk(); else loadPk();
+}
+function renderAppModes(){
+  const cur = S.app_mode || 'off';
+  $('amode-list').innerHTML = APP_MODES.map(([v, label, hint]) =>
+    '<label class="list-item two-line clickable state' + (v === cur ? ' selected' : '') + '">' +
+      '<input type="radio" class="radio" name="amode" value="' + v + '"' + (v === cur ? ' checked' : '') +
+        ' onchange="setAppMode(this.value)">' +
+      '<span class="li-text"><span class="li-primary">' + label + '</span><span class="li-secondary">' + hint + '</span></span>' +
+    '</label>').join('');
+  const n = (S.counts || {}).apps || 0;
+  $('apps-info').textContent = cur === 'off'
+    ? 'Фильтр выключен. Выбрано приложений: ' + n + '.'
+    : 'Фильтр включён. Выбрано приложений: ' + n + (S.app_uids > 0 ? ', UID найдено: ' + S.app_uids : '') + '.';
+}
+async function setAppMode(v){
+  const r = await withBusy(['set', 'APP_MODE', v], 30000);
+  toast(r.code ? (r.err || 'Не удалось сменить режим').trim() : 'Режим фильтра сохранён');
+  await stat();
+  renderAppModes();
 }
 async function loadPk(){
-  $('pk-card').hidden = false;
+  clearTimeout(pkTimer);   // отменяем отложенную перерисовку от старого ввода
   $('pk').innerHTML = '<div class="list-item"><span class="spinner"></span>' +
-    '<span class="li-text"><span class="li-secondary">Загрузка списка пакетов…</span></span></div>';
-  pkgs = (await ctl(['list-apps'], 30000)).trim().split('\n').filter(Boolean);
-  appsCache = null;          // список могли изменить снаружи
-  clearTimeout(pkTimer);     // и отменяем отложенную перерисовку от старого ввода
-  $('pf').value = '';
+    '<span class="li-text"><span class="li-secondary">Загрузка списка приложений…</span></span></div>';
+  const r = await ctlx(['list-apps'], 30000);
+  pkgs = r.code ? [] : r.out.split('\n').map(s => s.trim()).filter(Boolean);
+  if(r.code) toast((r.err || 'Не удалось получить список приложений').trim());
   await drawPk();
-  $('pk-card').scrollIntoView({behavior: 'smooth', block: 'start'});
 }
-/* apps.list кэшируется на время работы со страницей: drawPk() вызывается на
-   каждое нажатие клавиши в поиске, а каждый ctl — это запуск процесса на
-   устройстве. Возвращается ТОТ ЖЕ Set, а не копия: togglePkg меняет его и тут
-   же сохраняет, поэтому кэш остаётся согласованным. Сбрасывается в loadPk(),
-   где список мог измениться извне. */
+/* Список выбранных приложений кэшируется. drawPk() — обработчик oninput у поля
+   поиска, и без кэша каждая нажатая буква запускала отдельный шелл: на телефоне
+   это заметные рывки при наборе, а результат всё равно не менялся — фильтруется
+   только локальный список пакетов. Кэш сбрасывается там, где список мог
+   измениться помимо togglePkg(): после ручного редактирования в редакторе. */
 let appsCache = null;
 async function getAppsList(){
-  if(!appsCache)
-    appsCache = new Set((await ctl(['get-list', 'apps'])).split('\n').map(s => s.trim()).filter(s => s && s[0] !== '#'));
+  if(appsCache) return appsCache;
+  const r = await ctlx(['get-list', 'apps']);
+  appsCache = new Set((r.code ? '' : r.out).split('\n').map(s => s.trim()).filter(s => s && s[0] !== '#'));
   return appsCache;
 }
 /* Фильтр перерисовывает до 120 строк на каждое нажатие, поэтому ввод
-   придерживается: ctl уже не дёргается (кэш), а вот innerHTML — дорогой. */
+   придерживается: ctl уже не дёргается (кэш выше), а вот innerHTML — дорогой. */
 let pkTimer = null;
 function pkSearchInput(){
   clearTimeout(pkTimer);
@@ -1762,8 +2399,8 @@ async function drawPk(){
   const f = $('pf').value.toLowerCase();
   const s = await getAppsList();
   const shown = pkgs.filter(p => p.toLowerCase().includes(f));
-  $('pk-count').textContent = shown.length + ' из ' + pkgs.length + ' · выбрано ' + s.size +
-    (shown.length > 120 ? ' · показаны первые 120' : '');
+  $('pk-count').textContent = 'Найдено ' + shown.length + ' из ' + pkgs.length + ', выбрано ' + s.size +
+    (shown.length > 120 ? '. Показаны первые 120, уточните поиск' : '');
   $('pk').innerHTML = shown.slice(0, 120).map(p =>
     '<label class="list-item clickable state' + (s.has(p) ? ' selected' : '') + '">' +
       '<input type="checkbox" class="checkbox" data-pkg="' + esc(p) + '"' + (s.has(p) ? ' checked' : '') + '>' +
@@ -1776,163 +2413,18 @@ async function drawPk(){
 }
 async function togglePkg(p, want){
   const s = await getAppsList();
-  if(want === undefined){ s.has(p) ? s.delete(p) : s.add(p); } else { want ? s.add(p) : s.delete(p); }
+  // s — тот же Set, что лежит в кэше: он мутируется на месте, так что кэш уже
+  // актуален и перечитывать список после сохранения не нужно.
+  if(want) s.add(p); else s.delete(p);
   const r = await withBusy(['save-list-b64', 'apps', b64([...s].join('\n'))], 30000);
-  if(r.code && r.err) toast(r.err.trim(), {label: 'ПОВТОРИТЬ', fn: () => togglePkg(p, want)});
-  else toast((s.has(p) ? 'Добавлено: ' : 'Убрано: ') + p);
+  if(r.code) toast((r.err || 'Не удалось сохранить').trim(), {label: 'Повторить', fn: () => togglePkg(p, want)});
+  else toast((want ? 'Добавлено: ' : 'Убрано: ') + p);
   await drawPk();
-  stat();
-}
-async function saveApps(){
-  const r = await withBusy(['set', 'APP_MODE', $('amode').value], 30000);
-  toast(((r.out || '') + (r.err ? ' | ' + r.err : '')).trim() || 'Сохранено');
-  stat();
+  await stat();
+  renderAppModes();
 }
 
-/* ══ 4. КОНФИГУРАЦИЯ И ИМПОРТ ════════════════════════════════════════════ */
-async function confInit(){ await loadConf(); await loadImports(); }
-async function loadConf(){ $('ctx').value = await ctl(['get-conf']); }
-async function resetConf(){
-  const ok = await mdConfirm('Сбросить конфиг к стандартному?',
-    'Действующий nfqws2.conf сохранится как .bak.', {ok: 'Сбросить', danger: true});
-  if(!ok) return;
-  await withBusy(['reset-conf']); toast('Конфиг сброшен'); loadConf(); stat();
-}
-async function loadImports(){
-  const names = (await ctl(['list-imports'])).trim().split('\n').filter(Boolean);
-  $('impList').innerHTML = names.length ? names.map(n =>
-    '<div class="list-item two-line">' +
-      '<span class="li-icon">' + icon('file') + '</span>' +
-      '<span class="li-text"><span class="li-primary li-mono clickable truncate" title="Нажмите для переименования"' +
-        ' onclick="renameImportStart(this,' + jsArg(n) + ')">' + esc(n) + '</span></span>' +
-      '<span class="li-trail">' +
-        '<button class="btn text sm state" onclick="loadImport(' + jsArg(n) + ')">Выбрать</button>' +
-        '<button class="icon-btn sm state" aria-label="Удалить импорт"' +
-          ' onclick="delImport(' + jsArg(n) + ')">' + icon('trash') + '</button>' +
-      '</span>' +
-    '</div>').join('')
-    : '<div class="list-item"><span class="li-text"><span class="li-secondary">Пока пусто</span></span></div>';
-}
-function renameImportStart(el, oldName){
-  const input = document.createElement('input');
-  input.type = 'text';
-  input.value = oldName;
-  input.style.cssText = 'flex:1;height:36px;padding:0 10px;font-size:13px;' +
-    'border-radius:var(--md-sys-shape-corner-small);border:1px solid var(--md-sys-color-outline);' +
-    'background:var(--md-sys-color-surface-container-high);color:var(--md-sys-color-on-surface);outline:none;';
-  input.onclick = e => e.stopPropagation();
-  input.onkeydown = e => { if(e.key === 'Enter') input.blur(); if(e.key === 'Escape'){ input.value = oldName; input.blur(); } };
-  input.onblur = async () => {
-    const n = input.value.trim();
-    if(!n || n === oldName){ loadImports(); return; }
-    const r = await withBusy(['rename-import', oldName, n]);
-    if(r.code) toast((r.err || 'Не удалось переименовать').trim());
-    loadImports();
-  };
-  el.replaceWith(input);
-  input.focus();
-  input.select();
-}
-async function importFiles(files){
-  if(!files || !files.length) return;
-  let ok = 0, fail = 0, lastErr = '';
-  for(const f of files){
-    const text = await f.text();
-    const name = f.name.replace(/\.[^.]+$/, '');
-    const r = await withBusy(['import-add-b64', b64(name), b64(text)]);
-    if(!r.code) ok++; else { fail++; lastErr = (r.err || '').trim(); }
-  }
-  $('impFile').value = '';
-  $('impMsg').textContent = lastErr;
-  $('impMsg').className = 'helper' + (lastErr ? ' err' : '');
-  toast('Импортировано: ' + ok + (fail ? ', отклонено: ' + fail : ''));
-  loadImports();
-}
-async function importPaste(){
-  const t = await mdPrompt('Вставьте конфиг nfqws2-keenetic',
-    'Текст пройдёт валидатор на устройстве.', '', 'NFQWS_BASE_ARGS=…');
-  if(!t || !t.trim()) return;
-  const name = await mdPrompt('Имя конфига',
-    'Можно по-русски. Слэши, кавычки и $ будут убраны.', 'import', 'import');
-  if(!name) return;
-  const r = await withBusy(['import-add-b64', b64(name), b64(t)]);
-  if(r.code){
-    $('impMsg').textContent = (r.err || 'Файл отклонён').trim();
-    $('impMsg').className = 'helper err';
-    toast('Файл отклонён');
-  } else toast('Импортировано');
-  loadImports();
-}
-async function loadImport(name){
-  const r = await withBusy(['get-import-merged-b64', name]);
-  if(r.code){ toast((r.err || 'Импорт не найден').trim()); return; }
-  $('ctx').value = unb64(r.out.trim());
-  toast('Подставлено в редактор', {label: 'ОТКРЫТЬ', fn: () => openSlideEditor('conf')});
-}
-async function delImport(name){
-  if(!await mdConfirm('Удалить импорт «' + name + '»?', 'Файл будет удалён безвозвратно.', {ok: 'Удалить', danger: true})) return;
-  await withBusy(['delete-import', name]);
-  loadImports();
-}
-
-/* ══ Full-screen dialog: редактор ════════════════════════════════════════ */
-async function openSlideEditor(type){
-  currentEditorTarget = type;
-  const t = $('panel-editor-text');
-  if(type === 'conf'){
-    $('panel-title-text').textContent = 'nfqws2.conf';
-    $('panel-hint').textContent = 'Конфиг валидируется на устройстве; при ошибке сохранение отклоняется. Применится после перезапуска службы.';
-    t.value = await ctl(['get-conf']);
-  } else if(type === 'list'){
-    const key = $('lsel').value;
-    $('panel-title-text').textContent = key + '.list';
-    $('panel-hint').textContent = 'По строке на домен или IP; строки с # игнорируются. Список перечитывается автоматически.';
-    t.value = await ctl(['get-list', key]);
-  } else if(type === 'apps'){
-    $('panel-title-text').textContent = 'apps.list (пакеты)';
-    $('panel-hint').textContent = 'Имена пакетов по строке на пакет (com.example.app). UID разрешаются на устройстве.';
-    t.value = await ctl(['get-list', 'apps']);
-  }
-  $('editor-panel').classList.add('open');
-  t.focus();
-}
-function closeSlideEditor(){ $('editor-panel').classList.remove('open'); }
-$('panel-save-btn').onclick = async () => {
-  const val = $('panel-editor-text').value;
-  if(currentEditorTarget === 'conf'){
-    const r = await withBusy(['save-conf-b64', b64(val)]);
-    toast(r.code ? (r.err || 'Конфиг отклонён').trim() : 'Конфиг сохранён');
-    if(!r.code) loadConf();
-  } else if(currentEditorTarget === 'list'){
-    const key = $('lsel').value;
-    const r = await withBusy(['save-list-b64', key, b64(val)], 30000);
-    toast(r.code ? (r.err || 'Ошибка сохранения').trim() : 'Список сохранён');
-    if(!r.code) loadList();
-  } else if(currentEditorTarget === 'apps'){
-    const r = await withBusy(['save-list-b64', 'apps', b64(val)], 30000);
-    toast(r.code ? (r.err || 'Ошибка сохранения').trim() : 'Список приложений сохранён');
-  }
-  closeSlideEditor();
-  stat();
-};
-
-/* ══ 5. ЖУРНАЛЫ ══════════════════════════════════════════════════════════ */
-async function loadLog(){
-  $('lg').textContent = await ctl(['get-logs', $('lt').value, $('ln').value], 30000);
-  $('lg').scrollTop = $('lg').scrollHeight;
-}
-async function exportLogs(){
-  const r = await withBusy(['export-logs'], 30000);
-  toast((r.out + r.err).trim() || 'Экспорт завершён');
-}
-async function clearLogs(){
-  if(!await mdConfirm('Очистить журналы?', 'service.log, nfqws2.log, debug и auto будут обнулены.', {ok: 'Очистить', danger: true})) return;
-  await withBusy(['clear-logs']);
-  toast('Журналы очищены');
-  loadLog();
-}
-
-/* ══ 6. ТЕСТИРОВАНИЕ ═════════════════════════════════════════════════════ */
+/* ══ ТЕСТИРОВАНИЕ ════════════════════════════════════════════════════════ */
 async function probe(u){
   const t0 = performance.now(), c = new AbortController(), m = setTimeout(() => c.abort(), 6000);
   try {
@@ -1943,26 +2435,64 @@ async function probe(u){
 }
 async function runTest(){
   $('tb').disabled = true;
-  $('tb').innerHTML = '<span class="spinner"></span>Тест идёт';
-  const hosts = (await ctl(['get-list', 'probe_hosts'])).split('\n')
-    .map(s => s.trim()).filter(s => s && s[0] !== '#');
+  $('tb').innerHTML = '<span class="spinner"></span>Проверка идёт';
+  const r = await ctlx(['get-list', 'probe_hosts']);
+  const hosts = (r.code ? '' : r.out).split('\n').map(s => s.trim()).filter(s => s && s[0] !== '#');
+  $('test-empty').hidden = hosts.length > 0;
+  if(!hosts.length) $('test-empty').querySelector('.empty-title').textContent = 'probe_hosts.list пуст';
   $('tr').innerHTML = hosts.map((h, i) =>
     '<div class="list-item">' +
       '<span class="status info" id="ti' + i + '"><span class="spinner" style="width:14px;height:14px;"></span></span>' +
       '<span class="li-text"><span class="li-primary li-mono truncate">' + esc(h) + '</span></span>' +
-      '<span class="li-trail" id="tr' + i + '">…</span>' +
-    '</div>').join('') ||
-    '<div class="list-item"><span class="li-text"><span class="li-secondary">probe_hosts пуст</span></span></div>';
+      '<span class="li-trail li-value" id="tr' + i + '">…</span>' +
+    '</div>').join('');
   await Promise.all(hosts.map(async (h, i) => {
     let ok = 0, sum = 0;
     for(let k = 0; k < 3; k++){ const t = await probe(h); if(t != null){ ok++; sum += t; } }
     const badge = $('ti' + i);
     badge.className = 'status ' + (ok === 3 ? 'ok' : (ok > 0 ? 'warn' : 'bad'));
     badge.innerHTML = icon(ok === 3 ? 'check' : (ok > 0 ? 'warn' : 'close'), 's16');
-    $('tr' + i).textContent = ok + '/3' + (ok ? ' · ' + Math.round(sum / ok) + ' мс' : '');
+    $('tr' + i).textContent = ok + '/3' + (ok ? ', ' + Math.round(sum / ok) + ' мс' : '');
   }));
   $('tb').disabled = false;
-  $('tb').innerHTML = icon('play', 's18') + 'Запустить тест связи';
+  $('tb').innerHTML = icon('play', 's18') + 'Проверить снова';
+}
+
+/* ══ ДИАГНОСТИКА ═════════════════════════════════════════════════════════ */
+function diagInit(){ doctor(); loadArgs(); }
+async function doctor(){
+  $('doc').innerHTML = '<div class="list-item"><span class="spinner"></span>' +
+    '<span class="li-text"><span class="li-secondary">Проверка ядра и правил…</span></span></div>';
+  const r = await ctlx(['doctor'], 30000);
+  const map = {ok: ['ok', 'check'], warn: ['warn', 'warn'], fail: ['bad', 'error'], info: ['info', 'info']};
+  $('doc').innerHTML = (r.code ? '' : r.out).trim().split('\n').filter(Boolean).map(l => l.split('\t')).map(([s, n, d]) => {
+    const m = map[s] || map.info;
+    return '<div class="list-item two-line">' +
+      '<span class="status ' + m[0] + '">' + icon(m[1], 's16') + '</span>' +
+      '<span class="li-text"><span class="li-primary">' + esc(n || '') + '</span>' +
+      '<span class="li-secondary">' + esc(d || '') + '</span></span></div>';
+  }).join('') || '<div class="list-item"><span class="li-text"><span class="li-secondary">' +
+    esc(r.code ? (r.err || 'Проверка не удалась').trim() : 'Нет данных') + '</span></span></div>';
+}
+async function loadArgs(){
+  $('args').textContent = 'Загрузка…';
+  const r = await ctlx(['get-logs', 'args', '5']);
+  $('args').textContent = (r.code ? (r.err || 'Нет данных') : r.out).trim() || 'Служба ещё не запускалась';
+}
+async function copyArgs(){
+  const text = $('args').textContent;
+  let ok = false;
+  try { await navigator.clipboard.writeText(text); ok = true; }
+  catch(e){
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
+    document.body.append(ta);
+    ta.select();
+    try { ok = document.execCommand('copy'); } catch(e2) {}
+    ta.remove();
+  }
+  toast(ok ? 'Аргументы скопированы' : 'Не удалось скопировать: выделите текст вручную');
 }
 
 /* ══ Тема: генератор цветовых ролей M3 из seed ═══════════════════════════ */
@@ -2123,6 +2653,16 @@ function roles(seedHex, dark, amoled){
     R.inversePrimary = p(80);
     R.statusOk = '#166a33'; R.statusWarn = '#6b5000'; R.statusBad = '#a01811';
   }
+  /* fixed-роли не зависят от темы (для этого и называются fixed): tone 90/80/30/10.
+     Без них схема не совпадает с Android Dynamic Color по набору ролей. */
+  R.primaryFixed = p(90); R.primaryFixedDim = p(80); R.primaryFixedVariant = p(30);
+  R.onPrimaryFixed = p(10); R.onPrimaryFixedVariant = p(30);
+  R.secondaryFixed = p(90, 'secondary'); R.secondaryFixedDim = p(80, 'secondary'); R.secondaryFixedVariant = p(30, 'secondary');
+  R.onSecondaryFixed = p(10, 'secondary'); R.onSecondaryFixedVariant = p(30, 'secondary');
+  R.tertiaryFixed = p(90, 'tertiary', TERTIARY_HUE); R.tertiaryFixedDim = p(80, 'tertiary', TERTIARY_HUE);
+  R.tertiaryFixedVariant = p(30, 'tertiary', TERTIARY_HUE); R.onTertiaryFixed = p(10, 'tertiary', TERTIARY_HUE);
+  R.onTertiaryFixedVariant = p(30, 'tertiary', TERTIARY_HUE);
+  R.surfaceTint = R.primary; R.shadow = '#000000';
   return R;
 }
 const ROLE_VAR = {
@@ -2145,12 +2685,26 @@ const ROLE_VAR = {
   surfaceContainerHighest: '--md-sys-color-surface-container-highest',
   outline: '--md-sys-color-outline', outlineVariant: '--md-sys-color-outline-variant',
   inverseSurface: '--md-sys-color-inverse-surface', inverseOnSurface: '--md-sys-color-inverse-on-surface',
-  inversePrimary: '--md-sys-color-inverse-primary'
+  inversePrimary: '--md-sys-color-inverse-primary',
+  surfaceTint: '--md-sys-color-surface-tint', shadow: '--md-sys-color-shadow',
+  primaryFixed: '--md-sys-color-primary-fixed', primaryFixedDim: '--md-sys-color-primary-fixed-dim',
+  primaryFixedVariant: '--md-sys-color-primary-fixed-variant', onPrimaryFixed: '--md-sys-color-on-primary-fixed',
+  onPrimaryFixedVariant: '--md-sys-color-on-primary-fixed-variant',
+  secondaryFixed: '--md-sys-color-secondary-fixed', secondaryFixedDim: '--md-sys-color-secondary-fixed-dim',
+  secondaryFixedVariant: '--md-sys-color-secondary-fixed-variant', onSecondaryFixed: '--md-sys-color-on-secondary-fixed',
+  onSecondaryFixedVariant: '--md-sys-color-on-secondary-fixed-variant',
+  tertiaryFixed: '--md-sys-color-tertiary-fixed', tertiaryFixedDim: '--md-sys-color-tertiary-fixed-dim',
+  tertiaryFixedVariant: '--md-sys-color-tertiary-fixed-variant', onTertiaryFixed: '--md-sys-color-on-tertiary-fixed',
+  onTertiaryFixedVariant: '--md-sys-color-on-tertiary-fixed-variant'
 };
 function applyTheme(){
   const dark = isDark();
   const amoled = localStorage.getItem('m3_amoled') === 'true' && dark;
   const R = roles(currentSeed, dark, amoled);
+  // Палитра уходит в <style id="theme-vars">, а не инлайном на documentElement.
+  // Инлайн-стиль нельзя переопределить из CSS — ни правилом компонента, ни
+  // медиазапросом, — поэтому он закрывает тему наглухо. Отдельный блок в <head>
+  // участвует в каскаде обычным порядком.
   let css = ':root{';
   for(const k in ROLE_VAR) css += ROLE_VAR[k] + ':' + R[k] + ';';
   css += '--status-ok:' + R.statusOk + ';--status-warn:' + R.statusWarn + ';--status-bad:' + R.statusBad + ';}';
@@ -2215,9 +2769,10 @@ function openColorDialog(){
   $('cd-lum').value = Math.round(hsl[2] * 100);
   onColorSlide();
   $('color-wrap').classList.add('open');
+  scheduleSync();
   $('cd-hue').focus();
 }
-function closeColorDialog(){ $('color-wrap').classList.remove('open'); }
+function closeColorDialog(){ $('color-wrap').classList.remove('open'); scheduleSync(); }
 function colorDialogApply(){
   const hex = colorHex();
   closeColorDialog();
@@ -2276,28 +2831,15 @@ async function detectSystemMonet(showToastNotice){
   applyMonet(hex, true);
   if(showToastNotice) toast('Акцент с обоев: ' + hex.toUpperCase());
 }
-function openMonetModal(){
-  /* Выглядит как дубль вызова drawThemeUI() из applyTheme(), но это не дубль и
-     удалять его нельзя: applyTheme() перерисовывает шторку при смене состояния, а тут
-     она приводится в соответствие с состоянием при открытии. Разница видна на
-     поле HEX — в нём может остаться недонабранное значение, которое никуда не
-     применилось (currentSeed меняется только на шести символах), и открытие
-     шторки возвращает туда настоящий seed. Проверяется тестом в test_layout.js. */
-  drawThemeUI();
-  $('monet-modal').classList.add('open');
-  $('theme-scrim').classList.add('show');
-}
-function closeMonetModal(){
-  $('monet-modal').classList.remove('open');
-  $('theme-scrim').classList.remove('show');
-}
-
 /* ══ Init ════════════════════════════════════════════════════════════════ */
 currentMode = localStorage.getItem('m3_mode') || 'auto';
 const savedSeed = (localStorage.getItem('m3_seed') || '').toLowerCase();
 currentSeed = /^#[0-9a-f]{6}$/.test(savedSeed) ? savedSeed : systemSeed();
 applyTheme();
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if(currentMode === 'auto') applyTheme(); });
+renderNavBar('control');
+renderAppBar('control', false);
+renderLogChips();
 stat();
 initStrategySelector();
 </script>
