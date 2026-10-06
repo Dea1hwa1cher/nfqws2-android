@@ -38,8 +38,24 @@ function renderSettings(){
         (devMode ? t('параметры для разработчика включены') : t('удерживайте кнопку настроек, чтобы открыть параметры для разработчика')), on: ''}
     ]]
   ];
+  let devHtml = '';
+  if(devMode){
+    const j = S || {};
+    const lim = LIMITS.map(([k, label, hint, jk]) =>
+      '<div class="list-item two-line clickable state" role="button" tabindex="0" aria-haspopup="dialog"' +
+        ' onclick="editLimit(' + jsArg(k) + ', ' + jsArg(t(label)) + ', ' + (+j[jk] || 15) + ')">' +
+        '<span class="li-text"><span class="li-primary">' + esc(t(label)) + '</span>' +
+          '<span class="li-secondary">' + esc(t(hint)) + '</span></span>' +
+        '<span class="li-trail">' +
+          '<span class="li-value">' + esc(j[jk] != null ? j[jk] : '—') + '</span>' + icon('chevron-right', 's24') +
+        '</span>' +
+      '</div>');
+    const rows = DEV_SW.map(([k, label, jk]) => switchRow(k, label, j[jk] == 1)).concat(lim).join('');
+    devHtml = '<div class="stack" id="dev-block"><h2 class="subhead">' + esc(t('Для разработчиков')) + '</h2><div class="list" id="dev-sws">' + rows + '</div></div>';
+  }
   setHTML('settings-body', groups.map(([title, rows]) =>
     '<div class="stack"><h2 class="subhead">' + esc(t(title)) + '</h2><div class="list">' + rows.map(settingsRow).join('') + '</div></div>').join('') +
+    devHtml +
     '<a class="gh-card state" href="' + GITHUB_URL + '" onclick="event.preventDefault(); openUrl(' + jsArg(GITHUB_URL) + ')">' +
       '<span class="gh-mark">' + icon('github', 's24') + '</span>' +
       '<span class="li-text"><span class="gh-title">GitHub</span>' +

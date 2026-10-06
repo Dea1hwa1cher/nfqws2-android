@@ -219,6 +219,7 @@ svg.icon.s24 { width: 24px; height: 24px; }
 .app-bar .title { flex: 1; min-width: 0; padding-left: 8px;
   font-size: var(--ts-title-large); line-height: var(--lh-title-large); font-weight: var(--w-regular);
   color: var(--md-sys-color-on-surface); }
+#back-btn[hidden] ~ .title { margin-left: calc(var(--screen-margin) - 4px); padding-left: 0; }
 /* 32dp чип состояния в баре: PID / выкл / нет связи */
 
 /* Icon button 48×48 */

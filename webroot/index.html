@@ -99,8 +99,8 @@
           <div class="hstat"><span class="hstat-label" data-t>Потери</span><span class="hstat-value" id="qdrop-num">—</span></div>
         </div>
         <div class="hero-actions">
-          <button class="btn height-m with-icon state" id="bt" onclick="toggle()">
-            <svg aria-hidden="true" class="icon s20"><use href="#i-play"/></svg><span>Запустить</span>
+          <button class="btn height-m state" id="bt" onclick="toggle()">
+            <span data-t>Запустить</span>
           </button>
           <button class="icon-btn hero-restart state" id="bt-restart" onclick="restartSvc()" hidden
                   aria-label="Перезапустить службу" title="Перезапустить службу" data-ta="aria-label,title">
@@ -128,11 +128,6 @@
     <div class="pcol">
       <h2 class="subhead" data-t>Параметры</h2>
       <div class="list" id="sws"></div>
-
-      <div id="dev-block" class="stack" hidden>
-        <h2 class="subhead" data-t>Для разработчиков</h2>
-        <div class="list" id="dev-sws"></div>
-      </div>
     </div>
   </section>
 

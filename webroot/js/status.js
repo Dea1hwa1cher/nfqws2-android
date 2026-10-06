@@ -180,10 +180,10 @@ function renderHeroActions(){
   const run = !!S.running, bt = $('bt'), rs = $('bt-restart');
   const busyLabel = {start: t('Запуск…'), stop: t('Остановка…'), restart: t('Перезапуск…')}[svcBusy];
   bt.disabled = !!svcBusy;
-  bt.classList.toggle('with-icon', !run || !!svcBusy);
+  bt.classList.toggle('with-icon', !!svcBusy);
   bt.innerHTML = busyLabel
     ? '<span class="spinner"></span><span>' + esc(busyLabel) + '</span>'
-    : (run ? '' : icon('play')) + '<span>' + esc(run ? t('Остановить') : t('Запустить')) + '</span>';
+    : '<span>' + esc(run ? t('Остановить') : t('Запустить')) + '</span>';
   rs.hidden = !run || !!svcBusy;
 }
 
@@ -197,8 +197,7 @@ function switchRow(k, label, on){
 function renderParams(j){
   j = j || {};
   setHTML('sws', SW.map(([k, label, jk]) => switchRow(k, label, j[jk] == 1)).join(''), false);
-  $('dev-block').hidden = !devMode;
-  if(devMode){
+  if($('dev-sws') && devMode){
     const lim = LIMITS.map(([k, label, hint, jk]) =>
       '<div class="list-item two-line clickable state" role="button" tabindex="0" aria-haspopup="dialog"' +
         ' onclick="editLimit(' + jsArg(k) + ', ' + jsArg(t(label)) + ', ' + (+j[jk] || 15) + ')">' +
@@ -210,6 +209,7 @@ function renderParams(j){
       '</div>');
     setHTML('dev-sws', DEV_SW.map(([k, label, jk]) => switchRow(k, label, j[jk] == 1)).concat(lim).join(''), false);
   }
+  if($('dev-block')) $('dev-block').hidden = !devMode;
 }
 
 /* Отрисовка из последнего известного статуса: экран показывает данные сразу,
