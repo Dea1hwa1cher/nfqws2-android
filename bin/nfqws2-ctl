@@ -510,47 +510,104 @@ probe_tool() {
   return 1
 }
 uptime_cs() { awk '{ printf "%d", $1 * 100 }' /proc/uptime 2>/dev/null; }
+PROBE_APP_RULE=""
+setup_probe_app_rule() {
+  if is_running && [ "$APP_MODE" = "include" ] && iptables -w -t mangle -L $IPT_GROUP_APP -n >/dev/null 2>&1; then
+    PROBE_APP_RULE="-m owner --uid-owner 0 -j CONNMARK --set-xmark $MARK_INCLUDE"
+    iptables -w -t mangle -I $IPT_GROUP_APP 1 $PROBE_APP_RULE 2>/dev/null
+    [ "$IPV6_ENABLED" != "0" ] && ip6tables -w -t mangle -I $IPT_GROUP_APP 1 $PROBE_APP_RULE 2>/dev/null
+  fi
+}
+cleanup_probe_app_rule() {
+  if [ -n "$PROBE_APP_RULE" ]; then
+    iptables -w -t mangle -D $IPT_GROUP_APP $PROBE_APP_RULE 2>/dev/null
+    [ "$IPV6_ENABLED" != "0" ] && ip6tables -w -t mangle -D $IPT_GROUP_APP $PROBE_APP_RULE 2>/dev/null
+    PROBE_APP_RULE=""
+  fi
+}
+
 probe_attempt() { # <вид> <путь к утилите> <host[/путь]>  -> "ok <мс>" | "fail <причина>"
   local kind="$1" bin="$2" url="https://$3" t0 t1 out rc to=""
   command -v timeout >/dev/null 2>&1 && to="timeout 12"
   t0=$(uptime_cs)
   if [ "$kind" = "curl" ]; then
-    out=$($to "$bin" -s -k -o /dev/null -m 10 --connect-timeout 6 -A 'Mozilla/5.0' "$url" 2>&1); rc=$?
+    out=$($to "$bin" -s -k -L --max-redirs 3 -m 10 --connect-timeout 6 -A 'Mozilla/5.0' \
+      -w "\nREDIRECT_URL:%{redirect_url}\n" "$url" 2>&1); rc=$?
   else
     out=$($to "$bin" wget -q -T 6 -O /dev/null -U 'Mozilla/5.0' --no-check-certificate "$url" 2>&1); rc=$?
   fi
   t1=$(uptime_cs)
+  local redir
+  redir=$(printf '%s\n' "$out" | sed -n 's/^REDIRECT_URL://p')
+  case "$redir" in
+    *rkn.gov.ru*|*eais.*|*warning.rt.ru*|*blackhole*|*zapret*)
+      echo "fail isp_redir"
+      return ;;
+  esac
   if [ "$rc" = 0 ]; then echo "ok $(( (t1 - t0) * 10 ))"; return; fi
   case "$kind:$rc:$out" in
     wget:*"server returned error"*|curl:22:*) echo "ok $(( (t1 - t0) * 10 ))" ;;
-    curl:6:*|*"bad address"*|*"resolve"*|*"unknown host"*) echo "fail dns" ;;
+    curl:35:*)
+      case "$out" in
+        *alert*|*Alert*|*unrecognized_name*|*handshake_failure*) echo "fail tls_alert" ;;
+        *wrong\ version*|*record\ overflow*|*illegal\ parameter*) echo "fail tls_spoof" ;;
+        *certificate*|*self-signed*|*expired*) echo "fail tls_mitm" ;;
+        *) echo "fail tls" ;;
+      esac ;;
+    curl:52:*|curl:56:*)
+      case "$out" in
+        *reset*|*Reset*|*connection\ reset*|*broken\ pipe*) echo "fail tls_rst" ;;
+        *) echo "fail reset" ;;
+      esac ;;
+    curl:28:*|*:124:*|*:143:*)
+      case "$out" in
+        *connect*|*handshake*|*SSL*|*TLS*) echo "fail drop" ;;
+        *) echo "fail timeout" ;;
+      esac ;;
+    curl:6:*|*"bad address"*|*"resolve"*|*"unknown host"*) echo "fail dns_fail" ;;
     curl:7:*|*"refused"*) echo "fail refused" ;;
-    curl:28:*|*:124:*|*:143:*|*"timed out"*|*"timeout"*) echo "fail timeout" ;;
-    curl:35:*|*"TLS"*|*"tls"*|*"SSL"*|*"ssl"*) echo "fail tls" ;;
-    curl:52:*|curl:56:*|*"reset"*|*"short read"*|*"error getting response"*|*"EOF"*) echo "fail reset" ;;
     *) echo "fail other" ;;
   esac
 }
-# Все адреса из probe_hosts.list параллельно, по 3 попытки на адрес. Вывод
-# построчный, его можно читать по мере готовности:
-#   tool <TAB> curl|wget|none        H <TAB> № <TAB> адрес
-#   R <TAB> № <TAB> попытка <TAB> ok мс | fail причина      done
-cmd_probe_all() {
-  local tool kind bin i=0 h app_rule=""
+
+cmd_net_info() {
+  local ip="" loc="" isp="" asn="" iface="" gw="" dns1="" dns2=""
+  local tool kind bin to=""
   tool=$(probe_tool); kind="${tool%% *}"; bin="${tool#* }"
-  printf 'tool\t%s\n' "$kind"
-  [ "$kind" = "none" ] && { echo done; return 0; }
+  command -v timeout >/dev/null 2>&1 && to="timeout 6"
+
+  if [ "$kind" = "curl" ]; then
+    local trace
+    trace=$($to "$bin" -s -m 4 https://cloudflare.com/cdn-cgi/trace 2>/dev/null)
+    ip=$(printf '%s\n' "$trace" | sed -n 's/^ip=//p')
+    loc=$(printf '%s\n' "$trace" | sed -n 's/^loc=//p')
+    local ipapi
+    ipapi=$($to "$bin" -s -m 4 "http://ip-api.com/json/?fields=isp,as" 2>/dev/null)
+    if [ -n "$ipapi" ]; then
+      isp=$(printf '%s\n' "$ipapi" | sed -n 's/.*"isp":"\([^"]*\)".*/\1/p')
+      asn=$(printf '%s\n' "$ipapi" | sed -n 's/.*"as":"\([^"]*\)".*/\1/p')
+    fi
+  fi
+
+  iface=$(ip route show default 2>/dev/null | awk '{print $5; exit}')
+  gw=$(ip route show default 2>/dev/null | awk '{print $3; exit}')
+  dns1=$(getprop net.dns1 2>/dev/null)
+  dns2=$(getprop net.dns2 2>/dev/null)
+  [ -z "$dns1" ] && [ -f /etc/resolv.conf ] && dns1=$(awk '/nameserver/{print $2; exit}' /etc/resolv.conf 2>/dev/null)
+
+  local cur_strat
+  cur_strat=$(current_strategy_name)
+
+  printf 'NET\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+    "${ip:-—}" "${loc:-—}" "${isp:-—}" "${asn:-—}" \
+    "${iface:-—}" "${gw:-—}" "${dns1:-—}${dns2:+,$dns2}" \
+    "$(is_running && echo running || echo stopped)" "${cur_strat:-—}"
+}
+
+cmd_probe_all_inner() {
+  local kind="$1" bin="$2" i=0 h
   grep -v -e '^[[:space:]]*#' -e '^[[:space:]]*$' "$LISTS_DIR/probe_hosts.list" 2>/dev/null | tr -d '\r' | head -n 40 > "$STATE_DIR/probe.hosts"
   while IFS= read -r h; do printf 'H\t%s\t%s\n' "$i" "$h"; i=$((i + 1)); done < "$STATE_DIR/probe.hosts"
-  # Фильтр «только выбранные приложения» не пропустил бы проверку от root через
-  # обход. На время проверки root-трафик помечается так же, как трафик
-  # выбранных приложений; правило снимается в конце (и при любой пересборке).
-  if is_running && [ "$APP_MODE" = "include" ] && iptables -w -t mangle -L $IPT_GROUP_APP -n >/dev/null 2>&1; then
-    app_rule="-m owner --uid-owner 0 -j CONNMARK --set-xmark $MARK_INCLUDE"
-    iptables -w -t mangle -I $IPT_GROUP_APP 1 $app_rule 2>/dev/null
-    [ "$IPV6_ENABLED" != "0" ] && ip6tables -w -t mangle -I $IPT_GROUP_APP 1 $app_rule 2>/dev/null
-    trap 'iptables -w -t mangle -D $IPT_GROUP_APP $app_rule 2>/dev/null; ip6tables -w -t mangle -D $IPT_GROUP_APP $app_rule 2>/dev/null' EXIT INT TERM
-  fi
   i=0
   while IFS= read -r h; do
     (
@@ -564,7 +621,211 @@ cmd_probe_all() {
   done < "$STATE_DIR/probe.hosts"
   wait
   rm -f "$STATE_DIR/probe.hosts"
+}
+
+cmd_probe_tcp16() {
+  local tool kind bin to=""
+  tool=$(probe_tool); kind="${tool%% *}"; bin="${tool#* }"
+  [ "$kind" = "none" ] && return 0
+  command -v timeout >/dev/null 2>&1 && to="timeout 8"
+
+  local targets="Hetzner|91.98.156.82|443|
+Hetzner Cloud|5.161.249.234|443|
+Cloudflare 1|172.67.70.222|443|
+Cloudflare 2|104.18.63.125|443|
+DigitalOcean 1|134.209.80.1|443|
+DigitalOcean 2|159.89.120.1|443|
+OVH 1|51.254.100.1|443|
+OVH 2|149.202.160.1|443|
+Akamai|23.222.76.4|443|
+AWS Cloud|3.165.188.250|443|
+Fastly|151.101.66.245|443|www.jetblue.com
+Fastly GitHub|185.199.108.133|443|release-assets.githubusercontent.com"
+  [ -f "$LISTS_DIR/tcp16.list" ] && targets=$(grep -v '^[[:space:]]*#' "$LISTS_DIR/tcp16.list" 2>/dev/null)
+
+  local pad16 pad24 pad32
+  pad16=$(printf '%*s' 16384 '' | tr ' ' 'a')
+  pad24=$(printf '%*s' 24576 '' | tr ' ' 'b')
+  pad32=$(printf '%*s' 32768 '' | tr ' ' 'c')
+
+  local idx=0
+  printf '%s\n' "$targets" | while IFS='|' read -r provider ip port sni; do
+    [ -z "$provider" ] || [ -z "$ip" ] && continue
+    [ -z "$port" ] && port=443
+    local host_hdr=""
+    [ -n "$sni" ] && host_hdr="-H Host: $sni"
+
+    # Step 1: 0KB probe
+    local out0 rc0
+    out0=$($to "$bin" -s -k -m 5 --connect-timeout 4 -o /dev/null -w "%{time_total}" $host_hdr "https://$ip:$port/" 2>&1); rc0=$?
+    if [ "$rc0" != 0 ] && [ "$rc0" != 22 ]; then
+      printf 'T16\t%s\t%s\t%s\t%s\tunreachable\t%s\n' "$idx" "$provider" "$ip" "$port" "0KB"
+      idx=$((idx + 1))
+      continue
+    fi
+
+    # Step 2: 16KB probe
+    local out16 rc16
+    out16=$($to "$bin" -s -k -m 6 --connect-timeout 4 -o /dev/null -H "X-Pad: $pad16" $host_hdr "https://$ip:$port/" 2>&1); rc16=$?
+    if [ "$rc16" != 0 ] && [ "$rc16" != 22 ]; then
+      case "$rc16:$out16" in
+        52:*|56:*|28:*|*:*reset*|*:*timed\ out*|*:*EOF*)
+          printf 'T16\t%s\t%s\t%s\t%s\tdetected\t%s\n' "$idx" "$provider" "$ip" "$port" "16KB"
+          idx=$((idx + 1))
+          continue ;;
+      esac
+    fi
+
+    # Step 3: 24KB probe
+    local out24 rc24
+    out24=$($to "$bin" -s -k -m 6 --connect-timeout 4 -o /dev/null -H "X-Pad: $pad24" $host_hdr "https://$ip:$port/" 2>&1); rc24=$?
+    if [ "$rc24" != 0 ] && [ "$rc24" != 22 ]; then
+      case "$rc24:$out24" in
+        52:*|56:*|28:*|*:*reset*|*:*timed\ out*|*:*EOF*)
+          printf 'T16\t%s\t%s\t%s\t%s\tdetected\t%s\n' "$idx" "$provider" "$ip" "$port" "24KB"
+          idx=$((idx + 1))
+          continue ;;
+      esac
+    fi
+
+    # Step 4: 32KB probe
+    local out32 rc32
+    out32=$($to "$bin" -s -k -m 6 --connect-timeout 4 -o /dev/null -H "X-Pad: $pad32" $host_hdr "https://$ip:$port/" 2>&1); rc32=$?
+    if [ "$rc32" != 0 ] && [ "$rc32" != 22 ]; then
+      case "$rc32:$out32" in
+        52:*|56:*|28:*|*:*reset*|*:*timed\ out*|*:*EOF*)
+          printf 'T16\t%s\t%s\t%s\t%s\tdetected\t%s\n' "$idx" "$provider" "$ip" "$port" "32KB"
+          idx=$((idx + 1))
+          continue ;;
+      esac
+    fi
+
+    local ms
+    ms=$(awk -v t="${out0:-0}" 'BEGIN { printf "%d", t * 1000 }' 2>/dev/null || echo 0)
+    printf 'T16\t%s\t%s\t%s\t%s\tclean\t%sms\n' "$idx" "$provider" "$ip" "$port" "$ms"
+    idx=$((idx + 1))
+  done
+}
+
+cmd_probe_dns() {
+  local tool kind bin to=""
+  tool=$(probe_tool); kind="${tool%% *}"; bin="${tool#* }"
+  [ "$kind" = "none" ] && return 0
+  command -v timeout >/dev/null 2>&1 && to="timeout 6"
+
+  local servers="Google|8.8.8.8|https://dns.google/dns-query
+Cloudflare|1.1.1.1|https://cloudflare-dns.com/dns-query
+Quad9|9.9.9.9|https://dns.quad9.net/dns-query
+AdGuard|94.140.14.14|https://dns.adguard.com/dns-query
+Yandex|77.88.8.8|"
+  [ -f "$LISTS_DIR/probe_dns.list" ] && servers=$(grep -v '^[[:space:]]*#' "$LISTS_DIR/probe_dns.list" 2>/dev/null)
+
+  local idx=0
+  printf '%s\n' "$servers" | while IFS='|' read -r name ip doh; do
+    [ -z "$name" ] || [ -z "$ip" ] && continue
+    local udp_status="ok" doh_status="none" hijacked="no" detail="OK"
+
+    if command -v nslookup >/dev/null 2>&1; then
+      local ns_out
+      ns_out=$($to nslookup vk.ru "$ip" 2>&1)
+      if [ $? != 0 ] || printf '%s\n' "$ns_out" | grep -qi -e 'timed out' -e 'no answer' -e 'connection refused'; then
+        udp_status="fail"
+      else
+        udp_status="ok"
+      fi
+
+      local ns_chk blocked_ip
+      ns_chk=$($to nslookup rutracker.org "$ip" 2>&1)
+      blocked_ip=$(printf '%s\n' "$ns_chk" | awk '/^Address: / {ip=$2} /Address 1: / {ip=$3} END {print ip}')
+      case "$blocked_ip" in
+        127.0.0.1|0.0.0.0|10.*|192.168.*|195.82.146.214|82.202.164.12)
+          hijacked="yes"; detail="Заглушка ($blocked_ip)" ;;
+      esac
+    fi
+
+    if [ -n "$doh" ] && [ "$kind" = "curl" ]; then
+      local doh_out rc
+      doh_out=$($to "$bin" -s -m 5 -H 'accept: application/dns-json' "$doh?name=vk.ru&type=A" 2>&1); rc=$?
+      if [ "$rc" = 0 ] && printf '%s' "$doh_out" | grep -q '"Status"'; then
+        doh_status="ok"
+      else
+        doh_status="fail"
+      fi
+    fi
+
+    printf 'DNS\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$idx" "$name" "$ip" "$udp_status" "$doh_status" "$hijacked" "$detail"
+    idx=$((idx + 1))
+  done
+}
+
+cmd_probe_tg() {
+  local tool kind bin to=""
+  tool=$(probe_tool); kind="${tool%% *}"; bin="${tool#* }"
+  [ "$kind" = "none" ] && return 0
+  command -v timeout >/dev/null 2>&1 && to="timeout 6"
+
+  local dcs="DC1 (Miami)|149.154.175.53|443
+DC2 (Amsterdam)|149.154.167.51|443
+DC3 (Miami)|149.154.175.100|443
+DC4 (Amsterdam)|149.154.167.91|443
+DC5 (Singapore)|91.108.56.130|443"
+  [ -f "$LISTS_DIR/probe_tg.list" ] && dcs=$(grep -v '^[[:space:]]*#' "$LISTS_DIR/probe_tg.list" 2>/dev/null)
+
+  local idx=0
+  printf '%s\n' "$dcs" | while IFS='|' read -r name ip port; do
+    [ -z "$name" ] || [ -z "$ip" ] && continue
+    [ -z "$port" ] && port=443
+
+    local out rc t_ms="0"
+    out=$($to "$bin" -s -k -m 5 --connect-timeout 3 -o /dev/null -w "%{time_connect}" "https://$ip:$port/" 2>&1); rc=$?
+    if [ "$rc" = 0 ] || [ "$rc" = 52 ] || [ "$rc" = 56 ] || [ "$rc" = 22 ]; then
+      t_ms=$(awk -v t="${out:-0}" 'BEGIN { printf "%d", t * 1000 }' 2>/dev/null || echo 0)
+      printf 'TG\t%s\t%s\t%s\tok\t%sms\n' "$idx" "$name" "$ip" "$t_ms"
+    else
+      printf 'TG\t%s\t%s\t%s\tfail\ttimeout\n' "$idx" "$name" "$ip"
+    fi
+    idx=$((idx + 1))
+  done
+
+  if [ "$kind" = "curl" ]; then
+    local spd media_spd
+    spd=$($to "$bin" -s -k -m 8 -o /dev/null -r 0-262144 -w "%{speed_download}" "https://telegram.org/img/Telegram200million.png" 2>/dev/null)
+    media_spd=$(awk -v s="${spd:-0}" 'BEGIN { printf "%.2f", s / 1048576 }' 2>/dev/null || echo 0)
+    printf 'TG_MEDIA\tok\t%s MB/s\n' "$media_spd"
+  else
+    printf 'TG_MEDIA\tskip\tN/A\n'
+  fi
+}
+
+cmd_probe_dpi() {
+  local mode="${1:-all}" tool kind bin
+  tool=$(probe_tool); kind="${tool%% *}"; bin="${tool#* }"
+  printf 'tool\t%s\n' "$kind"
+  [ "$kind" = "none" ] && { echo done; return 0; }
+  setup_probe_app_rule
+  trap 'cleanup_probe_app_rule' EXIT INT TERM
+
+  case "$mode" in
+    net) cmd_net_info ;;
+    web) cmd_probe_all_inner "$kind" "$bin" ;;
+    tcp16) cmd_probe_tcp16 ;;
+    dns) cmd_probe_dns ;;
+    tg) cmd_probe_tg ;;
+    all|*)
+      cmd_net_info
+      cmd_probe_all_inner "$kind" "$bin"
+      cmd_probe_tcp16
+      cmd_probe_dns
+      cmd_probe_tg
+      ;;
+  esac
+
+  cleanup_probe_app_rule
   echo done
+}
+
+cmd_probe_all() {
+  cmd_probe_dpi "${1:-web}"
 }
 
 # ---------------------------------------------------------------- обновления списков
@@ -744,13 +1005,18 @@ case "$1" in
   backup-create) cmd_backup_create "$2" ;;
   backup-list) cmd_backup_list ;;
   backup-restore) cmd_backup_restore "$2" ;;
-  probe-all) cmd_probe_all ;;
+  net-info) cmd_net_info ;;
+  probe-all) cmd_probe_all "${2:-web}" ;;
+  probe-dpi) cmd_probe_dpi "${2:-all}" ;;
+  probe-tcp16) cmd_probe_dpi tcp16 ;;
+  probe-dns) cmd_probe_dpi dns ;;
+  probe-tg) cmd_probe_dpi tg ;;
   clear-logs) : > "$SERVICE_LOG"; : > "$NFQWS_LOG"; rm -f "$LOG_DIR/nfqws2-debug.log" "$LOG_DIR/auto.log"; echo OK ;;
   *)
     echo "Команды: status json-status is-running start stop restart reload doctor get-conf save-conf-b64 reset-conf conf-modified" >&2
     echo "         list-strategies get-strategy set-strategy strategy-get-b64 strategy-save-b64 strategy-reset" >&2
     echo "         import-add-b64 list-imports get-import-merged-b64 rename-import delete-import" >&2
     echo "         get-list save-list-b64 list-update add-domain clear-auto reset-lists set set-mode list-apps apply-apps" >&2
-    echo "         get-logs export-logs clear-logs wifi-ssid backup-create backup-list backup-restore probe-all" >&2
+    echo "         get-logs export-logs clear-logs wifi-ssid backup-create backup-list backup-restore probe-all probe-dpi net-info" >&2
     exit 1 ;;
 esac

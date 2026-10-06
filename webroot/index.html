@@ -299,16 +299,67 @@
 
   <!-- ═══ ПРОВЕРКА ДОСТУПНОСТИ (дочерний экран настроек) ═════════════════ -->
   <section class="page" data-page="test" aria-label="Проверка доступности" data-ta="aria-label">
+    <div class="segmented" id="test-tabs" role="tablist" aria-label="Категории проверок" data-ta="aria-label">
+      <button class="seg on state" data-tab="all" onclick="selectTestTab('all')"><span data-t>Все</span></button>
+      <button class="seg state" data-tab="web" onclick="selectTestTab('web')"><span data-t>Сайты</span></button>
+      <button class="seg state" data-tab="tcp16" onclick="selectTestTab('tcp16')"><span data-t>TCP 16K</span></button>
+      <button class="seg state" data-tab="dns" onclick="selectTestTab('dns')"><span data-t>DNS</span></button>
+      <button class="seg state" data-tab="tg" onclick="selectTestTab('tg')"><span data-t>Telegram</span></button>
+    </div>
+
+    <div class="group" id="test-net-card">
+      <div class="subhead-row" style="margin-top:0;">
+        <span class="subhead plain" data-t>Сетевая информация</span>
+        <button class="icon-btn sm state" onclick="refreshNetInfo()" aria-label="Обновить сеть" title="Обновить сеть" data-ta="aria-label,title">
+          <svg aria-hidden="true" class="icon s18"><use href="#i-refresh"/></svg>
+        </button>
+      </div>
+      <div class="list" id="test-net-list">
+        <div class="list-item">
+          <span class="li-icon plain"><svg aria-hidden="true" class="icon s24"><use href="#i-globe"/></svg></span>
+          <span class="li-text">
+            <span class="li-primary" id="net-ip">—</span>
+            <span class="li-secondary truncate" id="net-isp">Загрузка сети…</span>
+          </span>
+          <span class="li-trail" id="net-badge"></span>
+        </div>
+      </div>
+    </div>
+
     <div class="group">
       <div class="t-body-medium muted" id="test-desc"></div>
       <div class="row">
         <button class="btn with-icon state" id="tb" onclick="runTest()">
           <svg aria-hidden="true" class="icon s18"><use href="#i-play"/></svg><span data-t>Запустить проверку</span>
         </button>
+        <button class="btn tonal with-icon state" id="test-export-btn" onclick="copyTestReport()" aria-label="Копировать отчёт" data-ta="aria-label">
+          <svg aria-hidden="true" class="icon s18"><use href="#i-copy"/></svg><span data-t>Копировать отчёт</span>
+        </button>
       </div>
     </div>
+
     <div id="test-warn" class="stack"></div>
-    <div class="list" id="tr"></div>
+
+    <div id="test-sec-web">
+      <h2 class="subhead" id="test-web-head" data-t>Сайты и сервисы</h2>
+      <div class="list" id="tr"></div>
+    </div>
+
+    <div id="test-sec-tcp16" hidden>
+      <h2 class="subhead" data-t>Блокировки TCP 16-20KB</h2>
+      <div class="list" id="test-tcp16-list"></div>
+    </div>
+
+    <div id="test-sec-dns" hidden>
+      <h2 class="subhead" data-t>Проверка DNS и перехват</h2>
+      <div class="list" id="test-dns-list"></div>
+    </div>
+
+    <div id="test-sec-tg" hidden>
+      <h2 class="subhead" data-t>Telegram</h2>
+      <div class="list" id="test-tg-list"></div>
+    </div>
+
     <div class="empty" id="test-empty">
       <span class="empty-icon"><svg aria-hidden="true" class="icon"><use href="#i-wifi"/></svg></span>
       <span class="empty-title" id="test-empty-title" data-t>Проверка ещё не запускалась</span>

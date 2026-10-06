@@ -158,11 +158,13 @@ fi
 if [ -z "$NODE_BIN" ]; then
   queue_skip "webui: static invariants" "node not found"
   queue_skip "webui: monet palette" "node not found"
+  queue_skip "webui: dpi detector" "node not found"
   queue_skip "webui: ctl contract" "node not found"
   queue_skip "webui: rendered geometry" "node not found"
 else
   queue_suite "webui: static invariants" "$NODE_BIN" "$HERE/webui/test_static.js"
   queue_suite "webui: monet palette" "$NODE_BIN" "$HERE/webui/test_monet.js"
+  queue_suite "webui: dpi detector" "$NODE_BIN" "$HERE/webui/test_dpi.js"
 
   # The contract test compares index.html against the real ctl, so the ctl
   # output is produced here and handed over as files.
