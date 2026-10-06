@@ -39,13 +39,20 @@ cp -f "$MODPATH/binaries/$BIN/nfqws2" "$MODPATH/bin/nfqws2" || abort "! Не у�
 rm -rf "$MODPATH/binaries"
 
 CONF=/data/adb/nfqws2
-mkdir -p "$CONF/lists" "$CONF/state" "$CONF/logs" "$CONF/imports" "$CONF/strategies"
+# Каталоги и конфиг проверяем: без них модуль не заработает, а раньше провал
+# проходил молча — установка сообщала «Готово» на пустом месте. Остальные шаги
+# ниже самовосстанавливающиеся (load_conf допишет конфиг и списки сам), эти два —
+# нет: если /data/adb недоступен, дальше писать некуда.
+mkdir -p "$CONF/lists" "$CONF/state" "$CONF/logs" "$CONF/imports" "$CONF/strategies" \
+  || abort "! Не удалось создать $CONF — проверьте доступ к /data/adb"
 
 if [ -f "$CONF/nfqws2.conf" ]; then
   ui_print "- Конфиг сохранён: $CONF/nfqws2.conf"
-  cp -f "$MODPATH/defaults/nfqws2.conf" "$CONF/nfqws2.conf.dist"
+  cp -f "$MODPATH/defaults/nfqws2.conf" "$CONF/nfqws2.conf.dist" \
+    || abort "! Не удалось положить $CONF/nfqws2.conf.dist"
 else
-  cp -f "$MODPATH/defaults/nfqws2.conf" "$CONF/nfqws2.conf"
+  cp -f "$MODPATH/defaults/nfqws2.conf" "$CONF/nfqws2.conf" \
+    || abort "! Не удалось создать $CONF/nfqws2.conf"
   ui_print "- Создан конфиг: $CONF/nfqws2.conf"
 fi
 # При установке кладутся все шесть списков, включая auto.list: это стартовый
