@@ -154,7 +154,7 @@ ensure_helper() {
 }
 
 ensure_watchdog() {
-  [ "$WATCHDOG" = "1" ] || return 0
+  watchers_wanted || return 0
   ensure_helper "$WD_PIDFILE" watchdog || return 0
   ensure_netwatch
 }
@@ -165,7 +165,7 @@ ensure_watchdog() {
 # самое — события интерфейсов и маршрутов в реальном времени. Watchdog остаётся подстраховкой
 # (и единственным механизмом там, где ip monitor не поддерживается прошивкой).
 ensure_netwatch() {
-  [ "$WATCHDOG" = "1" ] || return 0
+  watchers_wanted || return 0
   ensure_helper "$WN_PIDFILE" netwatch command -v ip || return 0
 }
 

@@ -1,0 +1,195 @@
+/* nfqws2 WebUI · app.css — экраны и компоненты приложения поверх base.css */
+/* ── Плавное появление перерисованного содержимого ─────────────────────── */
+@keyframes rise-in { from { opacity: 0; transform: translateY(6px); } }
+.appear > * { animation: rise-in var(--dur-medium) var(--emphasized-decelerate) both; }
+.appear > *:nth-child(2) { animation-delay: 20ms; }
+.appear > *:nth-child(3) { animation-delay: 40ms; }
+.appear > *:nth-child(4) { animation-delay: 60ms; }
+.appear > *:nth-child(n+5) { animation-delay: 80ms; }
+pre.appear { animation: fade-in var(--dur-medium) var(--emphasized-decelerate); }
+pre.appear > * { animation: none; }
+.appear-item { animation: rise-in var(--dur-medium) var(--emphasized-decelerate) both; }
+
+/* ── Колонки страницы: в портрете — обычный поток, в альбомной — две ───── */
+.pcol { display: contents; }
+.settings-grid { display: flex; flex-direction: column; gap: var(--gap); }
+
+/* ── Карточка состояния: пауза в домашней Wi-Fi ───────────────────────── */
+.hero.paused { --hero-bg: var(--md-sys-color-tertiary-container); color: var(--md-sys-color-on-tertiary-container); }
+.hero.paused .hero-icon { border-radius: 20px; background: var(--md-sys-color-tertiary); color: var(--md-sys-color-on-tertiary); }
+
+/* ── Номер версии: долгое нажатие открывает параметры разработчика ─────── */
+.app-bar .title .ver { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+  touch-action: manipulation; cursor: default; padding: 8px 4px; margin-left: 4px; }
+
+/* ── Метки в строках списка ──────────────────────────────────────────── */
+.li-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.pill { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: var(--shape-full);
+  background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary);
+  font-size: var(--ts-label-small); line-height: var(--lh-label-small); font-weight: var(--w-emph); white-space: nowrap; }
+.pill.tonal { background: var(--md-sys-color-tertiary-container); color: var(--md-sys-color-on-tertiary-container); }
+.list-item .li-actions { gap: 0; margin-right: -8px; }
+.list-item .li-actions .icon-btn { color: var(--md-sys-color-on-surface-variant); }
+.list-item.selected .li-actions .icon-btn { color: var(--md-sys-color-on-secondary-container); }
+.pending-btn, .list-item .li-trail .pending-btn { color: var(--status-warn); }
+
+/* ── Группы на листе выбора стратегии ────────────────────────────────── */
+.sheet-group { padding: 16px 16px 8px; font-size: var(--ts-title-small); line-height: var(--lh-title-small);
+  font-weight: var(--w-emph); letter-spacing: var(--tr-title-small); color: var(--md-sys-color-primary); }
+.sheet-group:first-child { padding-top: 4px; }
+#strategy-list .list-item { min-height: 56px; }
+
+/* ── Filter chip «Ошибки»: у выбранного появляется галочка ──────────── */
+.chip.filter { padding: 0 16px 0 8px; gap: 4px; color: var(--md-sys-color-on-surface); }
+.chip.filter .chip-check { width: 0; overflow: hidden; display: inline-flex; transition: width var(--dur-short) var(--spring); }
+.chip.filter:not(.selected) { padding-left: 16px; }
+.chip.filter.selected .chip-check { width: 18px; }
+
+/* ── Главный переключатель экрана (как в настройках Android) ─────────── */
+.main-switch { display: flex; align-items: center; gap: 16px; min-height: 72px; padding: 16px 24px; cursor: pointer;
+  border-radius: var(--shape-extra-large); background: var(--md-sys-color-surface-container-high);
+  font-size: 20px; line-height: 26px; font-weight: var(--w-medium);
+  color: var(--md-sys-color-on-surface); transition: background-color var(--dur-medium) var(--standard), color var(--dur-medium) var(--standard); }
+.main-switch.on { background: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); }
+.grow { flex: 1 1 auto; min-width: 0; }
+.is-disabled { opacity: var(--state-disabled-content); pointer-events: none; transition: opacity var(--dur-medium) var(--standard); }
+#wifi-body { transition: opacity var(--dur-medium) var(--standard); }
+.suggest { display: flex; align-items: center; gap: 12px; padding: 12px 12px 12px 16px; border-radius: var(--shape-large);
+  background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container);
+  font-size: var(--ts-body-medium); line-height: var(--lh-body-medium); }
+.suggest .btn { flex: none; }
+.suggest .btn.tonal { background: var(--md-sys-color-surface-container-lowest); color: var(--md-sys-color-primary); }
+
+/* ── Редактор с подсветкой: <pre> под прозрачным текстом textarea ────── */
+.code-edit { position: relative; flex: 1; min-height: 0; overflow: hidden;
+  border-radius: var(--shape-card); background: var(--md-sys-color-surface-container-low); }
+.code-edit > pre, .code-edit > textarea {
+  position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 16px; border: 0;
+  font-family: var(--md-font-code); font-size: 13px; line-height: 1.6; letter-spacing: 0; word-spacing: 0;
+  white-space: pre; tab-size: 4; overflow: auto; font-variant-ligatures: none; }
+.code-edit > pre { pointer-events: none; overflow: hidden; color: var(--md-sys-color-on-surface); }
+.code-edit > textarea { background: transparent; resize: none; outline: none; appearance: none;
+  color: transparent; -webkit-text-fill-color: transparent; caret-color: var(--md-sys-color-on-surface); }
+.code-edit > textarea::placeholder { -webkit-text-fill-color: var(--md-sys-color-on-surface-variant); color: var(--md-sys-color-on-surface-variant); }
+.code-edit > textarea::selection { background: color-mix(in srgb, var(--md-sys-color-primary) 32%, transparent); }
+.code-edit.plain > pre { display: none; }
+.code-edit.plain > textarea { color: var(--md-sys-color-on-surface); -webkit-text-fill-color: currentColor; }
+
+/* Цвета токенов — VS Code Light / Dark, как в nfqws-keenetic-web */
+:root { --tk-keyword: #0000ff; --tk-string: #a31515; --tk-string2: #811f3f; --tk-comment: #008000; --tk-number: #098658;
+  --tk-var2: #001080; --tk-type: #267f99; --tk-def: #0070c1; --tk-builtin: #795e26; --tk-atom: #0451a5;
+  --tk-error: #cd3131; --tk-warn: #b07a00; --tk-tag: #800000; }
+html[data-mode="dark"] { --tk-keyword: #569cd6; --tk-string: #ce9178; --tk-string2: #d16969; --tk-comment: #6a9955; --tk-number: #b5cea8;
+  --tk-var2: #9cdcfe; --tk-type: #4ec9b0; --tk-def: #4fc1ff; --tk-builtin: #dcdcaa; --tk-atom: #c586c0;
+  --tk-error: #f48771; --tk-warn: #cca700; --tk-tag: #569cd6; }
+.tk-keyword { color: var(--tk-keyword); }
+.tk-string { color: var(--tk-string); }
+.tk-string-2 { color: var(--tk-string2); }
+.tk-comment { color: var(--tk-comment); font-style: italic; }
+.tk-number { color: var(--tk-number); }
+.tk-variable-2 { color: var(--tk-var2); }
+.tk-typeName { color: var(--tk-type); }
+.tk-def { color: var(--tk-def); }
+.tk-builtin { color: var(--tk-builtin); }
+.tk-atom { color: var(--tk-atom); }
+.tk-error { color: var(--tk-error); font-weight: var(--w-emph); }
+.tk-warning { color: var(--tk-warn); }
+.tk-tag, .tk-bracket { color: var(--tk-tag); }
+.tk-operator { opacity: .8; }
+.log-view .tk-variable, .code-edit .tk-variable { color: inherit; }
+
+/* ── Сводка журнала ──────────────────────────────────────────────────── */
+.log-summary .list-item { min-height: 56px; }
+
+/* ── Альбомная ориентация: блоки экрана в две колонки ────────────────── */
+@media (orientation: landscape) and (min-width: 700px) {
+  :root { --content-max: 1200px; }
+  .sheet { max-width: 760px; }
+  .page.split.active, .page.split.leaving {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 24px; align-items: start; }
+  .page.split > .pcol { display: flex; flex-direction: column; gap: var(--gap); min-width: 0; }
+  .logs-page.split.active, .logs-page.split.leaving { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); }
+  .log-view { height: calc(100dvh - var(--top-inset) - var(--appbar-height) - var(--navbar-height) - var(--bottom-inset) - 96px); }
+  .settings-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--gap) 24px; align-items: start; }
+  .page[data-page="wifi"], .page[data-page="apps"], .page[data-page="test"], .page[data-page="diag"] { max-width: 820px; margin: 0 auto; width: 100%; }
+}
+
+/* ── Фон под открытыми листами, диалогами и меню не прокручивается ────── */
+html.scroll-locked, html.scroll-locked body { overflow: hidden; }
+.sheet, .sheet-scroll, .fs-body, .code-edit > textarea, .log-view, .menu { overscroll-behavior: contain; }
+.scrim, .dialog-scrim, .menu-back { touch-action: none; }
+
+/* ── AMOLED: на чёрном фоне контейнеры обведены, иначе они теряются ──── */
+html[data-amoled="true"] :is(.group, .hero, .main-switch, .suggest, .search-bar, .gh-card, .sheet, .dialog, .menu, .code-edit, .log-view, .code-block) {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--md-sys-color-outline-variant) 70%, transparent);
+}
+html[data-amoled="true"] .nav-bar { box-shadow: inset 0 1px 0 color-mix(in srgb, var(--md-sys-color-outline-variant) 70%, transparent); }
+html[data-amoled="true"] .hero.running, html[data-amoled="true"] .hero.paused, html[data-amoled="true"] .list-item.selected { box-shadow: none; }
+
+/* ── Лист темы ───────────────────────────────────────────────────────── */
+.theme-sheet { gap: 14px; }
+.theme-preview {
+  display: flex; flex-direction: column; gap: 12px; padding: 16px; border-radius: var(--shape-extra-large);
+  background: var(--md-sys-color-surface-container-high);
+  transition: background-color var(--dur-medium) var(--standard);
+}
+.tp-hero { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: var(--shape-large);
+  background: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container);
+  transition: background-color var(--dur-medium) var(--standard); }
+.tp-icon { width: 36px; height: 36px; border-radius: 18px; display: grid; place-items: center; flex: none;
+  background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); }
+.tp-lines { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+.tp-line { height: 8px; border-radius: 4px; background: currentColor; opacity: .55; }
+.tp-line.w70 { width: 70%; opacity: .8; } .tp-line.w45 { width: 45%; }
+.tp-row { display: flex; align-items: center; gap: 8px; }
+.tp-btn { height: 28px; flex: 1; border-radius: 14px; background: var(--md-sys-color-primary); }
+.tp-chip { height: 28px; width: 56px; border-radius: 8px; background: var(--md-sys-color-secondary-container); }
+.tp-chip.t { background: var(--md-sys-color-tertiary-container); }
+.tp-roles { display: flex; gap: 8px; }
+.tp-role { width: 20px; height: 20px; border-radius: 50%; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--md-sys-color-on-surface) 12%, transparent); }
+
+.amoled-row { border-radius: var(--shape-large); }
+.swatch-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(48px, 1fr)); gap: 10px; justify-items: center; }
+.swatch-dot {
+  appearance: none; border: 0; cursor: pointer; width: 48px; height: 48px; border-radius: 50%; padding: 0;
+  display: grid; place-items: center; overflow: hidden;
+  background: conic-gradient(from 270deg, var(--sw-a) 0 50%, var(--sw-c) 0 75%, var(--sw-b) 0);
+  transition: border-radius var(--dur-medium) var(--spring-strong), transform var(--dur-short) var(--spring);
+}
+.swatch-dot.on { border-radius: 16px; box-shadow: 0 0 0 3px var(--md-sys-color-surface-container-low), 0 0 0 5px var(--md-sys-color-primary); }
+.swatch-dot .sw-check { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); transform: scale(0);
+  transition: transform var(--dur-medium) var(--spring-strong); }
+.swatch-dot.on .sw-check { transform: scale(1); }
+
+.picker { display: flex; gap: 16px; align-items: center; padding: 16px; border-radius: var(--shape-extra-large);
+  background: var(--md-sys-color-surface-container); }
+.wheel { position: relative; flex: none; width: 168px; height: 168px; border-radius: 50%; cursor: crosshair;
+  touch-action: none; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--md-sys-color-on-surface) 10%, transparent); }
+.wheel:focus-visible { outline: 3px solid var(--md-sys-color-secondary); outline-offset: 3px; }
+.wheel-thumb { position: absolute; width: 28px; height: 28px; margin: -14px 0 0 -14px; border-radius: 50%; pointer-events: none;
+  border: 3px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.45), 0 0 0 1px rgba(0,0,0,.15);
+  transition: width var(--dur-short) var(--spring), height var(--dur-short) var(--spring), margin var(--dur-short) var(--spring); }
+.wheel.drag .wheel-thumb { width: 36px; height: 36px; margin: -18px 0 0 -18px; }
+.picker-side { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.picker-side .hex-group { height: 44px; padding: 0 8px; border-radius: var(--shape-medium); }
+.picker-side .hex-swatch { width: 28px; height: 28px; border-radius: 50%; border: 0; cursor: default; }
+.picker-side .row { gap: 4px; }
+#cd-lum { --track: linear-gradient(90deg, #000, var(--md-sys-color-primary), #fff); }
+@media (max-width: 380px) { .picker { flex-direction: column; } .picker-side { width: 100%; } }
+
+/* ── Ссылка на GitHub в конце настроек ───────────────────────────────── */
+.gh-card { display: flex; align-items: center; gap: 16px; padding: 16px 20px; margin-top: 4px; text-decoration: none;
+  border-radius: var(--shape-extra-large); color: var(--md-sys-color-on-surface);
+  background: linear-gradient(135deg, var(--md-sys-color-primary-container), var(--md-sys-color-tertiary-container)); }
+.gh-mark { width: 48px; height: 48px; flex: none; border-radius: 16px; display: grid; place-items: center;
+  background: var(--md-sys-color-inverse-surface); color: var(--md-sys-color-inverse-on-surface); }
+.gh-mark svg.icon { width: 28px; height: 28px; }
+.gh-card .li-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.gh-title { font-size: var(--ts-label-medium); line-height: var(--lh-label-medium); font-weight: var(--w-bold);
+  letter-spacing: .8px; text-transform: uppercase; color: var(--md-sys-color-on-primary-container); opacity: .8; }
+.gh-repo { font-size: var(--ts-title-medium); line-height: var(--lh-title-medium); font-weight: var(--w-emph);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gh-sub { font-size: var(--ts-body-small); line-height: var(--lh-body-small); color: var(--md-sys-color-on-surface-variant); }
+.gh-open { flex: none; color: var(--md-sys-color-on-primary-container); }
+@media (orientation: landscape) and (min-width: 700px) { .gh-card { grid-column: 1 / -1; } }
