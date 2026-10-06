@@ -347,6 +347,8 @@ body.nav-hidden .content { padding-bottom: calc(var(--bottom-inset) + 24px); }
 /* ── Cards: filled 20dp, elevated, outlined ──────────────────────────── */
 .stack { display: flex; flex-direction: column; gap: var(--gap); }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+/* .grow порождается JS (banner()), поэтому правило обязано жить */
+.row > .grow, .grow { flex: 1 1 0; min-width: 0; }
 
 /* ── Banner ──────────────────────────────────────────────────────────── */
 .banner {
@@ -763,6 +765,13 @@ body.nav-hidden .snackbar { bottom: calc(var(--bottom-inset) + 16px); }
 .empty .empty-icon { width: 64px; height: 64px; border-radius: var(--shape-full);
   display: flex; align-items: center; justify-content: center;
   background: var(--md-sys-color-surface-container-high); color: var(--md-sys-color-secondary); }
+/* метка «Текущая» в списке стратегий порождается JS — правило должно быть в CSS */
+.pill {
+  display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px;
+  border-radius: var(--shape-full);
+  background: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container);
+  font-size: var(--ts-label-medium); line-height: var(--lh-label-medium); font-weight: var(--w-emph);
+}
 
 /* ── Подзаголовки групп и контейнеры (стиль настроек Android 16) ────────
    Списки — стопки list-item с общей формой; всё, что не список
