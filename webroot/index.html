@@ -1700,14 +1700,23 @@ function spawnRun(cmd, ms, onLine){
     const child = makeEmitter();
     child.stdout = makeEmitter();
     child.stderr = makeEmitter();
+    let lineBuf = '';
     const fin = (c, extraErr) => {
       if(done) return; done = 1; clearTimeout(tm);
       setTimeout(() => { delete window[id]; }, 1000);
+      if(onLine && lineBuf) try { onLine(lineBuf); } catch(e) {}
       if(extraErr) err.push(extraErr);
-      res({code: +c || 0, out: out.join('\n'), err: err.join('\n')});
+      res({code: +c || 0, out: out.join(''), err: err.join('')});
     };
     child.stdout.on('data', d => {
-      String(d).split('\n').forEach(l => { out.push(l); if(onLine) try { onLine(l); } catch(e) {} });
+      const chunk = String(d);
+      out.push(chunk);
+      if(onLine){
+        lineBuf += chunk;
+        const lines = lineBuf.split('\n');
+        lineBuf = lines.pop();
+        lines.forEach(l => { try { onLine(l); } catch(e) {} });
+      }
     });
     child.stderr.on('data', d => err.push(String(d)));
     child.on('exit', c => fin(c));
@@ -2042,14 +2051,17 @@ function openMonetModal(){ drawThemeUI(); openSheet('monet-modal'); }
 function closeMonetModal(){ if(openSheetId === 'monet-modal') closeSheet(); }
 
 /* ── «Назад»: сначала оверлеи, потом дочерний экран, потом домой, потом выход ── */
+let lastBackHandled = 0;
 function handleBack(allowExit){
-  if(openMenuEntry){ closeMenu(); return true; }
-  if($('dialog-wrap').classList.contains('open')){ dialogResolve(false); return true; }
-  if($('color-wrap').classList.contains('open')){ closeColorDialog(); return true; }
-  if($('editor-panel').classList.contains('open')){ closeSlideEditor(); return true; }
-  if(openSheetId){ closeSheet(); return true; }
-  if(PAGE_META[currentPage].child){ goBack(); return true; }
-  if(allowExit && currentPage !== 'control'){ navigate('control'); return true; }
+  const now = Date.now();
+  if(now - lastBackHandled < 350) return true;
+  if(openMenuEntry){ closeMenu(); lastBackHandled = now; return true; }
+  if($('dialog-wrap').classList.contains('open')){ dialogResolve(false); lastBackHandled = now; return true; }
+  if($('color-wrap').classList.contains('open')){ closeColorDialog(); lastBackHandled = now; return true; }
+  if($('editor-panel').classList.contains('open')){ closeSlideEditor(); lastBackHandled = now; return true; }
+  if(openSheetId){ closeSheet(); lastBackHandled = now; return true; }
+  if(PAGE_META[currentPage].child){ goBack(); lastBackHandled = now; return true; }
+  if(allowExit && currentPage !== 'control'){ navigate('control'); lastBackHandled = now; return true; }
   return false;
 }
 /* config.json: backInterceptor = javascript */
@@ -2967,10 +2979,22 @@ async function openEditorWith(o){
     const r = await ctlx(o.load, 30000);
     if(editorCtx !== o) return;
     if(r.code){
-      $('editor-panel').classList.remove('open');
-      setBackgroundInert(false);
-      ta.value = '';
-      $('ce-hl').textContent = '';
+      lastBackHandled = Date.now();
+      const box = $('code-edit');
+      const panel = $('editor-panel');
+      const pre = $('ce-hl');
+      if(panel) panel.style.transition = 'none';
+      if(box) box.style.display = 'none';
+      if(ta) ta.style.display = 'none';
+      if(pre) pre.style.display = 'none';
+      if(ta) ta.value = '';
+      if(pre) pre.textContent = '';
+      if(panel) panel.classList.remove('open');
+      if(!openSheetId) setBackgroundInert(false);
+      if(panel){ void panel.offsetHeight; panel.style.transition = ''; }
+      if(box) box.style.display = '';
+      if(ta) ta.style.display = '';
+      if(pre) pre.style.display = '';
       editorCtx = null;
       scheduleSync();
       toast(errText(r, 'Не удалось открыть файл'));
@@ -2996,12 +3020,38 @@ async function closeSlideEditor(force){
       {ok: t('Закрыть'), cancel: t('Продолжить правку')});
     if(!discard) return;
   }
+  lastBackHandled = Date.now();
   if(document.activeElement === ta || (ta && ta.blur)) ta.blur();
-  $('editor-panel').classList.remove('open');
+  // Для больших файлов (>50 КБ, напр. ipset.list на 15 000 строк / 360 000 px высоты)
+  // полностью отключаем CSS-транзишн панели, скрываем блок и очищаем DOM ДО закрытия.
+  // Это полностью устраняет попытки Chromium cc / Skia растрировать текстуру огромного слоя,
+  // что приводило к SIGSEGV / RenderProcessGone и крашу хост-процесса KernelSU/APatch.
+  const box = $('code-edit');
+  const panel = $('editor-panel');
+  const pre = $('ce-hl');
+  const isLarge = !o || !o.original || o.original.length > 50000;
+  if(isLarge && panel) panel.style.transition = 'none';
+  if(box) box.style.display = 'none';
+  if(ta) ta.style.display = 'none';
+  if(pre) pre.style.display = 'none';
+  if(ta) ta.value = '';
+  if(pre) pre.textContent = '';
+  if(panel) panel.classList.remove('open');
   if(!openSheetId) setBackgroundInert(false);
-  ta.value = '';
-  $('ce-hl').textContent = '';
-  if(editorReturnFocus && editorReturnFocus.focus) editorReturnFocus.focus({ preventScroll: true });
+  if(isLarge && panel){
+    void panel.offsetHeight;
+    panel.style.transition = '';
+    if(box) box.style.display = '';
+    if(ta) ta.style.display = '';
+    if(pre) pre.style.display = '';
+  } else {
+    setTimeout(() => {
+      if(box) box.style.display = '';
+      if(ta) ta.style.display = '';
+      if(pre) pre.style.display = '';
+    }, 480);
+  }
+  if(editorReturnFocus && editorReturnFocus.focus) try { editorReturnFocus.focus({ preventScroll: true }); } catch(e) {}
   editorReturnFocus = null;
   editorCtx = null;
   scheduleSync();
