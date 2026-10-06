@@ -34,8 +34,7 @@ function renderSettings(){
       {icon: 'translate', title: 'Язык', sub: LANG === 'en' ? 'English' : 'Русский', on: 'pickLanguage(this)', menu: true}
     ]],
     ['О модуле', [
-      {icon: 'info', title: 'nfqws2 for Android', sub: t('Версия {0}', S.version || '—') + ' · ' +
-        (devMode ? t('параметры для разработчика включены') : t('удерживайте кнопку настроек, чтобы открыть параметры для разработчика')), on: ''}
+      {icon: 'info', title: 'nfqws2 for Android', sub: t('Версия {0}', S.version || '—'), on: 'openUrl(' + jsArg(GITHUB_URL) + ')', chevron: true}
     ]]
   ];
   let devHtml = '';
@@ -55,14 +54,7 @@ function renderSettings(){
   }
   setHTML('settings-body', groups.map(([title, rows]) =>
     '<div class="stack"><h2 class="subhead">' + esc(t(title)) + '</h2><div class="list">' + rows.map(settingsRow).join('') + '</div></div>').join('') +
-    devHtml +
-    '<a class="gh-card state" href="' + GITHUB_URL + '" onclick="event.preventDefault(); openUrl(' + jsArg(GITHUB_URL) + ')">' +
-      '<span class="gh-mark">' + icon('github', 's24') + '</span>' +
-      '<span class="li-text"><span class="gh-title">GitHub</span>' +
-        '<span class="gh-repo">Dea1hwa1cher/nfqws2-android</span>' +
-        '<span class="gh-sub">' + esc(t('Исходный код, релизы и обсуждения')) + '</span></span>' +
-      '<span class="gh-open">' + icon('open', 's20') + '</span>' +
-    '</a>', false);
+    devHtml, false);
 }
 const GITHUB_URL = 'https://github.com/Dea1hwa1cher/nfqws2-android';
 /* Ссылку открывает система (браузер по умолчанию): внутри WebView менеджера

@@ -117,7 +117,7 @@ html.scroll-locked, html.scroll-locked body { overflow: hidden; }
 .scrim, .dialog-scrim, .menu-back { touch-action: none; }
 
 /* ── AMOLED: на чёрном фоне контейнеры обведены, иначе они теряются ──── */
-html[data-amoled="true"] :is(.group, .hero, .main-switch, .suggest, .search-bar, .gh-card, .sheet, .dialog, .menu, .code-edit, .log-view, .code-block) {
+html[data-amoled="true"] :is(.group, .hero, .main-switch, .suggest, .search-bar, .sheet, .dialog, .menu, .code-edit, .log-view, .code-block) {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--md-sys-color-outline-variant) 70%, transparent);
 }
 html[data-amoled="true"] .nav-bar { box-shadow: inset 0 1px 0 color-mix(in srgb, var(--md-sys-color-outline-variant) 70%, transparent); }
@@ -175,18 +175,3 @@ html[data-amoled="true"] .hero.running, html[data-amoled="true"] .hero.paused, h
 #cd-lum { --track: linear-gradient(90deg, #000, var(--md-sys-color-primary), #fff); }
 @media (max-width: 380px) { .picker { flex-direction: column; } .picker-side { width: 100%; } }
 
-/* ── Ссылка на GitHub в конце настроек ───────────────────────────────── */
-.gh-card { display: flex; align-items: center; gap: 16px; padding: 16px 20px; margin-top: 4px; text-decoration: none;
-  border-radius: var(--shape-extra-large); color: var(--md-sys-color-on-surface);
-  background: linear-gradient(135deg, var(--md-sys-color-primary-container), var(--md-sys-color-tertiary-container)); }
-.gh-mark { width: 48px; height: 48px; flex: none; border-radius: 16px; display: grid; place-items: center;
-  background: var(--md-sys-color-inverse-surface); color: var(--md-sys-color-inverse-on-surface); }
-.gh-mark svg.icon { width: 28px; height: 28px; }
-.gh-card .li-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-.gh-title { font-size: var(--ts-label-medium); line-height: var(--lh-label-medium); font-weight: var(--w-bold);
-  letter-spacing: .8px; text-transform: uppercase; color: var(--md-sys-color-on-primary-container); opacity: .8; }
-.gh-repo { font-size: var(--ts-title-medium); line-height: var(--lh-title-medium); font-weight: var(--w-emph);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.gh-sub { font-size: var(--ts-body-small); line-height: var(--lh-body-small); color: var(--md-sys-color-on-surface-variant); }
-.gh-open { flex: none; color: var(--md-sys-color-on-primary-container); }
-@media (orientation: landscape) and (min-width: 700px) { .gh-card { grid-column: 1 / -1; } }

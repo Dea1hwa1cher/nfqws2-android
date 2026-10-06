@@ -14,7 +14,8 @@ async function doctor(){
 async function loadArgs(){
   $('args').textContent = t('Загрузка…');
   const r = await ctlx(['get-logs', 'args', '5']);
-  $('args').textContent = (r.code ? errText(r, 'Нет данных') : r.out).trim() || t('Служба ещё не запускалась');
+  const pidInfo = (S && S.running && S.pid) ? 'PID ' + S.pid + '\n\n' : '';
+  $('args').textContent = pidInfo + ((r.code ? errText(r, 'Нет данных') : r.out).trim() || t('Служба ещё не запускалась'));
 }
 async function copyArgs(){
   const text = $('args').textContent;

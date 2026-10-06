@@ -218,14 +218,13 @@ function renderStatus(){
   const j = S;
   if(!j || j.running == null){ renderHeroActions(); renderParams({}); return; }
   const paused = !j.running && !!j.paused;
+  if(j.strategy) currentStrategy = j.strategy;
   $('hero-status').className = 'hero' + (j.running ? ' running' : (paused ? ' paused' : ''));
   $('st').textContent = j.running ? t('Служба работает') : (paused ? t('Пауза') : t('Служба остановлена'));
   const lim = {connbytes: t('лимит connbytes'), connmark_out: t('лимит connmark')}[j.limiter] || '';
   $('sub').textContent = paused
     ? t('Домашняя Wi‑Fi «{0}». Обход возобновится, когда телефон уйдёт из этой сети.', j.paused)
-    : (j.running && j.pid ? 'PID ' + j.pid + ' · ' : '') + t('Режим') + ' ' + (j.mode || '—') +
-      (j.strategy ? ' · ' + t('стратегия') + ' ' + strategyName(j.strategy) : '') +
-      (j.running && lim ? ', ' + lim : '');
+    : t('Режим') + ' ' + (j.mode || '—') + (j.running && lim ? ', ' + lim : '');
   $('queue-num').textContent = j.running ? (j.queue || '—') : '—';
   const qd = $('qdrop-num');
   qd.textContent = j.running ? (j.qdrop || 0) : '—';
