@@ -2,5 +2,5 @@ id=nfqws2-android
 name=nfqws2 for Android
 version=v1.4.0
 versionCode=1040
-author=port of nfqws/nfqws2-keenetic (MIT) + bol-van/zapret2
+author=deathwatcher
 description=Обход DPI на базе nfqws2.
