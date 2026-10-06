@@ -31,7 +31,7 @@ unzip -o "$ZIPFILE" -x 'META-INF/*' -d "$MODPATH" >&2 || abort "! Не удал�
 # (tests/module/*, .workbuddy-ai/memory/*) распаковываются как обычно —
 # проверено на Info-ZIP 6.00. Удаляем целиком, до set_perm_recursive.
 rm -rf "$MODPATH/tests" "$MODPATH/tools" "$MODPATH/.workbuddy-ai" \
-       "$MODPATH/.git" "$MODPATH/.github" "$MODPATH/.gitattributes" "$MODPATH/CONTRIBUTING.md"
+       "$MODPATH/.git" "$MODPATH/.github" "$MODPATH/.gitattributes"
 rm -f "$MODPATH"/*.zip
 
 [ -f "$MODPATH/binaries/$BIN/nfqws2" ] || abort "! Нет бинарника $BIN"
@@ -103,5 +103,4 @@ for x in service.sh action.sh uninstall.sh bin/nfqws2 bin/nfqws2-ctl; do
 done
 chmod 0700 "$CONF" 2>/dev/null
 
-ui_print "- Готово. Перезагрузите устройство или запустите модуль кнопкой Action / через WebUI."
-ui_print "- WebUI: KernelSU/APatch — из менеджера; Magisk — через приложение KsuWebUI или MMRL."
+ui_print "- Готово. Перезагрузите устройство."
