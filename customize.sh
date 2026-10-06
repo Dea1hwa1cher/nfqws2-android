@@ -55,14 +55,42 @@ else
     || abort "! Не удалось создать $CONF/nfqws2.conf"
   ui_print "- Создан конфиг: $CONF/nfqws2.conf"
 fi
-# При установке кладутся все шесть списков, включая auto.list: это стартовый
-# набор, дальше nfqws2 пополняет его сам. reset-lists в nfqws2-ctl намеренно НЕ
-# трогает auto.list — он выученный, и сброс стёр бы наработку. Списки обязаны
-# различаться ровно на auto, это проверяет test_data.sh.
-for f in user exclude ipset ipset_exclude auto probe_hosts; do
-  [ -f "$CONF/lists/$f.list" ] || cp -f "$MODPATH/lists/$f.list" "$CONF/lists/$f.list"
+# Списки из релиза. Правки пользователя при обновлении не затираются:
+#   - списка ещё нет                       → кладём новый;
+#   - список не трогали (= прошлый релиз)  → тихо обновляем;
+#   - список правили, а в релизе он новый  → новая версия ждёт в .pending,
+#     WebUI отмечает такой список «!» и предлагает заменить его вручную.
+# .dist хранит версию последнего релиза — по ней и видно, правил ли пользователь.
+# auto.list — исключение: он выученный, его всегда оставляем как есть.
+# Сервисные списки (google, youtube, ipset_* …) WebUI не редактирует: без
+# истории в .dist (обновление с версии, где её не было) их просто заменяем.
+# reset-lists в nfqws2-ctl намеренно НЕ трогает auto.list — сброс стёр бы
+# наработку. Списки обязаны различаться ровно на auto, это проверяет test_data.sh.
+DIST="$CONF/lists/.dist"; PEND="$CONF/lists/.pending"
+mkdir -p "$DIST" "$PEND"
+for src in "$MODPATH"/lists/*.list; do
+  [ -f "$src" ] || continue
+  f="${src##*/}"; dst="$CONF/lists/$f"
+  if [ "$f" = "auto.list" ]; then
+    [ -f "$dst" ] || cp -f "$src" "$dst"
+    continue
+  fi
+  if [ ! -f "$dst" ] || cmp -s "$src" "$dst"; then
+    cp -f "$src" "$dst"; rm -f "$PEND/$f"
+  elif [ -f "$DIST/$f" ] && cmp -s "$dst" "$DIST/$f"; then
+    cp -f "$src" "$dst"; rm -f "$PEND/$f"
+  elif [ ! -f "$DIST/$f" ] && case " user exclude ipset ipset_exclude probe_hosts " in *" ${f%.list} "*) false ;; *) true ;; esac; then
+    cp -f "$src" "$dst"; rm -f "$PEND/$f"
+  elif [ -f "$DIST/$f" ] && cmp -s "$src" "$DIST/$f"; then
+    :   # в релизе список не менялся — правкам пользователя предлагать нечего
+  else
+    cp -f "$src" "$PEND/$f"
+    ui_print "- $f изменён вами: новая версия ждёт подтверждения в WebUI"
+  fi
+  cp -f "$src" "$DIST/$f"
 done
 [ -f "$CONF/apps.list" ] || echo "# Пакеты для фильтра приложений (APP_MODE=include|exclude), по одному на строку" > "$CONF/apps.list"
+[ -f "$CONF/home_wifi.list" ] || echo "# Домашние сети Wi-Fi (SSID по одному на строку): в них обход ставится на паузу" > "$CONF/home_wifi.list"
 # Файл caps писали старые версии модуля; сам механизм больше не существует, но
 # уборку оставляем: при обновлении со старой версии файл должен исчезнуть.
 # Переменная CAPS_FILE из lib/common.sh удалена ревью 2026-10-06 как мёртвая —
@@ -75,5 +103,4 @@ for x in service.sh action.sh uninstall.sh bin/nfqws2 bin/nfqws2-ctl; do
 done
 chmod 0700 "$CONF" 2>/dev/null
 
-ui_print "- Готово. Перезагрузите устройство или запустите модуль кнопкой Action / через WebUI."
-ui_print "- WebUI: KernelSU/APatch — из менеджера; Magisk — через приложение KsuWebUI или MMRL."
+ui_print "- Готово. Перезагрузите устройство."

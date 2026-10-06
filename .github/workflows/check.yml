@@ -1,0 +1,58 @@
+# Быстрая проверка, которая ловит битое слияние до того, как оно попадёт в main:
+# забытые маркеры конфликта, синтаксис shell-скриптов и скриптов WebUI, ссылки
+# index.html на css/ и js/. Запускается на каждый PR и на пуш в main.
+name: check
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Маркеры конфликта слияния
+        run: |
+          if git grep -nE '^(<<<<<<<|=======$|>>>>>>>)' -- ':!*.bin' ':!binaries'; then
+            echo "::error::В файлах остались маркеры конфликта — слияние разрешено не до конца"
+            exit 1
+          fi
+
+      - name: Синтаксис shell-скриптов (dash, как sh на Android)
+        run: |
+          rc=0
+          for f in service.sh action.sh customize.sh uninstall.sh lib/common.sh bin/nfqws2-ctl; do
+            sh -n "$f" || { echo "::error file=$f::синтаксическая ошибка"; rc=1; }
+          done
+          exit $rc
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Синтаксис скриптов WebUI
+        working-directory: webroot
+        run: |
+          rc=0
+          for f in js/*.js; do
+            node --check "$f" || { echo "::error file=webroot/$f::синтаксическая ошибка"; rc=1; }
+          done
+          # Все скрипты делят одну глобальную область: вместе они тоже должны
+          # разбираться — так ловятся повторные объявления let/const между файлами.
+          cat js/*.js > /tmp/webui-all.js && node --check /tmp/webui-all.js || rc=1
+          exit $rc
+
+      - name: index.html ссылается только на существующие файлы
+        working-directory: webroot
+        run: |
+          rc=0
+          for f in $(grep -oE '(src|href)="(js|css)/[^"]+"' index.html | sed -E 's/^(src|href)="//; s/"$//'); do
+            [ -f "$f" ] || { echo "::error file=webroot/index.html::нет файла $f"; rc=1; }
+          done
+          for f in js/*.js css/*.css; do
+            grep -q "\"$f\"" index.html || { echo "::error file=webroot/$f::файл не подключён в index.html"; rc=1; }
+          done
+          exit $rc
