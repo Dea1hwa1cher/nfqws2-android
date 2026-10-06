@@ -1,0 +1,911 @@
+/* nfqws2 WebUI · base.css — токены M3 и базовые компоненты */
+/* ══════════════════════════════════════════════════════════════════════════
+   MATERIAL DESIGN 3 EXPRESSIVE — DESIGN TOKENS
+   Навигация: Navigation bar (4 раздела) + экран настроек за кнопкой в top app bar.
+   Роли цвета, typescale, shape, elevation и motion соответствуют M3 Expressive
+   (MotionScheme.expressive(), Purple fallback из таблиц m3.material.io).
+   Значения ролей перезаписывает рантайм-генератор палитры (см. applyTheme()).
+
+   Типографика намеренно longhand: `font:` shorthand без family невалиден на
+   этапе computed-value и молча убивает всю шкалу (дефект 2026-10-04).
+   ══════════════════════════════════════════════════════════════════════════ */
+:root {
+  color-scheme: light;
+
+  /* ── Type ── */
+  --md-font: 'Roboto', system-ui, -apple-system, 'Segoe UI', 'Noto Sans', sans-serif;
+  --md-font-code: 'Roboto Mono', ui-monospace, 'Cascadia Mono', Menlo, Consolas, monospace;
+  --ts-display-large: 57px;   --lh-display-large: 64px;   --tr-display-large: -.25px;
+  --ts-headline-large: 32px;  --lh-headline-large: 40px;
+  --ts-headline-medium: 28px; --lh-headline-medium: 36px;
+  --ts-headline-small: 24px;  --lh-headline-small: 32px;
+  --ts-title-large: 22px;     --lh-title-large: 28px;
+  --ts-title-medium: 16px;    --lh-title-medium: 24px;
+  --ts-title-small: 14px;     --lh-title-small: 20px;
+  --ts-body-large: 16px;      --lh-body-large: 24px;
+  --ts-body-medium: 14px;     --lh-body-medium: 20px;
+  --ts-body-small: 12px;      --lh-body-small: 16px;
+  --ts-label-large: 14px;     --lh-label-large: 20px;
+  --ts-label-medium: 12px;    --lh-label-medium: 16px;
+  --ts-label-small: 11px;     --lh-label-small: 16px;
+  --ts-metric: 13px;          --lh-metric: 18px;
+  /* Трекинг M3: без него шкала «на глаз» ближе, чем надо */
+  --tr-headline-large: -.25px; --tr-title-medium: .15px; --tr-title-small: .1px;
+  --tr-body-large: .5px;       --tr-body-medium: .25px;  --tr-body-small: .4px;
+  /* Emphasized weights M3 Expressive */
+  --w-regular: 400; --w-medium: 500; --w-emph: 600; --w-bold: 700;
+
+  /* ── Shape ── */
+  --shape-extra-small: 4px;
+  --shape-small: 8px;
+  --shape-medium: 12px;
+  --shape-large: 16px;
+  --shape-extra-large: 28px;
+  --shape-card: 12px;          /* M3: радиус карточек 12dp */
+  --shape-full: 9999px;
+  --shape-inner: 8px;          /* split button / stacked list inner corners */
+  /* Алиасы старых имён: инлайновые стили из JS их тоже используют */
+  --md-sys-shape-corner-extra-small: var(--shape-extra-small);
+  --md-sys-shape-corner-small: var(--shape-small);
+  --md-sys-shape-corner-medium: var(--shape-medium);
+  --md-sys-shape-corner-large: var(--shape-large);
+  --md-sys-shape-corner-extra-large: var(--shape-extra-large);
+  --md-sys-shape-full: var(--shape-full);
+  /* Публичные имена M3: с ними к странице можно подключить компоненты Material Web,
+     которые читают --md-sys-typescale / --md-sys-motion / --md-sys-state, а не наши --ts- / --dur-. */
+  --md-sys-typescale-display-large-size: var(--ts-display-large);
+  --md-sys-typescale-headline-large-size: var(--ts-headline-large);
+  --md-sys-typescale-headline-medium-size: var(--ts-headline-medium);
+  --md-sys-typescale-headline-small-size: var(--ts-headline-small);
+  --md-sys-typescale-title-large-size: var(--ts-title-large);
+  --md-sys-typescale-title-medium-size: var(--ts-title-medium);
+  --md-sys-typescale-title-small-size: var(--ts-title-small);
+  --md-sys-typescale-body-large-size: var(--ts-body-large);
+  --md-sys-typescale-body-medium-size: var(--ts-body-medium);
+  --md-sys-typescale-body-small-size: var(--ts-body-small);
+  --md-sys-typescale-label-large-size: var(--ts-label-large);
+  --md-sys-typescale-label-medium-size: var(--ts-label-medium);
+  --md-sys-typescale-label-small-size: var(--ts-label-small);
+  --md-sys-motion-duration-short1: var(--dur-extra-short);
+  --md-sys-motion-duration-short2: var(--dur-short);
+  --md-sys-motion-duration-medium1: var(--dur-medium);
+  --md-sys-motion-duration-medium3: var(--dur-medium-long);
+  --md-sys-motion-duration-long1: var(--dur-long);
+  --md-sys-motion-easing-emphasized: var(--standard);
+  --md-sys-motion-easing-emphasized-decelerate: var(--emphasized-decelerate);
+  --md-sys-motion-easing-emphasized-accelerate: var(--emphasized-accelerate);
+  --md-sys-motion-easing-standard: var(--standard);
+  --md-sys-state-hover-opacity: var(--state-hover);
+  --md-sys-state-focus-opacity: var(--state-focus);
+  --md-sys-state-pressed-opacity: var(--state-pressed);
+  --md-sys-state-disabled-content-opacity: var(--state-disabled-content);
+  --md-sys-state-disabled-container-opacity: var(--state-disabled-container);
+
+  /* ── Motion: MotionScheme.expressive() ── */
+  --spring: cubic-bezier(.34, 1.41, .64, 1);
+  --spring-strong: cubic-bezier(.28, 1.62, .55, .92);
+  --standard: cubic-bezier(.2, 0, 0, 1);
+  --emphasized-decelerate: cubic-bezier(.05, .7, .1, 1);
+  --emphasized-accelerate: cubic-bezier(.3, 0, .8, -.15);
+  /* Длительности — значения таблицы motion-токенов M3 (short1..4, medium1..4, long1..4) */
+  --dur-extra-short: 50ms;   /* duration-short1 */
+  --dur-short: 100ms;        /* duration-short2 */
+  --dur-medium: 250ms;       /* duration-medium1 */
+  --dur-medium-long: 350ms;  /* duration-medium3 */
+  --dur-long: 450ms;         /* duration-long1 */
+  --md-ease-standard: var(--standard);
+  --md-ease-emphasized: var(--standard);
+  --md-ease-emphasized-decelerate: var(--emphasized-decelerate);
+  --md-ease-emphasized-accelerate: var(--emphasized-accelerate);
+  --md-dur-extra-short: var(--dur-extra-short);
+  --md-dur-short: var(--dur-short);
+  --md-dur-medium: var(--dur-medium);
+  --md-dur-medium-long: var(--dur-medium-long);
+  --md-dur-long: var(--dur-long);
+
+  /* ── State layers ── */
+  --state-hover: .08;
+  --state-focus: .12;
+  --state-pressed: .12;
+  --state-disabled-content: .38;
+  --state-disabled-container: .12;
+  --md-state-hover: var(--state-hover);
+  --md-state-focus: var(--state-focus);
+  --md-state-pressed: var(--state-pressed);
+  --md-state-disabled-content: var(--state-disabled-content);
+  --md-state-disabled-container: var(--state-disabled-container);
+
+  /* ── Elevation: key + ambient light ── */
+  --md-elev-1: 0 1px 2px 0 rgba(0,0,0,.30), 0 1px 3px 1px rgba(0,0,0,.15);
+  --md-elev-2: 0 1px 2px 0 rgba(0,0,0,.30), 0 2px 6px 2px rgba(0,0,0,.15);
+  --md-elev-3: 0 1px 3px 0 rgba(0,0,0,.30), 0 4px 8px 3px rgba(0,0,0,.15);
+  --md-elev-4: 0 2px 3px 0 rgba(0,0,0,.30), 0 6px 10px 4px rgba(0,0,0,.15);
+  --md-elev-5: 0 4px 4px 0 rgba(0,0,0,.30), 0 8px 12px 6px rgba(0,0,0,.15);
+
+  /* ── Layout ── */
+  --top-inset: var(--window-inset-top, env(safe-area-inset-top, 0px));
+  --bottom-inset: var(--window-inset-bottom, env(safe-area-inset-bottom, 0px));
+  --appbar-height: 64px;
+  --navbar-height: 80px;
+  --content-max: 760px;
+  --gutter: 16px;
+  --screen-margin: 16px;
+  --gap: 12px;
+
+  /* M3 не задаёт семантических success/info: тонированные значения около error */
+
+  /* ── Color roles: светлая схема (fallback Purple) ── */
+  /* fixed-роли не зависят от темы: tone 90/80/30/10 от той же палитры */
+  --md-sys-color-scrim: rgba(0, 0, 0, .32);
+  /* Остальные цветовые роли сюда НЕ пишутся: единственный источник — roles() в JS,
+     а applyTheme() кладёт их в <style id="theme-vars">. Вторая копия в CSS однажды
+     уже делала палитру мёртвой. Scrim — исключение: applyTheme() его не пишет. */
+}
+
+/* Color roles: тёмная схема (fallback Purple, tone 80) */
+html[data-mode="dark"] {
+  color-scheme: dark;
+  /* fixed совпадают с темой light по определению — они не инвертируются */
+}
+
+/* Светлая схема явно задана и в :root — блок оставлен для переопределений seed */
+html[data-mode="light"] { color-scheme: light; }
+
+/* AMOLED: surface-роли уходят в чёрный (M3 dark + OLED-вариант).
+   Значения задаёт roles() через applyTheme() — здесь остаётся только признак
+   режима для color-scheme. Раньше тут лежала вторая копия палитры; убрана
+   ревью 2026-10-06, потому что любая правка темы в CSS не доезжала до экрана. */
+html[data-mode="dark"][data-amoled="true"] { color-scheme: dark; }
+
+/* ── Base ─────────────────────────────────────────────────────────────── */
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body {
+  background: var(--md-sys-color-background);
+  color: var(--md-sys-color-on-background);
+  font-family: var(--md-font);
+  font-size: var(--ts-body-large);
+  line-height: var(--lh-body-large);
+  min-height: 100dvh;
+  transition: background-color var(--dur-medium) var(--standard), color var(--dur-medium) var(--standard);
+}
+body { overflow-x: hidden; overscroll-behavior-y: none; }
+button, input, select, textarea { font-family: inherit; font-size: inherit; color: inherit; }
+/* Material Symbols — заливные глифы: stroke не используется */
+svg.icon { width: 24px; height: 24px; flex: none; fill: currentColor; display: block; }
+svg.icon.s16 { width: 16px; height: 16px; }
+svg.icon.s18 { width: 18px; height: 18px; }
+svg.icon.s20 { width: 20px; height: 20px; }
+svg.icon.s24 { width: 24px; height: 24px; }
+:where(button, a, input, select, textarea, label.clickable, [tabindex]):focus-visible {
+  outline: 3px solid var(--md-sys-color-secondary); outline-offset: 2px;
+}
+[hidden] { display: none !important; }
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* State layer + ripple + press scale: каждое тапаемое получает и то, и другое */
+.state { position: relative; isolation: isolate; overflow: hidden; touch-action: manipulation;
+  transition: transform var(--dur-short) var(--spring), background-color var(--dur-short) var(--standard); }
+.state::after {
+  content: ""; position: absolute; inset: 0; background: currentColor; opacity: 0;
+  pointer-events: none; border-radius: inherit; z-index: 0;
+  transition: opacity var(--dur-short) var(--standard);
+}
+/* Hover только для мыши/тачпада: на сенсорном экране :hover «залипает» после тапа
+   и оставляет полупрозрачный круг вокруг кнопки */
+@media (hover: hover) { .state:hover::after { opacity: var(--state-hover); } }
+.state:focus-visible::after { opacity: var(--state-focus); }
+.state:active { transform: scale(.97); }
+.state[disabled], .state.is-disabled { pointer-events: none; }
+.state > *:not(.ripple) { position: relative; z-index: 1; }
+.ripple { position: absolute; border-radius: 50%; transform: scale(0); pointer-events: none; z-index: 0;
+  background: currentColor; opacity: var(--state-pressed);
+  animation: ripple-out var(--dur-long) var(--standard) forwards; }
+@keyframes ripple-out {
+  0%   { transform: scale(0);    opacity: calc(var(--state-pressed) * 1.6); }
+  70%  { transform: scale(1);    opacity: var(--state-pressed); }
+  100% { transform: scale(1.04); opacity: 0; }
+}
+
+/* ── Top app bar (small, 64dp) ──────────────────────────────────────────── */
+.app-bar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 25;
+  min-height: calc(var(--top-inset) + var(--appbar-height));
+  padding: var(--top-inset) 4px 0 4px;
+  display: flex; align-items: center; gap: 4px;
+  background: var(--md-sys-color-surface);
+  transition: background-color var(--dur-medium) var(--standard), box-shadow var(--dur-medium) var(--standard);
+}
+.app-bar.scrolled { background: var(--md-sys-color-surface-container); }
+.app-bar .title { flex: 1; min-width: 0; padding-left: 8px;
+  font-size: var(--ts-title-large); line-height: var(--lh-title-large); font-weight: var(--w-regular);
+  color: var(--md-sys-color-on-surface); }
+.app-bar .title .ver { font-size: var(--ts-label-small); line-height: var(--lh-label-small); font-weight: var(--w-medium);
+  color: var(--md-sys-color-on-surface-variant); vertical-align: 5px; margin-left: 8px; }
+/* 32dp чип состояния в баре: PID / выкл / нет связи */
+
+/* Icon button 48×48 */
+.icon-btn {
+  appearance: none; border: none; background: transparent; cursor: pointer;
+  width: 48px; height: 48px; flex: none; border-radius: var(--shape-full);
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--md-sys-color-on-surface-variant);
+}
+.icon-btn.tone-on { color: var(--md-sys-color-on-surface); }
+.icon-btn.tone-primary { color: var(--md-sys-color-primary); }
+.icon-btn.sm { width: 40px; height: 40px; }
+
+/* ── Scrim ───────────────────────────────────────────────────────────── */
+.scrim {
+  position: fixed; inset: 0; z-index: 40; background: var(--md-sys-color-scrim);
+  opacity: 0; pointer-events: none;
+  transition: opacity var(--dur-medium) var(--standard);
+}
+.scrim.show { opacity: 1; pointer-events: auto; }
+
+/* ── App bar: действия текущего экрана + overflow ─────────────────────── */
+.bar-actions { display: flex; align-items: center; flex: none; }
+.app-bar .title.swap { animation: title-in var(--dur-medium) var(--emphasized-decelerate); }
+@keyframes title-in { from { opacity: 0; transform: translateY(4px); } }
+
+/* ── Navigation bar (M3): 80dp, индикатор 64×32, подписи видны всегда ───
+   Индикатор раскрывается от иконки по горизонтали (scaleX .5 → 1) — так
+   M3 показывает смену выбранного раздела. Ripple ограничен индикатором. */
+.nav-bar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+  height: calc(var(--navbar-height) + var(--bottom-inset));
+  padding-bottom: var(--bottom-inset);
+  display: flex; justify-content: center;
+  background: var(--md-sys-color-surface-container);
+  transition: transform var(--dur-medium-long) var(--emphasized-decelerate),
+              background-color var(--dur-medium) var(--standard);
+}
+/* На дочерних экранах панель уезжает вниз: M3 показывает её только на разделах верхнего уровня */
+body.nav-hidden .nav-bar {
+  transform: translateY(100%);
+  transition: transform var(--dur-medium) var(--emphasized-accelerate);
+}
+.nav-bar-inner { display: flex; width: 100%; max-width: var(--content-max); }
+.nav-dest {
+  appearance: none; border: 0; background: none; cursor: pointer;
+  flex: 1 1 0; min-width: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 4px;
+  padding: 12px 0 16px;
+  color: var(--md-sys-color-on-surface-variant);
+}
+.nav-dest:focus-visible { outline: none; }
+.nav-dest:focus-visible .nav-ind { outline: 3px solid var(--md-sys-color-secondary); outline-offset: 2px; }
+.nav-ind {
+  width: 64px; height: 32px; flex: none; border-radius: var(--shape-full);
+  display: grid; place-items: center;
+  transition: color var(--dur-short) var(--standard);
+}
+.nav-ind::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; z-index: 0;
+  background: var(--md-sys-color-secondary-container);
+  transform: scaleX(.5); opacity: 0;
+  transition: transform var(--dur-medium-long) var(--spring), opacity var(--dur-short) var(--standard);
+}
+@media (hover: hover) {
+  .nav-dest:hover .nav-ind::after { opacity: var(--state-hover); }
+}
+.nav-dest[aria-current="page"] .nav-ind { color: var(--md-sys-color-on-secondary-container); }
+.nav-dest[aria-current="page"] .nav-ind::before { transform: none; opacity: 1; }
+.nav-label {
+  max-width: 100%; padding: 0 4px;
+  font-size: var(--ts-label-medium); line-height: var(--lh-label-medium); font-weight: var(--w-medium);
+  letter-spacing: .5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.nav-dest[aria-current="page"] .nav-label { color: var(--md-sys-color-on-surface); font-weight: var(--w-bold); }
+
+/* ── Content / pages ─────────────────────────────────────────────────── */
+.content {
+  position: relative;
+  padding: calc(var(--top-inset) + var(--appbar-height) + 8px) var(--screen-margin)
+           calc(var(--bottom-inset) + var(--navbar-height) + 24px);
+  max-width: var(--content-max); margin: 0 auto;
+}
+body.nav-hidden .content { padding-bottom: calc(var(--bottom-inset) + 24px); }
+.page { display: none; flex-direction: column; gap: var(--gap); }
+.page.active, .page.leaving { display: flex; }
+/* Уходящий экран закреплён fixed на своём месте, пока новый появляется в потоке:
+   так оба видны одновременно и прокрутка не дёргается. */
+.page.leaving { pointer-events: none; z-index: 1; }
+
+/* ── Переходы M3 ─────────────────────────────────────────────────────────
+   Fade through — между разделами Navigation bar: старый гаснет за 90ms,
+   новый проявляется с масштабом .92 → 1 за 210ms.
+   Shared axis X — переход на дочерний экран и обратно: сдвиг на 30dp по оси
+   навигации, прозрачность меняется в первые 30% / последние 70% времени.
+   Сдвиг и прозрачность — отдельные анимации, чтобы easing не дробился. */
+@keyframes fade-in { from { opacity: 0; } }
+@keyframes fade-out { to { opacity: 0; } }
+@keyframes ft-scale-in { from { transform: scale(.92); } }
+@keyframes sx-in-fwd { from { transform: translateX(30px); } }
+@keyframes sx-out-fwd { to { transform: translateX(-30px); } }
+@keyframes sx-in-back { from { transform: translateX(-30px); } }
+@keyframes sx-out-back { to { transform: translateX(30px); } }
+.page.enter-fade { transform-origin: 50% 0;
+  animation: fade-in 210ms var(--emphasized-decelerate) 90ms both,
+             ft-scale-in 210ms var(--emphasized-decelerate) 90ms both; }
+.page.leave-fade { animation: fade-out 90ms var(--emphasized-accelerate) both; }
+.page.enter-forward { animation: sx-in-fwd 300ms var(--standard) both, fade-in 210ms var(--standard) 90ms both; }
+.page.leave-forward { animation: sx-out-fwd 300ms var(--standard) both, fade-out 90ms var(--standard) both; }
+.page.enter-back { animation: sx-in-back 300ms var(--standard) both, fade-in 210ms var(--standard) 90ms both; }
+.page.leave-back { animation: sx-out-back 300ms var(--standard) both, fade-out 90ms var(--standard) both; }
+
+/* ── Cards: filled 20dp, elevated, outlined ──────────────────────────── */
+.stack { display: flex; flex-direction: column; gap: var(--gap); }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+/* ── Banner ──────────────────────────────────────────────────────────── */
+.banner {
+  display: flex; align-items: center; gap: 12px; padding: 12px 16px;
+  border-radius: var(--shape-card);
+  background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container);
+  font-size: var(--ts-body-medium); line-height: var(--lh-body-medium);
+  animation: fade-in var(--dur-medium) var(--emphasized-decelerate);
+}
+.banner.danger { background: var(--md-sys-color-error-container); color: var(--md-sys-color-on-error-container); }
+
+/* ── Карточка состояния: единственный «громкий» элемент экрана ──────────
+   Цвет карточки и форма иконки отражают состояние службы: остановлена —
+   нейтральный контейнер и скруглённый квадрат, работает — primary-container
+   и круг. Морфинг формы (M3 Expressive) показывает смену состояния. */
+.hero {
+  --hero-bg: var(--md-sys-color-surface-container-highest);
+  border-radius: var(--shape-extra-large); padding: 20px;
+  display: flex; flex-direction: column; gap: 20px;
+  background: var(--hero-bg); color: var(--md-sys-color-on-surface);
+  transition: background-color var(--dur-medium-long) var(--standard), color var(--dur-medium-long) var(--standard);
+}
+.hero.running { --hero-bg: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); }
+.hero-head { display: flex; align-items: center; gap: 16px; }
+.hero-icon {
+  width: 56px; height: 56px; flex: none; display: grid; place-items: center;
+  border-radius: var(--shape-large);
+  background: var(--md-sys-color-surface-container); color: var(--md-sys-color-on-surface-variant);
+  transition: border-radius var(--dur-long) var(--spring-strong),
+              background-color var(--dur-medium) var(--standard), color var(--dur-medium) var(--standard);
+}
+.hero.running .hero-icon { border-radius: 28px; background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); }
+.hero.offline .hero-icon { background: var(--md-sys-color-error-container); color: var(--md-sys-color-on-error-container); }
+.hero-titles { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.hero-state { font-size: var(--ts-headline-small); line-height: var(--lh-headline-small); font-weight: var(--w-emph); }
+.hero-sub { font-size: var(--ts-body-medium); line-height: var(--lh-body-medium);
+  letter-spacing: var(--tr-body-medium); opacity: .8; word-break: break-word; }
+/* Статистика службы: равномерное распределение по трём колонкам */
+.hero-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.hstat { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.hstat-label { font-size: var(--ts-label-medium); line-height: var(--lh-label-medium); font-weight: var(--w-medium);
+  opacity: .75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hstat-value { font-size: var(--ts-title-large); line-height: var(--lh-title-large); font-weight: var(--w-emph);
+  font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hstat-value.bad { color: var(--md-sys-color-error); }
+/* Основное действие растянуто; перезапуск — outlined icon button рядом (M3 button group) */
+.hero-actions { display: flex; align-items: center; gap: 8px; }
+.hero-actions #bt {
+  flex: 1 1 auto; min-width: 0; padding: 0 24px;
+  font-size: var(--ts-title-medium); line-height: var(--lh-title-medium);
+  font-weight: var(--w-bold); letter-spacing: .2px;
+}
+.hero-restart { width: 48px; height: 48px; color: inherit;
+  border: 1px solid color-mix(in srgb, currentColor 45%, transparent); }
+
+/* ── Chips / status ──────────────────────────────────────────────────── */
+.chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip {
+  position: relative;
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 14px; flex: none;
+  border-radius: var(--shape-small); border: 1px solid var(--md-sys-color-outline-variant);
+  background: transparent; color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--ts-label-large); line-height: var(--lh-label-large); font-weight: var(--w-medium);
+  cursor: pointer; white-space: nowrap;
+}
+/* M3: чип остаётся 32dp по высоте, но зона касания дотянута до 48dp.
+   Без overflow:visible Blink обрезает псевдоэлемент по box кнопки, и он не ловит pointer. */
+.chip::before { content: ""; position: absolute; inset: -8px -4px; }
+.chip { overflow: visible; }
+.chip.mono { font-family: var(--md-font-code); font-size: 12px; }
+.chip.selected { background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container);
+  border-color: transparent; }
+/* горизонтальная прокрутка вместо переноса */
+.status {
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  min-width: 26px; height: 26px; padding: 0 6px; flex: none;
+  border-radius: var(--shape-extra-small);
+  font-size: var(--ts-label-medium); line-height: var(--lh-label-medium); font-weight: var(--w-emph);
+}
+.status.ok { background: color-mix(in srgb, var(--status-ok) 18%, transparent); color: var(--status-ok); }
+.status.warn { background: color-mix(in srgb, var(--status-warn) 20%, transparent); color: var(--status-warn); }
+.status.bad { background: color-mix(in srgb, var(--status-bad) 18%, transparent); color: var(--status-bad); }
+.status.info { background: var(--md-sys-color-surface-container-highest); color: var(--md-sys-color-on-surface-variant); }
+
+/* ── Buttons: pill, 40dp по умолчанию ────────────────────────────────── */
+.btn {
+  appearance: none; border: none; cursor: pointer; text-decoration: none;
+  height: 40px; padding: 0 24px; border-radius: var(--shape-full);
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  font-size: var(--ts-label-large); line-height: var(--lh-label-large); font-weight: var(--w-bold);
+  letter-spacing: .1px; white-space: nowrap;
+  background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary);
+  transition: background-color var(--dur-short) var(--standard), box-shadow var(--dur-short) var(--standard);
+}
+.btn.with-icon { padding: 0 16px 0 12px; }
+.btn.tonal { background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container); }
+.btn.text { background: transparent; color: var(--md-sys-color-primary); padding: 0 12px; }
+.btn.danger { background: var(--md-sys-color-error); color: var(--md-sys-color-on-error); }
+.btn.text.danger { background: transparent; color: var(--md-sys-color-error); }
+.btn[disabled] { pointer-events: none;
+  background: color-mix(in srgb, var(--md-sys-color-on-surface) calc(var(--state-disabled-container) * 100%), transparent);
+  color: color-mix(in srgb, var(--md-sys-color-on-surface) calc(var(--state-disabled-content) * 100%), transparent); }
+.btn.text[disabled], .btn.outlined[disabled] { background: transparent; }
+/* sm = компактные отступы; высота всё равно 40dp — минимум для кнопки в M3 */
+.btn.sm { height: 40px; padding: 0 14px; }
+.btn.sm.with-icon { padding: 0 12px 0 8px; }
+.btn.height-m { height: 48px; padding: 0 28px; }
+
+/* ── Menu: открывается снизу, переворачивается вверх без места ─────────
+   Ширина по M3: 112dp min / 280dp max. Радиус 16dp — вариант M3 Expressive
+   (у baseline-меню углы 4dp), проект целится в Expressive. */
+.menu {
+  position: absolute; z-index: 60; min-width: 112px; max-width: 280px;
+  padding: 8px 0; border-radius: var(--shape-large);
+  background: var(--md-sys-color-surface-container); color: var(--md-sys-color-on-surface);
+  box-shadow: var(--md-elev-2); transform-origin: top left;
+  animation: menu-in var(--dur-medium) var(--spring-strong);
+}
+.menu.end { transform-origin: top right; }
+.menu.end.up { transform-origin: bottom right; animation-name: menu-in-up; }
+.menu.up { transform-origin: bottom left; animation-name: menu-in-up; }
+@keyframes menu-in { from { opacity: 0; transform: scale(.86) translateY(-8px); } to { opacity: 1; transform: none; } }
+@keyframes menu-in-up { from { opacity: 0; transform: scale(.86) translateY(8px); } to { opacity: 1; transform: none; } }
+.menu .mi {
+  appearance: none; display: flex; align-items: center; gap: 12px; width: 100%;
+  min-height: 48px; padding: 0 16px; border: 0; background: none; cursor: pointer; text-align: start;
+  font-size: var(--ts-body-large); line-height: var(--lh-body-large);
+  letter-spacing: var(--tr-body-large); color: var(--md-sys-color-on-surface);
+}
+.menu .mi .mi-icon { color: var(--md-sys-color-on-surface-variant); flex: none; display: grid; place-items: center; }
+.menu .mi .mi-text { flex: 1 1 auto; min-width: 0; }
+.menu .sep { height: 1px; margin: 8px 0; background: var(--md-sys-color-outline-variant); }
+.menu-back { position: fixed; inset: 0; z-index: 59; }
+
+/* ── M3 segmented button: единая группа-пилюля ──────────────────────────
+   M3: сегменты стыкуются без зазора, внешние углы полностью скруглены,
+   между сегментами 1dp-разделитель, выбранный — secondary-container без
+   собственной рамки. Раньше были отдельные «таблетки» с зазором 3dp. */
+.segmented { display: flex; gap: 0; }
+.segmented .seg {
+  appearance: none; background: transparent; cursor: pointer;
+  flex: 1; height: 40px; min-width: 0;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 12px;
+  border: 1px solid var(--md-sys-color-outline); border-radius: 0;
+  font-size: var(--ts-label-large); line-height: var(--lh-label-large); font-weight: var(--w-medium);
+  color: var(--md-sys-color-on-surface);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* стык вплотную: рамки соседей совпадают и дают один 1dp-разделитель */
+.segmented .seg + .seg { margin-inline-start: -1px; }
+.segmented .seg:first-child { border-start-start-radius: var(--shape-full); border-end-start-radius: var(--shape-full); }
+.segmented .seg:last-child { border-start-end-radius: var(--shape-full); border-end-end-radius: var(--shape-full); }
+.segmented .seg .check { width: 0; overflow: hidden; flex: none;
+  transition: width var(--dur-short) var(--spring); }
+.segmented .seg.on { background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container);
+  border-color: transparent; font-weight: var(--w-bold); }
+.segmented .seg.on .check { width: 18px; }
+
+/* ── M3 switch: трек 52×32, handle 16→24, spring ─────────────────────── */
+.switch {
+  appearance: none; -webkit-appearance: none; position: relative; cursor: pointer;
+  width: 52px; height: 32px; flex: 0 0 52px;
+  border: 2px solid var(--md-sys-color-outline); border-radius: var(--shape-full);
+  background: var(--md-sys-color-surface-container-highest);
+  transition: background-color var(--dur-medium) var(--spring), border-color var(--dur-medium) var(--spring);
+}
+.switch::before {
+  content: ""; position: absolute; top: 50%; left: 6px; width: 16px; height: 16px;
+  border-radius: 50%; background: var(--md-sys-color-outline); transform: translateY(-50%);
+  transition: left var(--dur-medium) var(--spring-strong), width var(--dur-medium) var(--spring-strong),
+              height var(--dur-medium) var(--spring-strong), background-color var(--dur-medium) var(--spring);
+}
+.switch:checked { background: var(--md-sys-color-primary); border-color: var(--md-sys-color-primary); }
+.switch:checked::before { left: 22px; width: 24px; height: 24px; background: var(--md-sys-color-on-primary); }
+@media (hover: hover) { .switch:hover { border-color: var(--md-sys-color-on-surface); } }
+.switch:disabled { background: color-mix(in srgb, var(--md-sys-color-on-surface) calc(var(--state-disabled-container) * 100%), transparent);
+  border-color: transparent; pointer-events: none; }
+.switch:disabled::before { background: color-mix(in srgb, var(--md-sys-color-on-surface) calc(var(--state-disabled-content) * 100%), transparent); }
+
+/* ── M3 checkbox 18dp ────────────────────────────────────────────────── */
+.checkbox {
+  appearance: none; -webkit-appearance: none; position: relative; cursor: pointer;
+  width: 18px; height: 18px; flex: 0 0 18px;
+  border: 2px solid var(--md-sys-color-on-surface-variant);
+  border-radius: var(--shape-extra-small); background: transparent;
+  transition: background-color var(--dur-extra-short) var(--standard), border-color var(--dur-extra-short) var(--standard);
+}
+.checkbox:checked { background: var(--md-sys-color-primary); border-color: var(--md-sys-color-primary); }
+.checkbox:checked::after {
+  content: ""; position: absolute; inset: -1px; background: var(--md-sys-color-on-primary);
+  clip-path: polygon(36% 62%, 48% 76%, 76% 36%, 86% 44%, 50% 88%, 26% 68%);
+}
+
+/* ── Lists & list items ──────────────────────────────────────────────────
+   Чистый плоский список M3 без лишних контейнеров-подложек под каждым пунктом.
+   Для тача и ховера состояние подсвечивается через .state/ripple. */
+.list { display: flex; flex-direction: column; gap: 0; }
+.sheet > .list-item { border-radius: var(--shape-large); }
+.list-item {
+  display: flex; align-items: center; gap: 16px; min-height: 56px; padding: 8px 16px;
+  appearance: none; border: none; background: transparent; text-align: left;
+  color: var(--md-sys-color-on-surface); border-radius: var(--shape-small);
+  transition: background-color var(--dur-short) var(--standard);
+}
+.list-item.two-line { min-height: 72px; }
+.list-item.clickable, .list-item[role="button"] { cursor: pointer; }
+.list-item .li-icon { width: 40px; height: 40px; flex: none; border-radius: var(--shape-full);
+  background: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container);
+  display: flex; align-items: center; justify-content: center; }
+.list-item .li-icon.plain { background: transparent; color: var(--md-sys-color-on-surface-variant); }
+.list-item .li-icon svg.icon { width: 24px; height: 24px; }
+.list-item .li-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.list-item .li-primary { font-size: var(--ts-body-large); line-height: var(--lh-body-large); font-weight: var(--w-medium);
+  letter-spacing: var(--tr-body-large);
+  color: var(--md-sys-color-on-surface); overflow: hidden; text-overflow: ellipsis; }
+.list-item .li-secondary { font-size: var(--ts-body-medium); line-height: var(--lh-body-medium);
+  letter-spacing: var(--tr-body-medium);
+  color: var(--md-sys-color-on-surface-variant); word-break: break-word; }
+.list-item .li-mono { font-family: var(--md-font-code); font-size: 13px; }
+.list-item .li-trail { flex: none; display: flex; align-items: center; gap: 8px;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--ts-body-medium); line-height: var(--lh-body-medium); font-weight: var(--w-medium); }
+.list-item .switch { margin-left: auto; }
+.list-item.selected { background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container);
+  border-radius: var(--shape-large); }
+.list-item.selected .li-primary { color: var(--md-sys-color-on-secondary-container); }
+.list-item.selected .li-secondary { color: inherit; opacity: .8; }
+.list-item.selected .li-icon { background: color-mix(in srgb, var(--md-sys-color-on-secondary-container) 18%, transparent);
+  color: var(--md-sys-color-on-secondary-container); }
+
+/* ── Text fields (filled) ────────────────────────────────────────────── */
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field > label { font-size: var(--ts-label-medium); line-height: var(--lh-label-medium); font-weight: var(--w-emph);
+  color: var(--md-sys-color-on-surface-variant); padding-left: 4px; }
+.field .control { position: relative; display: flex; align-items: center; }
+/* M3 filled text field: высота 56dp, верхние углы 4dp, индикатор 1dp снизу */
+.field input, .field select, .field textarea {
+  width: 100%; height: 56px; padding: 0 16px;
+  background: var(--md-sys-color-surface-container-highest); color: var(--md-sys-color-on-surface);
+  border: none; border-bottom: 1px solid var(--md-sys-color-outline);
+  border-top-left-radius: var(--shape-extra-small);
+  border-top-right-radius: var(--shape-extra-small);
+  font-size: var(--ts-body-large); line-height: var(--lh-body-large);
+  outline: none; appearance: none; -webkit-appearance: none;
+  caret-color: var(--md-sys-color-primary);
+  transition: border-color var(--dur-short) var(--standard), box-shadow var(--dur-short) var(--standard),
+              background-color var(--dur-short) var(--standard);
+}
+/* Индикатор M3: 1dp в покое, 2dp в фокусе — без сдвига вёрстки на 1px */
+.field input:focus, .field select:focus, .field textarea:focus {
+  border-bottom-color: var(--md-sys-color-primary);
+  box-shadow: inset 0 -1px 0 var(--md-sys-color-primary), inset 0 -1px 0 0 var(--md-sys-color-primary);
+  background: color-mix(in srgb, var(--md-sys-color-primary) 6%, var(--md-sys-color-surface-container-highest));
+}
+.helper { font-size: var(--ts-body-small); line-height: var(--lh-body-small);
+  letter-spacing: var(--tr-body-small);
+  color: var(--md-sys-color-on-surface-variant); padding-left: 4px; }
+.helper.err { color: var(--md-sys-color-error); }
+.field ::placeholder { color: var(--md-sys-color-on-surface-variant); opacity: .7; }
+/* ── Code / logs ─────────────────────────────────────────────────────── */
+.code-block, .log-view {
+  background: var(--md-sys-color-surface-container-lowest);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-card); padding: 12px 14px;
+  overflow: auto;
+  font-family: var(--md-font-code); font-size: 12px; line-height: 1.55;
+  color: var(--md-sys-color-on-surface-variant);
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.code-block { max-height: 46vh; }
+.log-view { min-height: 40vh; max-height: 60vh; }
+
+/* ── Progress indicators ─────────────────────────────────────────────── */
+.progress-linear { position: relative; height: 4px; overflow: hidden;
+  border-radius: var(--shape-full);
+  background: color-mix(in srgb, var(--md-sys-color-primary) 20%, transparent); }
+.progress-linear .bar { position: absolute; top: 0; bottom: 0; width: 40%;
+  border-radius: var(--shape-full); background: var(--md-sys-color-primary);
+  animation: indeterminate 1.8s var(--standard) infinite; }
+@keyframes indeterminate { 0% { left: -45%; } 60% { left: 55%; } 100% { left: 105%; } }
+.progress-top { position: fixed; top: calc(var(--top-inset) + var(--appbar-height)); left: 0; right: 0; z-index: 26; }
+.spinner { width: 18px; height: 18px; flex: none; border-radius: 50%;
+  border: 2.5px solid color-mix(in srgb, currentColor 28%, transparent); border-top-color: currentColor;
+  animation: spin .72s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Modal bottom sheet ──────────────────────────────────────────────── */
+.sheet {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; margin: 0 auto;
+  max-width: var(--content-max);
+  background: var(--md-sys-color-surface-container-low); color: var(--md-sys-color-on-surface);
+  border-radius: var(--shape-extra-large) var(--shape-extra-large) 0 0;
+  box-shadow: var(--md-elev-1); padding: 0 var(--screen-margin) calc(20px + var(--bottom-inset));
+  display: flex; flex-direction: column; gap: 16px;
+  max-height: 86vh; overflow-y: auto; transform: translateY(102%);
+  transition: transform var(--dur-long) var(--spring);
+}
+.sheet.open { transform: none; }
+.sheet .handle { width: 32px; height: 4px; align-self: center; opacity: .4; flex: none;
+  border-radius: var(--shape-full); background: var(--md-sys-color-on-surface-variant); }
+.sheet-title { font-size: var(--ts-title-large); line-height: var(--lh-title-large); font-weight: var(--w-emph); }
+
+/* ── Full-screen dialog (редактор) ───────────────────────────────────── */
+.fs-dialog {
+  position: fixed; inset: 0; z-index: 70; background: var(--md-sys-color-surface);
+  display: flex; flex-direction: column; transform: translateY(100%);
+  transition: transform var(--dur-long) var(--spring);
+}
+.fs-dialog.open { transform: none; }
+.fs-bar { min-height: calc(var(--top-inset) + var(--appbar-height)); padding: var(--top-inset) 8px 0;
+  display: flex; align-items: center; gap: 8px; background: var(--md-sys-color-surface-container);
+  color: var(--md-sys-color-on-surface); }
+.fs-bar .fs-title { flex: 1; min-width: 0;
+  font-size: var(--ts-title-large); line-height: var(--lh-title-large); font-weight: var(--w-emph); }
+.fs-body { flex: 1; display: flex; flex-direction: column; gap: 8px;
+  padding: 8px var(--screen-margin) calc(8px + var(--bottom-inset)); }
+
+/* ── Dialog (28dp) ───────────────────────────────────────────────────── */
+.dialog-wrap { position: fixed; inset: 0; z-index: 80; display: none;
+  align-items: center; justify-content: center; padding: 24px var(--screen-margin); }
+.dialog-wrap.open { display: flex; }
+.dialog-wrap .dialog-scrim { position: absolute; inset: 0; background: var(--md-sys-color-scrim);
+  animation: fadeIn var(--dur-short) var(--standard); }
+.dialog {
+  position: relative; width: 100%; max-width: 380px;
+  background: var(--md-sys-color-surface-container-high); color: var(--md-sys-color-on-surface);
+  border-radius: var(--shape-extra-large); padding: 24px;
+  display: flex; flex-direction: column; gap: 16px; box-shadow: var(--md-elev-3);
+  animation: dialogIn var(--dur-long) var(--spring-strong);
+}
+@keyframes dialogIn { from { opacity: 0; transform: scale(.86); } to { opacity: 1; transform: none; } }
+.dialog .d-icon { align-self: center; flex: none; display: grid; place-items: center; color: var(--md-sys-color-secondary); }
+.dialog .d-icon.danger { color: var(--md-sys-color-error); }
+.dialog .d-title { font-size: var(--ts-headline-small); line-height: var(--lh-headline-small); font-weight: var(--w-emph); }
+.dialog .d-body { font-size: var(--ts-body-medium); line-height: var(--lh-body-medium); color: var(--md-sys-color-on-surface-variant); }
+.dialog .d-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* ── Snackbar ────────────────────────────────────────────────────────── */
+.snackbar {
+  position: fixed; left: var(--screen-margin); right: var(--screen-margin);
+  bottom: calc(var(--bottom-inset) + var(--navbar-height) + 12px); z-index: 90; margin: 0 auto;
+  max-width: calc(var(--content-max) - var(--screen-margin) * 2);
+  min-height: 48px; padding: 12px 16px; display: flex; align-items: center; gap: 12px;
+  background: var(--md-sys-color-inverse-surface); color: var(--md-sys-color-inverse-on-surface);
+  border-radius: var(--shape-extra-small); box-shadow: var(--md-elev-3);
+  font-size: var(--ts-body-medium); line-height: var(--lh-body-medium);
+  opacity: 0; transform: translateY(24px) scale(.94); pointer-events: none;
+  transition: opacity var(--dur-medium) var(--standard), transform var(--dur-long) var(--spring-strong);
+}
+body.nav-hidden .snackbar { bottom: calc(var(--bottom-inset) + 16px); }
+.snackbar.show { opacity: 1; transform: none; pointer-events: auto; }
+.snackbar .snack-msg { flex: 1; min-width: 0; word-break: break-word; }
+.snackbar .btn.text { color: var(--md-sys-color-inverse-primary); }
+
+/* ── Palette (theme sheet) ───────────────────────────────────────────── */
+.palette { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.swatch { appearance: none; border: 0; cursor: pointer; aspect-ratio: 1.4;
+  border-radius: var(--shape-medium);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  font-size: var(--ts-label-small); line-height: var(--lh-label-small); font-weight: var(--w-emph);
+  box-shadow: inset 0 0 0 1px var(--md-sys-color-outline-variant); }
+.swatch[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--md-sys-color-primary); }
+.hex-group { display: flex; align-items: center; gap: 8px; width: 100%; height: 48px;
+  padding-right: 8px; background: var(--md-sys-color-surface-container-highest);
+  border-radius: var(--shape-extra-small); }
+.hex-swatch { appearance: none; -webkit-appearance: none; width: 36px; height: 36px; flex: none; cursor: pointer;
+  border-radius: var(--shape-small); border: 1px solid var(--md-sys-color-outline); }
+.hex-group .pfx { font-size: var(--ts-title-medium); line-height: var(--lh-title-medium); font-weight: var(--w-emph);
+  color: var(--md-sys-color-on-surface-variant); }
+.hex-group input.hex { flex: 1; min-width: 0; height: 100%; padding: 0; border: none; outline: none;
+  background: transparent; font-size: var(--ts-title-medium); line-height: var(--lh-title-medium);
+  font-weight: var(--w-emph); text-transform: uppercase; color: var(--md-sys-color-on-surface); }
+
+/* ── M3 slider (XS): трек 16dp со скруглением 8dp, ручка 4×44dp ───────── */
+.slider {
+  appearance: none; -webkit-appearance: none; width: 100%; height: 48px; padding: 0;
+  background: transparent; cursor: pointer; outline: none; --track: transparent;
+}
+.slider::-webkit-slider-runnable-track {
+  height: 16px; border-radius: var(--shape-small); background: var(--track);
+}
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 4px; height: 44px; margin-top: -14px; border: none;
+  border-radius: var(--shape-full); background: var(--md-sys-color-primary);
+  transition: box-shadow var(--dur-short) var(--standard);
+}
+@media (hover: hover) { .slider:hover::-webkit-slider-thumb { box-shadow: 0 0 0 6px color-mix(in srgb, var(--md-sys-color-primary) 16%, transparent); } }
+.slider:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--md-sys-color-primary) 16%, transparent);
+}
+.cd-row { display: flex; flex-direction: column; gap: 4px; }
+.cd-row > label { font-size: var(--ts-label-medium); line-height: var(--lh-label-medium); font-weight: var(--w-emph);
+  color: var(--md-sys-color-on-surface-variant); }
+.cd-preview { display: flex; align-items: center; gap: 12px; }
+.cd-swatch { width: 48px; height: 48px; flex: none; border-radius: var(--shape-medium);
+  border: 1px solid var(--md-sys-color-outline);
+  transition: background-color var(--dur-short) var(--standard); }
+
+/* ── Пустое состояние / pill / kv ────────────────────────────────────── */
+.empty { display: flex; flex-direction: column; align-items: center; gap: 12px;
+  padding: 32px 24px; text-align: center; color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--ts-body-medium); line-height: var(--lh-body-medium); }
+.empty .empty-icon { width: 64px; height: 64px; border-radius: var(--shape-full);
+  display: flex; align-items: center; justify-content: center;
+  background: var(--md-sys-color-surface-container-high); color: var(--md-sys-color-secondary); }
+
+/* ── Подзаголовки групп и контейнеры (стиль настроек Android 16) ────────
+   Списки — стопки list-item с общей формой; всё, что не список
+   (сегменты, поле ввода, описание), живёт в .group того же тона. */
+.subhead {
+  font-size: var(--ts-title-small); line-height: var(--lh-title-small); font-weight: var(--w-emph);
+  letter-spacing: var(--tr-title-small);
+  color: var(--md-sys-color-primary); padding: 12px 16px 0; margin: 0 0 -4px;
+}
+.subhead.plain { padding: 0; margin: 0 0 8px; color: var(--md-sys-color-on-surface-variant); }
+.subhead-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; }
+.subhead-row .btn { margin-bottom: -6px; }
+.group {
+  background: var(--md-sys-color-surface-container-low); border-radius: var(--shape-large);
+  padding: 16px; display: flex; flex-direction: column; gap: 12px;
+}
+.muted { color: var(--md-sys-color-on-surface-variant); }
+.clamp2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* Кнопка внутри trail-слота поля: сам слот прозрачен для касаний, кнопка — нет */
+
+/* Деструктивные строки: цвет error только на тексте и иконке */
+.list-item.danger .li-primary { color: var(--md-sys-color-error); }
+.list-item.danger .li-icon { background: var(--md-sys-color-error-container); color: var(--md-sys-color-on-error-container); }
+.list-item .li-value { font-variant-numeric: tabular-nums; font-size: var(--ts-body-medium); font-weight: var(--w-medium); }
+label.list-item { cursor: pointer; }
+
+/* ── M3 radio: кольцо 20dp, точка 10dp, пружина при выборе ───────────── */
+.radio {
+  appearance: none; -webkit-appearance: none; position: relative; cursor: pointer;
+  width: 20px; height: 20px; flex: 0 0 20px; margin: 0 2px; border-radius: 50%;
+  border: 2px solid var(--md-sys-color-on-surface-variant); background: transparent;
+  transition: border-color var(--dur-short) var(--standard);
+}
+.radio::after {
+  content: ""; position: absolute; inset: 3px; border-radius: 50%;
+  background: var(--md-sys-color-primary); transform: scale(0);
+  transition: transform var(--dur-medium) var(--spring-strong);
+}
+.radio:checked { border-color: var(--md-sys-color-primary); }
+.radio:checked::after { transform: scale(1); }
+.list-item.selected .radio:checked { border-color: var(--md-sys-color-on-secondary-container); }
+.list-item.selected .radio:checked::after { background: var(--md-sys-color-on-secondary-container); }
+
+/* ── Filter chips: у выбранного появляется галочка ───────────────────── */
+
+/* ── Журнал занимает всю свободную высоту экрана ─────────────────────── */
+.log-view {
+  min-height: 240px; max-height: none;
+  height: calc(100dvh - var(--top-inset) - var(--appbar-height) - var(--navbar-height) - var(--bottom-inset) - 300px);
+}
+
+/* ── Bottom sheet со списком: прокручивается список, кнопки на месте ─── */
+.sheet.list-sheet { overflow: hidden; }
+.sheet-desc { margin-top: -8px; font-size: var(--ts-body-medium); line-height: var(--lh-body-medium);
+  color: var(--md-sys-color-on-surface-variant); }
+.sheet-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+/* строки не сжимаются: прокручивается список, а не схлопываются элементы */
+.sheet-scroll > * { flex-shrink: 0; }
+.sheet-actions { display: flex; justify-content: flex-end; gap: 8px; flex: none; }
+
+/* ── Пустое состояние внутри экрана ──────────────────────────────────── */
+.empty .empty-title { font-size: var(--ts-title-medium); line-height: var(--lh-title-medium); font-weight: var(--w-emph);
+  color: var(--md-sys-color-on-surface); }
+
+/* ── Закрытые оверлеи скрыты целиком, а не просто сдвинуты за экран:
+   иначе они остаются в дереве доступности и ловят фокус с клавиатуры.
+   visibility переключается с задержкой, чтобы анимация закрытия доигрывала. */
+.fs-dialog, .sheet { transition: transform var(--dur-long) var(--spring), visibility 0s linear var(--dur-long); }
+.fs-dialog:not(.open), .sheet:not(.open) { visibility: hidden; }
+.fs-dialog.open, .sheet.open { transition: transform var(--dur-long) var(--spring), visibility 0s; }
+
+/* ── Клавиатура открыта: нижняя панель не едет вверх вместе с окном ───── */
+body.kb-open .nav-bar { visibility: hidden; transform: translateY(100%); transition: none; }
+body.kb-open .snackbar { bottom: 16px; }
+
+/* ── M3 filled text field: метка внутри поля, всплывает при фокусе/вводе ──
+   Индикатор снизу 1dp, в фокусе 2dp primary. Подсказка-placeholder видна
+   только в фокусе, чтобы не спорить с меткой. Фокус показывает индикатор,
+   а не общее кольцо фокуса. */
+.tf {
+  position: relative; display: flex; align-items: center; height: 56px;
+  background: var(--md-sys-color-surface-container-highest);
+  border-radius: var(--shape-extra-small) var(--shape-extra-small) 0 0;
+  box-shadow: inset 0 -1px 0 var(--md-sys-color-on-surface-variant);
+  transition: box-shadow var(--dur-short) var(--standard);
+}
+.tf:focus-within { box-shadow: inset 0 -2px 0 var(--md-sys-color-primary); }
+.tf input {
+  flex: 1; min-width: 0; height: 100%; padding: 24px 16px 6px;
+  border: 0; outline: none; background: none; appearance: none; -webkit-appearance: none;
+  color: var(--md-sys-color-on-surface); caret-color: var(--md-sys-color-primary);
+  font-size: var(--ts-body-large); line-height: var(--lh-body-large);
+}
+.tf input:focus-visible { outline: none; }
+.tf input::placeholder { color: var(--md-sys-color-on-surface-variant); opacity: 0; transition: opacity var(--dur-short) var(--standard); }
+.tf input:focus::placeholder { opacity: .7; }
+.tf label {
+  position: absolute; left: 16px; top: 16px; pointer-events: none; transform-origin: left top;
+  font-size: var(--ts-body-large); line-height: var(--lh-body-large);
+  color: var(--md-sys-color-on-surface-variant);
+  transition: transform var(--dur-short) var(--standard), color var(--dur-short) var(--standard);
+}
+.tf input:focus + label, .tf input:not(:placeholder-shown) + label { transform: translateY(-9px) scale(.75); }
+.tf input:focus + label { color: var(--md-sys-color-primary); }
+.tf > .icon-btn { margin-right: 4px; }
+
+/* ── M3 search bar: 56dp, полностью скруглённый ─────────────────────────── */
+.search-bar {
+  display: flex; align-items: center; gap: 16px; height: 56px; padding: 0 16px;
+  border-radius: var(--shape-full);
+  background: var(--md-sys-color-surface-container-high); color: var(--md-sys-color-on-surface-variant);
+}
+.search-bar input {
+  flex: 1; min-width: 0; height: 100%; border: 0; outline: none; background: none;
+  appearance: none; -webkit-appearance: none;
+  color: var(--md-sys-color-on-surface); caret-color: var(--md-sys-color-primary);
+  font-size: var(--ts-body-large); line-height: var(--lh-body-large);
+}
+.search-bar input::placeholder { color: var(--md-sys-color-on-surface-variant); }
+.search-bar input:focus-visible { outline: none; }
+.search-bar:has(input:focus-visible) { outline: 3px solid var(--md-sys-color-secondary); outline-offset: 2px; }
+
+/* ── Плашки с выпадающим меню (журналы): стрелка разворачивается при открытии ── */
+.chip.dropdown { padding: 0 8px 0 16px; gap: 8px; color: var(--md-sys-color-on-surface); }
+.chip.dropdown svg { transition: transform var(--dur-medium) var(--spring-strong); }
+.chip.dropdown[aria-expanded="true"] {
+  background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container);
+  border-color: transparent;
+}
+.chip.dropdown[aria-expanded="true"] svg { transform: rotate(180deg); }
+
+/* ── Drag handle листа: 32×4 в зоне касания 48dp, тянется вниз ──────────── */
+.sheet-drag {
+  appearance: none; border: 0; background: none; cursor: grab; touch-action: none;
+  flex: none; align-self: stretch; height: 48px; margin-bottom: -16px;
+  display: grid; place-items: center;
+}
+.sheet-drag:focus-visible { outline: none; }
+.sheet-drag:focus-visible .handle { outline: 3px solid var(--md-sys-color-secondary); outline-offset: 4px; }
+
+/* ── Меню: исчезает за 100ms, а не пропадает мгновенно ──────────────────── */
+.menu.closing { animation: fade-out 100ms var(--emphasized-accelerate) forwards; pointer-events: none; }
+
+/* ── Switch: при нажатии ручка увеличивается до 28dp ────────────────────── */
+.switch:active::before { width: 28px; height: 28px; left: 0; }
+.switch:checked:active::before { left: 20px; }
+
+/* ── Диалог: иконка 24dp secondary над заголовком, заголовок тогда по центру ── */
+.dialog:focus { outline: none; }
+.dialog.has-icon .d-title { text-align: center; }
+
+/* overlay host: меню живут здесь и позиционируются от окна */
+#layer { position: fixed; inset: 0; z-index: 88; pointer-events: none; }
+#layer > * { pointer-events: auto; }
+
+@media (min-width: 720px) {
+  :root { --gutter: 24px; --screen-margin: 24px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; }
+}
+
+/* ── Type-роли M3 ────────────────────────────────────────────────────────
+   В конце файла намеренно: это одноклассовые селекторы, они выигрывают у
+   компонентных правил (.card-title, .li-primary, …) только порядком. */
+.t-title-medium { font-size: var(--ts-title-medium); line-height: var(--lh-title-medium); font-weight: var(--w-emph); }
+.t-body-medium { font-size: var(--ts-body-medium); line-height: var(--lh-body-medium); font-weight: var(--w-regular); }

@@ -9,3 +9,5 @@ tests/          export-ignore
 tools/          export-ignore
 .workbuddy-ai/  export-ignore
 .gitattributes  export-ignore
+.github/        export-ignore
+CONTRIBUTING.md export-ignore
