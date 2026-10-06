@@ -14,7 +14,12 @@ start_failed() { # <причина>
   log_msg "$1"
   log_msg "Последние строки лога:"
   tail -n 8 "$NFQWS_LOG" 2>/dev/null | while IFS= read -r l; do log_msg "  $l"; done
+  update_description stopped
 }
+
+# Наблюдатели (watchdog и netwatch) нужны и для автоперезапуска, и для паузы в
+# домашней Wi-Fi: живут, пока включено хотя бы одно из двух.
+watchers_wanted() { [ "$WATCHDOG" = "1" ] || [ "$HOME_WIFI" = "1" ]; }
 
 start() {
   if is_running; then
@@ -76,6 +81,7 @@ start() {
     # «служба работает» — ровно то, чего не произошло.
     kill -TERM "$pid" 2>/dev/null
     rm -f "$PIDFILE"
+    update_description stopped
     return 1
   fi
 
@@ -83,6 +89,7 @@ start() {
   acquire_wakelock
   echo 1 > "$DESIRED_FILE"
   log_msg "nfqws2 запущен (PID $pid, Native Daemon)"
+  update_description running
   ensure_watchdog
   return 0
 }
@@ -112,6 +119,7 @@ stop() {
   fi
 
   log_msg "nfqws2 остановлен"
+  update_description stopped
   return 0
 }
 
@@ -122,7 +130,7 @@ reload_lists() {
 }
 
 ensure_watchdog() {
-  [ "$WATCHDOG" = "1" ] || return 0
+  watchers_wanted || return 0
   if [ -f "$WD_PIDFILE" ] && kill -0 "$(cat "$WD_PIDFILE" 2>/dev/null)" 2>/dev/null; then
     return 0
   fi
@@ -140,7 +148,7 @@ ensure_watchdog() {
 # самое — события интерфейсов и маршрутов в реальном времени. Watchdog остаётся подстраховкой
 # (и единственным механизмом там, где ip monitor не поддерживается прошивкой).
 ensure_netwatch() {
-  [ "$WATCHDOG" = "1" ] || return 0
+  watchers_wanted || return 0
   command -v ip >/dev/null 2>&1 || return 0
   if [ -f "$WN_PIDFILE" ] && kill -0 "$(cat "$WN_PIDFILE" 2>/dev/null)" 2>/dev/null; then
     return 0
@@ -171,7 +179,7 @@ netwatch() {
     while :; do
       sleep 2
       load_conf >/dev/null 2>&1
-      [ "$WATCHDOG" = "1" ] || break 2
+      watchers_wanted || break 2
       if ! kill -0 "$mon" 2>/dev/null; then
         # монитор умер сам. Если он не написал ни байта с момента запуска — на этой прошивке
         # ip monitor, похоже, не работает: растущая пауза вместо бесконечного рестарта.
@@ -192,9 +200,12 @@ netwatch() {
         saw=1
         continue
       fi
-      if [ "$sz" != "$acted" ] && [ "$sz" != 0 ] && [ -f "$DESIRED_FILE" ] && is_running; then
-        log_msg "netwatch: сеть изменилась (ip monitor) — пересобираю правила"
-        firewall_start
+      if [ "$sz" != "$acted" ] && [ "$sz" != 0 ]; then
+        if [ -f "$DESIRED_FILE" ] && is_running; then
+          log_msg "netwatch: сеть изменилась (ip monitor) — пересобираю правила"
+          firewall_start
+        fi
+        home_check
         acted="$sz"
       fi
       [ "$sz" -gt 262144 ] && { kill -TERM "$mon" 2>/dev/null; : > "$EVFILE"; prev=""; acted=""; }
@@ -213,10 +224,15 @@ watchdog() {
   while :; do
     sleep 20
     load_conf >/dev/null 2>&1
-    [ "$WATCHDOG" = "1" ] || break
-    [ -f "$DESIRED_FILE" ] || continue
+    watchers_wanted || break
     tick=$((tick + 1))
-    
+    # Домашняя сеть проверяется и здесь — на прошивках, где ip monitor не
+    # работает, это единственный способ её заметить. Раз в минуту, а не каждый
+    # тик: `cmd wifi` заметно дороже остальной проверки.
+    [ "$HOME_WIFI" = "1" ] && [ $((tick % 3)) -eq 0 ] && home_check
+    [ "$WATCHDOG" = "1" ] || continue
+    [ -f "$DESIRED_FILE" ] || continue
+
     if ! is_running; then
       fails=$((fails + 1))
       log_msg "watchdog: nfqws2 упал, автоперезапуск (#$fails)..."
@@ -240,6 +256,50 @@ watchdog() {
   rm -f "$WD_PIDFILE"
 }
 
+# ---------------------------------------------------------------- домашняя Wi-Fi
+# В сети из home_wifi.list служба останавливается и сама поднимается, когда
+# телефон из неё уходит. Ручной запуск в домашней сети запоминается
+# (home_override) и действует, пока телефон в этой же сети.
+home_check() {
+  # Два наблюдателя могут прийти сюда одновременно: каталог-замок не даёт им
+  # остановить и запустить службу дважды.
+  # Замок старше двух минут — след убитого процесса, а не идущая проверка.
+  [ -n "$(find "$STATE_DIR/home.lock" -maxdepth 0 -mmin +2 2>/dev/null)" ] && rmdir "$STATE_DIR/home.lock" 2>/dev/null
+  mkdir "$STATE_DIR/home.lock" 2>/dev/null || return 0
+  local ssid=""
+  if [ "$HOME_WIFI" = "1" ]; then
+    ssid=$(current_ssid)
+    if [ -f "$HOME_OVERRIDE_FILE" ] && [ "$(cat "$HOME_OVERRIDE_FILE" 2>/dev/null)" != "$ssid" ]; then
+      rm -f "$HOME_OVERRIDE_FILE"
+    fi
+  fi
+  if [ "$HOME_WIFI" = "1" ] && ssid_is_home "$ssid"; then
+    if [ ! -f "$HOME_OVERRIDE_FILE" ] && is_running && [ ! -f "$HOME_PAUSED_FILE" ]; then
+      log_msg "Домашняя Wi-Fi «$ssid» — обход приостановлен"
+      stop >/dev/null 2>&1
+      printf '%s' "$ssid" > "$HOME_PAUSED_FILE"
+      update_description paused "$ssid"
+    fi
+  elif [ -f "$HOME_PAUSED_FILE" ]; then
+    rm -f "$HOME_PAUSED_FILE"
+    log_msg "Домашняя Wi-Fi больше не активна — обход возобновлён"
+    start >/dev/null 2>&1 || log_msg "Не удалось возобновить обход после домашней Wi-Fi"
+  fi
+  rmdir "$STATE_DIR/home.lock" 2>/dev/null
+  return 0
+}
+
+# Ручной запуск: снимает паузу и, если телефон сейчас в домашней сети,
+# запоминает, что в ней пользователь хочет работать с обходом.
+manual_start() {
+  local ssid
+  rm -f "$HOME_PAUSED_FILE"
+  if [ "$HOME_WIFI" = "1" ] && ssid=$(current_ssid) && ssid_is_home "$ssid"; then
+    printf '%s' "$ssid" > "$HOME_OVERRIDE_FILE"
+  fi
+  start
+}
+
 status_service() {
   if is_running; then
     echo "Служба NFQWS2 запущена (PID $(cat "$PIDFILE"))"
@@ -249,8 +309,9 @@ status_service() {
 }
 
 case "$1" in
-  start)              start ;;
-  stop)               stop ;;
+  start)              manual_start ;;
+  stop)               rm -f "$HOME_PAUSED_FILE" "$HOME_OVERRIDE_FILE"; stop ;;
+  home_check)         home_check; ensure_watchdog ;;
   restart)            stop; start ;;
   reload)             reload_lists ;;
   status)             status_service ;;
@@ -264,8 +325,19 @@ case "$1" in
     until [ "$(getprop sys.boot_completed 2>/dev/null)" = "1" ]; do sleep 3; done
     sleep 4
     [ -f "$CONFDIR/disable" ] && { log_msg "Найден $CONFDIR/disable — автозапуск пропущен"; exit 0; }
+    rm -f "$HOME_PAUSED_FILE" "$HOME_OVERRIDE_FILE"
+    rmdir "$STATE_DIR/home.lock" 2>/dev/null
     if [ "$AUTOSTART" = "1" ]; then
-      start || log_msg "Автозапуск не удался"
+      ssid=$(current_ssid)
+      if [ "$HOME_WIFI" = "1" ] && ssid_is_home "$ssid"; then
+        log_msg "Домашняя Wi-Fi «$ssid» — автозапуск отложен до выхода из неё"
+        printf '%s' "$ssid" > "$HOME_PAUSED_FILE"
+        update_description paused "$ssid"
+      else
+        start || log_msg "Автозапуск не удался"
+      fi
+    else
+      update_description stopped
     fi
     ensure_watchdog
     ;;

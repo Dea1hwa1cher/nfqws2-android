@@ -22,6 +22,18 @@ ARGS_FILE="$STATE_DIR/last.args"
 APP_UIDS_FILE="$STATE_DIR/app_uids"
 SERVICE_LOG="$LOG_DIR/service.log"
 NFQWS_LOG="$LOG_DIR/nfqws2.log"
+ACTIVE_FILE="$STATE_DIR/active_strategy"
+
+# Списки, поставленные релизом: .dist — копия последней установленной версии
+# каждого списка, .pending — новая версия, которую установщик не стал класть
+# поверх правок пользователя (WebUI предлагает заменить её вручную).
+LISTS_DIST_DIR="$LISTS_DIR/.dist"
+LISTS_PENDING_DIR="$LISTS_DIR/.pending"
+
+# Домашняя Wi-Fi: в этих сетях обход ставится на паузу (HOME_WIFI=1)
+HOME_FILE="$CONFDIR/home_wifi.list"
+HOME_PAUSED_FILE="$STATE_DIR/home_paused"      # служба остановлена из-за домашней сети, в файле — её SSID
+HOME_OVERRIDE_FILE="$STATE_DIR/home_override"  # пользователь включил службу вручную в этой сети
 
 MARK_EXCLUDE="0x20000000/0x20000000"
 MARK_INCLUDE="0x10000000/0x10000000"
@@ -64,6 +76,7 @@ set_defaults() {
   : "${PKT_LIMIT_OUT:=15}"
   : "${PKT_LIMIT_IN:=15}"
   : "${WAKELOCK:=0}"
+  : "${HOME_WIFI:=0}"
 }
 
 log_msg() {
@@ -753,4 +766,124 @@ render_import_merged() {
 
   cat "$out"
   rm -f "$out"
+}
+
+# ---------------------------------------------------------------- язык служебного вывода
+# Строки, которые WebUI показывает как содержимое (диагностика, сводка журналов,
+# проверка доступности), печатаются на языке интерфейса: WebUI передаёт его в
+# NFQWS_LANG. Журналы и сообщения службы остаются русскими.
+M() { if [ "$NFQWS_LANG" = "en" ]; then printf '%s' "$2"; else printf '%s' "$1"; fi; }
+
+# ---------------------------------------------------------------- статус в module.prop
+# Менеджер (Magisk / KernelSU / APatch) показывает description прямо в списке
+# модулей, поэтому туда пишется текущее состояние службы. Пишем через cat >,
+# а не mv: так у module.prop остаются прежние владелец и права.
+DESC_BASE="Обход DPI на базе nfqws2."
+current_mode() {
+  grep -m1 '^NFQWS_EXTRA_ARGS=' "$CONFFILE" 2>/dev/null | grep -o 'MODE_[A-Z]*' | head -n1 | sed 's/MODE_//' | tr 'A-Z' 'a-z'
+}
+update_description() { # running | stopped | paused <ssid>
+  local prop="$MODDIR/module.prop" d strat mode tmp
+  [ -f "$prop" ] && [ -w "$prop" ] || return 0
+  case "$1" in
+    running)
+      strat=$(cat "$ACTIVE_FILE" 2>/dev/null); strat="${strat#imp:}"
+      mode=$(current_mode)
+      d="✅ Работает · ${strat:-default}${mode:+ · $mode}" ;;
+    paused) d="⏸ Пауза: домашняя Wi-Fi «$2»" ;;
+    *)      d="⛔ Остановлено" ;;
+  esac
+  d=$(printf '%s' "$d | $DESC_BASE" | tr -d '\n\r')
+  tmp="$STATE_DIR/module.prop.$$"
+  awk -v d="$d" 'BEGIN { done = 0 } /^description=/ { print "description=" d; done = 1; next } { print }
+    END { if (!done) print "description=" d }' "$prop" > "$tmp" && cat "$tmp" > "$prop"
+  rm -f "$tmp"
+  return 0
+}
+
+# ---------------------------------------------------------------- стратегии
+# Встроенная стратегия лежит в модуле и обновляется с релизом; правка
+# пользователя сохраняется в $USER_STRATEGIES_DIR под тем же именем и
+# перекрывает встроенную. Сброс к исходнику — удаление этой копии.
+# Импортированные конфиги nfqws2-keenetic участвуют в выборе как «imp:<имя>».
+strategy_name_ok() {
+  case "$1" in ''|*/*|*'`'*|*'$'*|*'"'*|*\'*|*'\'*|.*) return 1 ;; esac
+  return 0
+}
+strategy_builtin_file() { [ -f "$STRATEGIES_DIR/$1.conf" ] && printf '%s' "$STRATEGIES_DIR/$1.conf"; }
+strategy_file() { # действующий файл стратегии: правка пользователя, иначе встроенная
+  case "$1" in
+    imp:*) [ -f "$IMPORTS_DIR/${1#imp:}.conf" ] && printf '%s' "$IMPORTS_DIR/${1#imp:}.conf" ;;
+    *) if [ -f "$USER_STRATEGIES_DIR/$1.conf" ]; then printf '%s' "$USER_STRATEGIES_DIR/$1.conf"
+       else strategy_builtin_file "$1"; fi ;;
+  esac
+}
+# 0 — встроенная стратегия отредактирована пользователем и отличается от исходника
+strategy_modified() {
+  local b
+  b=$(strategy_builtin_file "$1") || return 1
+  [ -f "$USER_STRATEGIES_DIR/$1.conf" ] || return 1
+  ! cmp -s "$b" "$USER_STRATEGIES_DIR/$1.conf"
+}
+
+# Конфиг стратегии в том виде, в каком его кладёт set-strategy, — до переноса
+# пользовательских настроек.
+render_strategy() {
+  local f
+  case "$1" in
+    ''|default) cat "$MODDIR/defaults/nfqws2.conf" ;;
+    imp:*) f=$(strategy_file "$1") || return 1; render_import_merged "$f" ;;
+    *) f=$(strategy_file "$1") || return 1
+       rewrite_keenetic_paths < "$f" \
+         | sed -e 's#^[[:space:]]*ISP_INTERFACE=.*#ISP_INTERFACE=""#' \
+               -e 's#^[[:space:]]*USER=.*#NFQWS_USER=root#' ;;
+  esac
+}
+
+# Настройки, которые пользователь задаёт в интерфейсе (переключатели, режим
+# списков, фильтр приложений, домашняя Wi-Fi), переживают смену стратегии и
+# сброс конфига: стратегия описывает обход, а не эти параметры. Режим списков
+# переносится, только если это одна из штатных ссылок $MODE_*.
+USER_KEYS="AUTOSTART WATCHDOG IPV6_ENABLED BLOCK_QUIC WAKELOCK LOG_LEVEL APP_MODE HOME_WIFI NFQWS_EXTRA_ARGS"
+merge_user_keys() { # <сгенерированный конфиг> <конфиг-источник настроек>  -> stdout
+  awk -v keys=" $USER_KEYS " -v src="$2" '
+    function quotes(str,   t) { t = str; return gsub(/"/, "", t) }
+    function keyof(line) { return match(line, /^[A-Za-z_][A-Za-z0-9_]*=/) ? substr(line, 1, RLENGTH - 1) : "" }
+    BEGIN {
+      while ((getline line < src) > 0) {
+        k = keyof(line)
+        if (k == "" || !index(keys, " " k " ") || quotes(line) % 2 == 1 || (k in keep)) continue
+        if (k != "NFQWS_EXTRA_ARGS" || line ~ /^NFQWS_EXTRA_ARGS="?\$MODE_(LIST|AUTO|ALL)"?[ \t]*$/) keep[k] = line
+      }
+      close(src)
+    }
+    skip { if (quotes($0) % 2 == 1) skip = 0; next }
+    {
+      k = keyof($0)
+      if (k != "" && (k in keep) && !(k in done)) {
+        print keep[k]; done[k] = 1
+        if (quotes($0) % 2 == 1) skip = 1
+        next
+      }
+      print
+    }
+    END { for (k in keep) if (!(k in done)) print keep[k] }' "$1"
+}
+
+# ---------------------------------------------------------------- домашняя Wi-Fi
+# SSID текущей сети или код 1, если телефон не подключён к Wi-Fi. `cmd wifi`
+# есть с Android 11, dumpsys — запасной путь для старых прошивок.
+current_ssid() {
+  local s
+  s=$(cmd wifi status 2>/dev/null | sed -n 's/^Wifi is connected to "\(.*\)"[[:space:]]*$/\1/p' | head -n1)
+  if [ -z "$s" ]; then
+    s=$(dumpsys wifi 2>/dev/null | grep -m1 'mWifiInfo SSID: .*Supplicant state: COMPLETED' \
+        | sed -e 's/.*mWifiInfo SSID: //' -e 's/, BSSID:.*//' -e 's/^"\(.*\)"$/\1/')
+  fi
+  case "$s" in ''|'<unknown ssid>'|'<none>'|0x) return 1 ;; esac
+  printf '%s' "$s"
+}
+ssid_is_home() {
+  [ -n "$1" ] && [ -f "$HOME_FILE" ] || return 1
+  grep -v -e '^[[:space:]]*#' -e '^[[:space:]]*$' "$HOME_FILE" 2>/dev/null | grep -Fxq -- "$1"
 }
