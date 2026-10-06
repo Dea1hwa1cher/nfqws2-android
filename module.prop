@@ -4,3 +4,4 @@ version=v1.5.1
 versionCode=1051
 author=deathwatcher
 description=Обход DPI на базе nfqws2.
+updateJson=https://raw.githubusercontent.com/Dea1hwa1cher/nfqws2-android/main/update.json

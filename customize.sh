@@ -32,7 +32,8 @@ unzip -o "$ZIPFILE" -x 'META-INF/*' -d "$MODPATH" >&2 || abort "! Не удал�
 # проверено на Info-ZIP 6.00. Удаляем целиком, до set_perm_recursive.
 rm -rf "$MODPATH/tests" "$MODPATH/tools" "$MODPATH/.workbuddy-ai" \
        "$MODPATH/.git" "$MODPATH/.github" "$MODPATH/.gitattributes" \
-       "$MODPATH/CONTRIBUTING.md"
+       "$MODPATH/CONTRIBUTING.md" \
+       "$MODPATH/docs" "$MODPATH/update.json" "$MODPATH/changelog.md"
 rm -f "$MODPATH"/*.zip
 
 [ -f "$MODPATH/binaries/$BIN/nfqws2" ] || abort "! Нет бинарника $BIN"

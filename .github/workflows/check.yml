@@ -56,3 +56,10 @@ jobs:
             grep -q "\"$f\"" index.html || { echo "::error file=webroot/$f::файл не подключён в index.html"; rc=1; }
           done
           exit $rc
+
+      - name: update.json и module.prop
+        run: |
+          jq -e '.version and .versionCode and .zipUrl and .changelog' update.json >/dev/null \
+            || { echo "::error file=update.json::битый update.json"; exit 1; }
+          grep -q '^updateJson=https://' module.prop \
+            || { echo "::error file=module.prop::нет updateJson — менеджер не увидит обновления"; exit 1; }

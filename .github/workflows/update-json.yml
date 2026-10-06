@@ -1,0 +1,56 @@
+# Обновления из менеджера (Magisk / KernelSU / APatch) читают update.json по ссылке
+# updateJson из module.prop. Чтобы не править его руками на каждом релизе, этот
+# workflow при публикации релиза сам переписывает update.json и changelog.md в
+# main: версия и versionCode берутся из module.prop на теге релиза, ссылка — на
+# .zip из вложений релиза, список изменений — из текста релиза.
+name: update-json
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Тег релиза (например v1.5.1)
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Собрать update.json и changelog.md
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          set -eu
+          git fetch --tags --force
+          code=$(git show "$TAG:module.prop" | sed -n 's/^versionCode=//p' | tr -d '\r')
+          ver=$(git show "$TAG:module.prop" | sed -n 's/^version=//p' | tr -d '\r')
+          [ -n "$code" ] || { echo "::error::в module.prop на $TAG нет versionCode"; exit 1; }
+          rel=$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/$TAG")
+          zip=$(printf '%s' "$rel" | jq -r '[.assets[] | select(.name | endswith(".zip")) | .browser_download_url][0] // empty')
+          [ -n "$zip" ] || zip="https://github.com/${GITHUB_REPOSITORY}/releases/download/$TAG/nfqws2-android-$TAG.zip"
+          jq -n --arg v "$ver" --argjson c "$code" --arg z "$zip" \
+                --arg l "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/changelog.md" \
+                '{version: $v, versionCode: $c, zipUrl: $z, changelog: $l}' > update.json
+          body=$(printf '%s' "$rel" | jq -r '.body // ""')
+          if [ -n "$body" ]; then printf '%s\n' "$body" | tr -d '\r' > changelog.md; fi
+          cat update.json
+
+      - name: Закоммитить в main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898333+github-actions[bot]@users.noreply.github.com"
+          git add update.json changelog.md
+          git diff --cached --quiet && { echo "update.json уже актуален"; exit 0; }
+          git commit -m "update.json: ${{ github.event.release.tag_name || inputs.tag }}"
+          git push origin HEAD:main

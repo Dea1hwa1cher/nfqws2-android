@@ -11,3 +11,6 @@ tools/          export-ignore
 .gitattributes  export-ignore
 .github/        export-ignore
 CONTRIBUTING.md export-ignore
+docs/           export-ignore
+update.json     export-ignore
+changelog.md    export-ignore
