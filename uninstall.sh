@@ -13,6 +13,8 @@ fi
 # Без проверки на пустой pidfile получается `kill ""` — ошибка подавлена, но поведение неявное.
 wpid=$(cat /data/adb/nfqws2/state/watchdog.pid 2>/dev/null)
 if [ -n "$wpid" ]; then kill "$wpid" 2>/dev/null; fi
+wnpid=$(cat /data/adb/nfqws2/state/netwatch.pid 2>/dev/null)
+if [ -n "$wnpid" ]; then kill "$wnpid" 2>/dev/null; fi
 sh "$MODDIR/service.sh" stop >/dev/null 2>&1
 sh "$MODDIR/service.sh" firewall_stop >/dev/null 2>&1
 killall -9 nfqws2 2>/dev/null

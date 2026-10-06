@@ -384,8 +384,8 @@ body.nav-hidden .content { padding-bottom: calc(var(--bottom-inset) + 24px); }
 .hero-state { font-size: var(--ts-headline-small); line-height: var(--lh-headline-small); font-weight: var(--w-emph); }
 .hero-sub { font-size: var(--ts-body-medium); line-height: var(--lh-body-medium);
   letter-spacing: var(--tr-body-medium); opacity: .8; word-break: break-word; }
-/* Время работы шире: «1 д 12:34:56» не должно переноситься */
-.hero-stats { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+/* Статистика службы: равномерное распределение по трём колонкам */
+.hero-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .hstat { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .hstat-label { font-size: var(--ts-label-medium); line-height: var(--lh-label-medium); font-weight: var(--w-medium);
   opacity: .75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -394,7 +394,11 @@ body.nav-hidden .content { padding-bottom: calc(var(--bottom-inset) + 24px); }
 .hstat-value.bad { color: var(--md-sys-color-error); }
 /* Основное действие растянуто; перезапуск — outlined icon button рядом (M3 button group) */
 .hero-actions { display: flex; align-items: center; gap: 8px; }
-.hero-actions #bt { flex: 1 1 auto; min-width: 0; }
+.hero-actions #bt {
+  flex: 1 1 auto; min-width: 0; padding: 0 24px;
+  font-size: var(--ts-title-medium); line-height: var(--lh-title-medium);
+  font-weight: var(--w-bold); letter-spacing: .2px;
+}
 .hero-restart { width: 48px; height: 48px; color: inherit;
   border: 1px solid color-mix(in srgb, currentColor 45%, transparent); }
 
@@ -536,22 +540,15 @@ body.nav-hidden .content { padding-bottom: calc(var(--bottom-inset) + 24px); }
   clip-path: polygon(36% 62%, 48% 76%, 76% 36%, 86% 44%, 50% 88%, 26% 68%);
 }
 
-/* ── Stacked list (M3 Expressive) ───────────────────────────────────────
-   3dp зазоры; внешние углы 16dp, внутренние 4dp, выбранный элемент морфит
-   в 16dp по всем углам (shape morphing). `:where()` обнуляет специфичность,
-   чтобы правило .list-item.selected ниже выигрывало порядком. */
-.list { display: flex; flex-direction: column; gap: 3px; }
-.list > .list-item:where(:first-child) { border-start-start-radius: var(--shape-large); border-start-end-radius: var(--shape-large); }
-.list > .list-item:where(:last-child) { border-end-start-radius: var(--shape-large); border-end-end-radius: var(--shape-large); }
-.list > .list-item:where(:not(:first-child)):where(:not(:last-child)) { border-radius: var(--shape-extra-small); }
-/* Одиночный list-item, положенный прямо в .card/.sheet (мимо .list), правил
-   выше не получает и остаётся с квадратными углами внутри скруглённой
-   карточки. Задаём внешний радиус явно (дефект 2026-10-04). */
+/* ── Lists & list items ──────────────────────────────────────────────────
+   Чистый плоский список M3 без лишних контейнеров-подложек под каждым пунктом.
+   Для тача и ховера состояние подсвечивается через .state/ripple. */
+.list { display: flex; flex-direction: column; gap: 0; }
 .sheet > .list-item { border-radius: var(--shape-large); }
 .list-item {
   display: flex; align-items: center; gap: 16px; min-height: 56px; padding: 8px 16px;
-  appearance: none; border: none; background: var(--md-sys-color-surface-container-low); text-align: left;
-  color: var(--md-sys-color-on-surface);
+  appearance: none; border: none; background: transparent; text-align: left;
+  color: var(--md-sys-color-on-surface); border-radius: var(--shape-small);
   transition: background-color var(--dur-short) var(--standard);
 }
 .list-item.two-line { min-height: 72px; }
@@ -571,7 +568,7 @@ body.nav-hidden .content { padding-bottom: calc(var(--bottom-inset) + 24px); }
 .list-item .li-mono { font-family: var(--md-font-code); font-size: 13px; }
 .list-item .li-trail { flex: none; display: flex; align-items: center; gap: 8px;
   color: var(--md-sys-color-on-surface-variant);
-  font-size: var(--ts-label-small); line-height: var(--lh-label-small); font-weight: var(--w-medium); }
+  font-size: var(--ts-body-medium); line-height: var(--lh-body-medium); font-weight: var(--w-medium); }
 .list-item .switch { margin-left: auto; }
 .list-item.selected { background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container);
   border-radius: var(--shape-large); }
@@ -779,7 +776,7 @@ body.nav-hidden .snackbar { bottom: calc(var(--bottom-inset) + 16px); }
 /* Деструктивные строки: цвет error только на тексте и иконке */
 .list-item.danger .li-primary { color: var(--md-sys-color-error); }
 .list-item.danger .li-icon { background: var(--md-sys-color-error-container); color: var(--md-sys-color-on-error-container); }
-.list-item .li-value { font-variant-numeric: tabular-nums; }
+.list-item .li-value { font-variant-numeric: tabular-nums; font-size: var(--ts-body-medium); font-weight: var(--w-medium); }
 label.list-item { cursor: pointer; }
 
 /* ── M3 radio: кольцо 20dp, точка 10dp, пружина при выборе ───────────── */
@@ -1177,7 +1174,7 @@ html[data-amoled="true"] .hero.running, html[data-amoled="true"] .hero.paused, h
   <button class="icon-btn state tone-on" id="back-btn" aria-label="Назад" data-ta="aria-label" hidden onclick="goBack()">
     <svg aria-hidden="true" class="icon"><use href="#i-back"/></svg>
   </button>
-  <h1 class="title truncate" id="app-title">nfqws2</h1>
+  <h1 class="title truncate" id="app-title" data-t>Состояние</h1>
   <div class="bar-actions" id="bar-actions"></div>
   <button class="icon-btn state" id="settings-btn" aria-label="Настройки" data-ta="aria-label,title" title="Настройки">
     <svg aria-hidden="true" class="icon"><use href="#i-settings"/></svg>
@@ -1236,7 +1233,7 @@ html[data-amoled="true"] .hero.running, html[data-amoled="true"] .hero.paused, h
       <div class="list" id="sws"></div>
 
       <div id="dev-block" class="stack" hidden>
-        <h2 class="subhead" data-t>Для разработчика</h2>
+        <h2 class="subhead" data-t>Для разработчиков</h2>
         <div class="list" id="dev-sws"></div>
       </div>
     </div>
@@ -1775,23 +1772,23 @@ function spawnRun(cmd, ms, onLine){
     const child = makeEmitter();
     child.stdout = makeEmitter();
     child.stderr = makeEmitter();
+    let lineBuf = '';
     const fin = (c, extraErr) => {
       if(done) return; done = 1; clearTimeout(tm);
       setTimeout(() => { delete window[id]; }, 1000);
-      if(buf.replace(/[\r\n]/g, '')) take(buf.replace(/[\r\n]/g, ''));
+      if(onLine && lineBuf) try { onLine(lineBuf); } catch(e) {}
       if(extraErr) err.push(extraErr);
-      while(out.length && out[out.length - 1] === '') out.pop();   // пустая строка перед кодом выхода
-      res({code: rc != null ? rc : (+c || 0), out: out.join('\n'), err: err.join('\n')});
-    };
-    const take = rec => {
-      if(rec.indexOf(RC_TAG) === 0){ rc = parseInt(rec.slice(RC_TAG.length), 10) || 0; return; }
-      out.push(rec);
-      if(onLine) try { onLine(rec); } catch(e) {}
+      res({code: +c || 0, out: out.join(''), err: err.join('')});
     };
     child.stdout.on('data', d => {
-      buf += String(d).replace(/[\r\n]/g, '');
-      let i;
-      while((i = buf.indexOf(REC)) >= 0){ take(buf.slice(0, i)); buf = buf.slice(i + 1); }
+      const chunk = String(d);
+      out.push(chunk);
+      if(onLine){
+        lineBuf += chunk;
+        const lines = lineBuf.split('\n');
+        lineBuf = lines.pop();
+        lines.forEach(l => { try { onLine(l); } catch(e) {} });
+      }
     });
     child.stderr.on('data', d => err.push(String(d)));
     child.on('exit', c => fin(rc == null && c != null ? c : rc));
@@ -1959,7 +1956,7 @@ const PAGE_META = {
   lists:    {title: 'Списки', init: () => { renderMode(); renderListFiles(); stat(); }},
   logs:     {title: 'Журналы', init: () => loadLog(),
              actions: [{icon: 'refresh', label: 'Обновить журнал', fn: () => loadLog()}]},
-  config:   {title: 'Конфигурация', init: () => confInit()},
+  config:   {title: 'Конфиг', init: () => confInit()},
   settings: {title: 'Настройки', child: true, init: () => renderSettings()},
   wifi:     {title: 'Домашняя Wi‑Fi', child: true, parent: 'settings', init: () => wifiInit()},
   apps:     {title: 'Фильтр приложений', child: true, parent: 'settings', init: () => appsInit(),
@@ -1976,7 +1973,8 @@ function renderAppBar(page, animate){
   $('back-btn').hidden = !m.child;
   $('settings-btn').hidden = !!m.child;
   const tEl = $('app-title');
-  tEl.textContent = t(m.title);
+  tEl.innerHTML = esc(t(m.title));
+  bindVersionPress();
   if(animate !== false){ tEl.classList.remove('swap'); void tEl.offsetWidth; tEl.classList.add('swap'); }
   const box = $('bar-actions');
   box.innerHTML = '';
@@ -2059,18 +2057,19 @@ function navigate(page){
 function goBack(){ navigate(PAGE_META[currentPage].parent || lastTop); }
 document.querySelectorAll('.nav-dest').forEach(b => { b.onclick = () => navigate(b.dataset.page); });
 
-/* ── Режим разработчика: долгое нажатие на кнопку настроек ───────────────
+/* ── Режим разработчика: долгое нажатие на заголовок главного экрана ──────
    Показывает на главном экране служебные переключатели, которые обычному
-   пользователю не нужны (контроль работы, wakelock, лимиты пакетов).
-   Обычное нажатие по-прежнему открывает настройки; после долгого нажатия
-   следующий click гасится, чтобы настройки не открылись вдобавок. */
+   пользователю не нужны (watchdog, wakelock, лимиты пакетов). */
 let devMode = store.get('nfq_dev') === '1';
-(function bindSettingsPress(){
-  const b = $('settings-btn');
-  let tm = 0, fired = false;
+function bindVersionPress(){
+  const v = $('app-title');
+  if(!v || v._bound) return;
+  v._bound = true;
+  let tm = 0;
   const cancel = () => { clearTimeout(tm); tm = 0; };
-  b.addEventListener('pointerdown', () => {
-    cancel(); fired = false;
+  v.addEventListener('pointerdown', () => {
+    if(currentPage !== 'control') return;
+    cancel();
     tm = setTimeout(() => {
       tm = 0; fired = true;
       devMode = !devMode;
@@ -2128,13 +2127,17 @@ function openMonetModal(){ drawThemeUI(); openSheet('monet-modal'); }
 function closeMonetModal(){ if(openSheetId === 'monet-modal') closeSheet(); }
 
 /* ── «Назад»: сначала оверлеи, потом дочерний экран, потом домой, потом выход ── */
+let lastBackHandled = 0;
 function handleBack(allowExit){
-  if(openMenuEntry){ closeMenu(); return true; }
-  if($('dialog-wrap').classList.contains('open')){ dialogResolve(false); return true; }
-  if($('editor-panel').classList.contains('open')){ closeSlideEditor(); return true; }
-  if(openSheetId){ closeSheet(); return true; }
-  if(PAGE_META[currentPage].child){ goBack(); return true; }
-  if(allowExit && currentPage !== 'control'){ navigate('control'); return true; }
+  const now = Date.now();
+  if(now - lastBackHandled < 350) return true;
+  if(openMenuEntry){ closeMenu(); lastBackHandled = now; return true; }
+  if($('dialog-wrap').classList.contains('open')){ dialogResolve(false); lastBackHandled = now; return true; }
+  if($('color-wrap').classList.contains('open')){ closeColorDialog(); lastBackHandled = now; return true; }
+  if($('editor-panel').classList.contains('open')){ closeSlideEditor(); lastBackHandled = now; return true; }
+  if(openSheetId){ closeSheet(); lastBackHandled = now; return true; }
+  if(PAGE_META[currentPage].child){ goBack(); lastBackHandled = now; return true; }
+  if(allowExit && currentPage !== 'control'){ navigate('control'); lastBackHandled = now; return true; }
   return false;
 }
 /* config.json: backInterceptor = javascript — менеджер сам зовёт этот обработчик */
@@ -2421,8 +2424,8 @@ const SW = [
   ['BLOCK_QUIC', 'Блокировать QUIC', 'block_quic']
 ];
 const DEV_SW = [
-  ['WATCHDOG', 'Контроль работы', 'watchdog'],
-  ['WAKELOCK', 'Не давать телефону спать', 'wakelock_on']
+  ['WATCHDOG', 'Watchdog', 'watchdog'],
+  ['WAKELOCK', 'Wakelock', 'wakelock_on']
 ];
 const LIMITS = [
   ['PKT_LIMIT_OUT', 'Исходящие пакеты', 'Сколько первых пакетов соединения обрабатывать', 'pkt_limit_out'],
@@ -2439,9 +2442,10 @@ function renderHeroActions(){
   const run = !!S.running, bt = $('bt'), rs = $('bt-restart');
   const busyLabel = {start: t('Запуск…'), stop: t('Остановка…'), restart: t('Перезапуск…')}[svcBusy];
   bt.disabled = !!svcBusy;
+  bt.classList.toggle('with-icon', !run || !!svcBusy);
   bt.innerHTML = busyLabel
     ? '<span class="spinner"></span><span>' + esc(busyLabel) + '</span>'
-    : icon(run ? 'stop' : 'play') + '<span>' + esc(run ? t('Остановить') : t('Запустить')) + '</span>';
+    : (run ? '' : icon('play')) + '<span>' + esc(run ? t('Остановить') : t('Запустить')) + '</span>';
   rs.hidden = !run || !!svcBusy;
 }
 
@@ -2462,7 +2466,10 @@ function renderParams(j){
         ' onclick="editLimit(' + jsArg(k) + ', ' + jsArg(t(label)) + ', ' + (+j[jk] || 15) + ')">' +
         '<span class="li-text"><span class="li-primary">' + esc(t(label)) + '</span>' +
           '<span class="li-secondary">' + esc(t(hint)) + '</span></span>' +
-        '<span class="li-trail li-value">' + esc(j[jk] != null ? j[jk] : '—') + '</span>' +
+        '<span class="li-trail">' +
+          '<span class="li-value">' + esc(j[jk] != null ? j[jk] : '—') + '</span>' +
+          '<svg aria-hidden="true" class="icon s24"><use href="#i-chevron-right"/></svg>' +
+        '</span>' +
       '</div>');
     setHTML('dev-sws', DEV_SW.map(([k, label, jk]) => switchRow(k, label, j[jk] == 1)).concat(lim).join(''), false);
   }
@@ -2480,7 +2487,7 @@ function renderStatus(){
   $('sub').textContent = paused
     ? t('Домашняя Wi‑Fi «{0}». Обход возобновится, когда телефон уйдёт из этой сети.', j.paused)
     : (j.running && j.pid ? 'PID ' + j.pid + ' · ' : '') + t('Режим') + ' ' + (j.mode || '—') +
-      (j.strategy ? ' · ' + t('стратегия') + ' ' + strategyName(j.strategy) : '') + (j.running && lim ? ', ' + lim : '');
+      (j.running && lim ? ', ' + lim : '');
   $('queue-num').textContent = j.running ? (j.queue || '—') : '—';
   const qd = $('qdrop-num');
   qd.textContent = j.running ? (j.qdrop || 0) : '—';
@@ -3079,8 +3086,22 @@ async function openEditorWith(o){
     const r = await ctlx(o.load, 30000);
     if(editorCtx !== o) return;
     if(r.code){
-      $('editor-panel').classList.remove('open');
-      setBackgroundInert(false);
+      lastBackHandled = Date.now();
+      const box = $('code-edit');
+      const panel = $('editor-panel');
+      const pre = $('ce-hl');
+      if(panel) panel.style.transition = 'none';
+      if(box) box.style.display = 'none';
+      if(ta) ta.style.display = 'none';
+      if(pre) pre.style.display = 'none';
+      if(ta) ta.value = '';
+      if(pre) pre.textContent = '';
+      if(panel) panel.classList.remove('open');
+      if(!openSheetId) setBackgroundInert(false);
+      if(panel){ void panel.offsetHeight; panel.style.transition = ''; }
+      if(box) box.style.display = '';
+      if(ta) ta.style.display = '';
+      if(pre) pre.style.display = '';
       editorCtx = null;
       scheduleSync();
       toast(errText(r, 'Не удалось открыть файл'));
@@ -3092,18 +3113,52 @@ async function openEditorWith(o){
     highlightEditor();
   }
   o.original = o.dirty ? null : ta.value;
-  ta.focus({ preventScroll: true });
+  // Не форсируем клавиатуру для больших файлов (> 50 КБ, напр. ipset.list на 15 000 строк),
+  // иначе Android Binder ловит TransactionTooLargeException при передаче контекста ввода.
+  if(!ta.value || ta.value.length < 50000){
+    ta.focus({ preventScroll: true });
+  }
 }
 async function closeSlideEditor(force){
   const o = editorCtx;
-  if(!force && o && o.original !== $('panel-editor-text').value){
+  const ta = $('panel-editor-text');
+  if(!force && o && o.original !== ta.value){
     const discard = await mdConfirm(t('Закрыть без сохранения?'), t('Изменения в «{0}» будут потеряны.', o.title),
       {ok: t('Закрыть'), cancel: t('Продолжить правку')});
     if(!discard) return;
   }
-  $('editor-panel').classList.remove('open');
+  lastBackHandled = Date.now();
+  if(document.activeElement === ta || (ta && ta.blur)) ta.blur();
+  // Для больших файлов (>50 КБ, напр. ipset.list на 15 000 строк / 360 000 px высоты)
+  // полностью отключаем CSS-транзишн панели, скрываем блок и очищаем DOM ДО закрытия.
+  // Это полностью устраняет попытки Chromium cc / Skia растрировать текстуру огромного слоя,
+  // что приводило к SIGSEGV / RenderProcessGone и крашу хост-процесса KernelSU/APatch.
+  const box = $('code-edit');
+  const panel = $('editor-panel');
+  const pre = $('ce-hl');
+  const isLarge = !o || !o.original || o.original.length > 50000;
+  if(isLarge && panel) panel.style.transition = 'none';
+  if(box) box.style.display = 'none';
+  if(ta) ta.style.display = 'none';
+  if(pre) pre.style.display = 'none';
+  if(ta) ta.value = '';
+  if(pre) pre.textContent = '';
+  if(panel) panel.classList.remove('open');
   if(!openSheetId) setBackgroundInert(false);
-  if(editorReturnFocus && editorReturnFocus.focus) editorReturnFocus.focus({ preventScroll: true });
+  if(isLarge && panel){
+    void panel.offsetHeight;
+    panel.style.transition = '';
+    if(box) box.style.display = '';
+    if(ta) ta.style.display = '';
+    if(pre) pre.style.display = '';
+  } else {
+    setTimeout(() => {
+      if(box) box.style.display = '';
+      if(ta) ta.style.display = '';
+      if(pre) pre.style.display = '';
+    }, 480);
+  }
+  if(editorReturnFocus && editorReturnFocus.focus) try { editorReturnFocus.focus({ preventScroll: true }); } catch(e) {}
   editorReturnFocus = null;
   editorCtx = null;
   scheduleSync();
@@ -3407,8 +3462,7 @@ function renderSettings(){
       {icon: 'translate', title: 'Язык', sub: LANG === 'en' ? 'English' : 'Русский', on: 'pickLanguage(this)', menu: true}
     ]],
     ['О модуле', [
-      {icon: 'info', title: 'nfqws2 for Android', sub: t('Версия {0}', S.version || '—') + ' · ' +
-        (devMode ? t('параметры для разработчика включены') : t('удерживайте кнопку настроек, чтобы открыть параметры для разработчика')), on: ''}
+      {icon: 'info', title: 'nfqws2 for Android', sub: (S.version || '—') + ' · ' + t('удерживайте заголовок на главном экране, чтобы открыть параметры для разработчиков'), on: ''}
     ]]
   ];
   setHTML('settings-body', groups.map(([title, rows]) =>
@@ -3988,6 +4042,8 @@ EN = {
  "Автозапуск при загрузке": "Start on boot",
  "Обрабатывать IPv6": "Process IPv6",
  "Блокировать QUIC": "Block QUIC",
+ "Watchdog": "Watchdog",
+ "Wakelock": "Wakelock",
  "Контроль работы": "Watchdog",
  "Не давать телефону спать": "Keep the phone awake",
  "Исходящие пакеты": "Outgoing packets",
@@ -4169,7 +4225,7 @@ EN = {
  "Язык": "Language",
  "Русский": "Русский",
  "О модуле": "About",
- "удерживайте номер версии на главном экране, чтобы открыть параметры для разработчика": "long-press the version number on the main screen to open developer options",
+ "удерживайте заголовок на главном экране, чтобы открыть параметры для разработчиков": "long-press the title on the home screen to open developer options",
  "Сейчас телефон подключён к «{0}». Добавить эту сеть в домашние?": "The phone is connected to “{0}”. Add this network to home networks?",
  "Добавить": "Add",
  "Подключено сейчас": "Connected now",
@@ -4210,7 +4266,7 @@ EN = {
  "Потери": "Drops",
  "Стратегия обхода": "Bypass strategy",
  "Параметры": "Options",
- "Для разработчика": "Developer",
+ "Для разработчиков": "For developers",
  "Режим обработки": "Processing mode",
  "Добавить домен": "Add domain",
  "Домен": "Domain",

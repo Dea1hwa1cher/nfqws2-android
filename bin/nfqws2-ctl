@@ -89,7 +89,7 @@ build_strategy_conf() { # <имя> <файл-результат>
 }
 
 set_strategy() {
-  local name="${1:-default}" tmp="$STATE_DIR/strat_apply.tmp"
+  local name="${1:-default}" tmp="$STATE_DIR/strat_apply.$$.tmp"
   case "$name" in default) ;; imp:*) strategy_name_ok "${name#imp:}" || { echo "Некорректное имя" >&2; return 1; } ;;
     *) strategy_name_ok "$name" || { echo "Некорректное имя" >&2; return 1; } ;; esac
   if [ "$name" != "default" ] && ! strategy_file "$name" >/dev/null; then

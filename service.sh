@@ -129,16 +129,33 @@ reload_lists() {
   log_msg "Списки перечитаны (SIGHUP)"
 }
 
-ensure_watchdog() {
-  watchers_wanted || return 0
-  if [ -f "$WD_PIDFILE" ] && kill -0 "$(cat "$WD_PIDFILE" 2>/dev/null)" 2>/dev/null; then
-    return 0
+# Поднимает помощника, если он ещё не работает.
+#
+#   ensure_helper <pidfile> <подкоманда> [команда-предусловие…]
+#
+# Возвращает 0, если помощник **только что запущен**, и 1, если запускать нечего:
+# уже работает или не выполнено предусловие. Такой знак выбран не для красоты —
+# вызывающему нужно отличать эти случаи: ensure_watchdog поднимает netwatch ровно
+# в тот момент, когда поднял watchdog, а не при каждом вызове.
+ensure_helper() {
+  local pf="$1" sub="$2"; shift 2
+  # [ $# -eq 0 ] явно, хотя голое `"$@"` без аргументов — тоже no-op (проверено
+  # в dash): опираться на это молча не стоит.
+  [ $# -eq 0 ] || { "$@" || return 1; }
+  if [ -f "$pf" ] && kill -0 "$(cat "$pf" 2>/dev/null)" 2>/dev/null; then
+    return 1
   fi
   (
     exec 0</dev/null
     exec >/dev/null 2>&1
-    exec sh "$MODDIR/service.sh" watchdog
+    exec sh "$MODDIR/service.sh" "$sub"
   ) &
+  return 0
+}
+
+ensure_watchdog() {
+  [ "$WATCHDOG" = "1" ] || return 0
+  ensure_helper "$WD_PIDFILE" watchdog || return 0
   ensure_netwatch
 }
 
@@ -148,16 +165,8 @@ ensure_watchdog() {
 # самое — события интерфейсов и маршрутов в реальном времени. Watchdog остаётся подстраховкой
 # (и единственным механизмом там, где ip monitor не поддерживается прошивкой).
 ensure_netwatch() {
-  watchers_wanted || return 0
-  command -v ip >/dev/null 2>&1 || return 0
-  if [ -f "$WN_PIDFILE" ] && kill -0 "$(cat "$WN_PIDFILE" 2>/dev/null)" 2>/dev/null; then
-    return 0
-  fi
-  (
-    exec 0</dev/null
-    exec >/dev/null 2>&1
-    exec sh "$MODDIR/service.sh" netwatch
-  ) &
+  [ "$WATCHDOG" = "1" ] || return 0
+  ensure_helper "$WN_PIDFILE" netwatch command -v ip || return 0
 }
 
 netwatch() {
