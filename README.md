@@ -54,4 +54,5 @@ Telegram-чат: **[t.me/nfqws2android](https://t.me/nfqws2android)** — пом
 
 * [bol-van](https://github.com/bol-van) — за оригинальный и непревзойденный проект zapret.
 * [nfqws2-keenetic](https://github.com/nfqws/nfqws2-keenetic) — за идеи адаптации конфигов и логику авто-стратегий.
+* [dpi-detector](https://github.com/Runnin4ik/dpi-detector) — за алгоритмы детекции и классификации блокировок DPI.
 * Разработчикам [KernelSU](https://github.com/tiann/kernelSU), [Magisk](https://github.com/topjohnwu/magisk) и [APatch](https://github.com/bmax121/APatch).
