@@ -394,7 +394,11 @@ body.nav-hidden .content { padding-bottom: calc(var(--bottom-inset) + 24px); }
 .hstat-value.bad { color: var(--md-sys-color-error); }
 /* Основное действие растянуто; перезапуск — outlined icon button рядом (M3 button group) */
 .hero-actions { display: flex; align-items: center; gap: 8px; }
-.hero-actions #bt { flex: 1 1 auto; min-width: 0; }
+.hero-actions #bt {
+  flex: 1 1 auto; min-width: 0; padding: 0 24px;
+  font-size: var(--ts-title-medium); line-height: var(--lh-title-medium);
+  font-weight: var(--w-bold); letter-spacing: .2px;
+}
 .hero-restart { width: 48px; height: 48px; color: inherit;
   border: 1px solid color-mix(in srgb, currentColor 45%, transparent); }
 
@@ -1087,7 +1091,7 @@ html[data-mode="dark"] { --tk-keyword: #569cd6; --tk-string: #ce9178; --tk-strin
   <button class="icon-btn state tone-on" id="back-btn" aria-label="Назад" data-ta="aria-label" hidden onclick="goBack()">
     <svg aria-hidden="true" class="icon"><use href="#i-back"/></svg>
   </button>
-  <h1 class="title truncate" id="app-title">nfqws2</h1>
+  <h1 class="title truncate" id="app-title" data-t>Состояние</h1>
   <div class="bar-actions" id="bar-actions"></div>
   <button class="icon-btn state" id="settings-btn" aria-label="Настройки" data-ta="aria-label,title" title="Настройки"
           onclick="navigate('settings')">
@@ -1147,7 +1151,7 @@ html[data-mode="dark"] { --tk-keyword: #569cd6; --tk-string: #ce9178; --tk-strin
       <div class="list" id="sws"></div>
 
       <div id="dev-block" class="stack" hidden>
-        <h2 class="subhead" data-t>Для разработчика</h2>
+        <h2 class="subhead" data-t>Для разработчиков</h2>
         <div class="list" id="dev-sws"></div>
       </div>
     </div>
@@ -1865,11 +1869,11 @@ $('dialog-wrap').addEventListener('keydown', e => {
    следующие уровни (приложения, проверка, диагностика, домашняя Wi‑Fi):
    shared axis X вперёд/назад, стрелка «Назад», панель навигации скрыта. */
 const PAGE_META = {
-  control:  {title: 'nfqws2', init: () => { renderStatus(); stat(); initStrategySelector(); }},
+  control:  {title: 'Состояние', init: () => { renderStatus(); stat(); initStrategySelector(); }},
   lists:    {title: 'Списки', init: () => { renderMode(); renderListFiles(); stat(); }},
   logs:     {title: 'Журналы', init: () => loadLog(),
              actions: [{icon: 'refresh', label: 'Обновить журнал', fn: () => loadLog()}]},
-  config:   {title: 'Конфигурация', init: () => confInit()},
+  config:   {title: 'Конфиг', init: () => confInit()},
   settings: {title: 'Настройки', child: true, init: () => renderSettings()},
   wifi:     {title: 'Домашняя Wi‑Fi', child: true, parent: 'settings', init: () => wifiInit()},
   apps:     {title: 'Фильтр приложений', child: true, parent: 'settings', init: () => appsInit(),
@@ -2318,9 +2322,10 @@ function renderHeroActions(){
   const run = !!S.running, bt = $('bt'), rs = $('bt-restart');
   const busyLabel = {start: t('Запуск…'), stop: t('Остановка…'), restart: t('Перезапуск…')}[svcBusy];
   bt.disabled = !!svcBusy;
+  bt.classList.toggle('with-icon', !run || !!svcBusy);
   bt.innerHTML = busyLabel
     ? '<span class="spinner"></span><span>' + esc(busyLabel) + '</span>'
-    : icon(run ? 'stop' : 'play') + '<span>' + esc(run ? t('Остановить') : t('Запустить')) + '</span>';
+    : (run ? '' : icon('play')) + '<span>' + esc(run ? t('Остановить') : t('Запустить')) + '</span>';
   rs.hidden = !run || !!svcBusy;
 }
 
@@ -2363,7 +2368,7 @@ function renderStatus(){
   $('sub').textContent = paused
     ? t('Домашняя Wi‑Fi «{0}». Обход возобновится, когда телефон уйдёт из этой сети.', j.paused)
     : (j.running && j.pid ? 'PID ' + j.pid + ' · ' : '') + t('Режим') + ' ' + (j.mode || '—') +
-      (j.strategy ? ' · ' + t('стратегия') + ' ' + strategyName(j.strategy) : '') + (j.running && lim ? ', ' + lim : '');
+      (j.running && lim ? ', ' + lim : '');
   $('queue-num').textContent = j.running ? (j.queue || '—') : '—';
   const qd = $('qdrop-num');
   qd.textContent = j.running ? (j.qdrop || 0) : '—';
@@ -2964,6 +2969,8 @@ async function openEditorWith(o){
     if(r.code){
       $('editor-panel').classList.remove('open');
       setBackgroundInert(false);
+      ta.value = '';
+      $('ce-hl').textContent = '';
       editorCtx = null;
       scheduleSync();
       toast(errText(r, 'Не удалось открыть файл'));
@@ -2975,17 +2982,25 @@ async function openEditorWith(o){
     highlightEditor();
   }
   o.original = o.dirty ? null : ta.value;
-  ta.focus({ preventScroll: true });
+  // Не форсируем клавиатуру для больших файлов (> 50 КБ, напр. ipset.list на 15 000 строк),
+  // иначе Android Binder ловит TransactionTooLargeException при передаче контекста ввода.
+  if(!ta.value || ta.value.length < 50000){
+    ta.focus({ preventScroll: true });
+  }
 }
 async function closeSlideEditor(force){
   const o = editorCtx;
-  if(!force && o && o.original !== $('panel-editor-text').value){
+  const ta = $('panel-editor-text');
+  if(!force && o && o.original !== ta.value){
     const discard = await mdConfirm(t('Закрыть без сохранения?'), t('Изменения в «{0}» будут потеряны.', o.title),
       {ok: t('Закрыть'), cancel: t('Продолжить правку')});
     if(!discard) return;
   }
+  if(document.activeElement === ta || (ta && ta.blur)) ta.blur();
   $('editor-panel').classList.remove('open');
   if(!openSheetId) setBackgroundInert(false);
+  ta.value = '';
+  $('ce-hl').textContent = '';
   if(editorReturnFocus && editorReturnFocus.focus) editorReturnFocus.focus({ preventScroll: true });
   editorReturnFocus = null;
   editorCtx = null;
@@ -3290,7 +3305,7 @@ function renderSettings(){
       {icon: 'translate', title: 'Язык', sub: LANG === 'en' ? 'English' : 'Русский', on: 'pickLanguage(this)', menu: true}
     ]],
     ['О модуле', [
-      {icon: 'info', title: 'nfqws2 for Android', sub: (S.version || '—') + ' · ' + t('удерживайте заголовок на главном экране, чтобы открыть параметры для разработчика'), on: ''}
+      {icon: 'info', title: 'nfqws2 for Android', sub: (S.version || '—') + ' · ' + t('удерживайте заголовок на главном экране, чтобы открыть параметры для разработчиков'), on: ''}
     ]]
   ];
   setHTML('settings-body', groups.map(([title, rows]) =>
@@ -4015,7 +4030,7 @@ EN = {
  "Язык": "Language",
  "Русский": "Русский",
  "О модуле": "About",
- "удерживайте заголовок на главном экране, чтобы открыть параметры для разработчика": "long-press the title on the home screen to open developer options",
+ "удерживайте заголовок на главном экране, чтобы открыть параметры для разработчиков": "long-press the title on the home screen to open developer options",
  "Сейчас телефон подключён к «{0}». Добавить эту сеть в домашние?": "The phone is connected to “{0}”. Add this network to home networks?",
  "Добавить": "Add",
  "Подключено сейчас": "Connected now",
@@ -4056,7 +4071,7 @@ EN = {
  "Потери": "Drops",
  "Стратегия обхода": "Bypass strategy",
  "Параметры": "Options",
- "Для разработчика": "Developer",
+ "Для разработчиков": "For developers",
  "Режим обработки": "Processing mode",
  "Добавить домен": "Add domain",
  "Домен": "Domain",
