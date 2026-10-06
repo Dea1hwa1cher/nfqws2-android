@@ -1936,12 +1936,17 @@ async function applySelectedStrategy(){
 
 /* ══ СОСТОЯНИЕ ═══════════════════════════════════════════════════════════ */
 /* [ключ, подпись, пояснение]: пояснение только там, где подпись сама не объясняет эффект */
+/* Строки-переключатели — однострочные: только заголовок и сам переключатель.
+   Описания под ними владелец считает лишними, они ломают ритм списка. Это
+   конвенция проекта, а не свойство нового файла: он принёс двухстрочные строки,
+   и они возвращены к однострочным. Подсказки остались только у лимитов ниже —
+   там они поясняют число, а не дублируют название. */
 const SW = [
-  ['AUTOSTART', 'Автозапуск при загрузке', ''],
-  ['WATCHDOG', 'Контроль работы', 'Перезапускает службу и восстанавливает правила'],
-  ['IPV6_ENABLED', 'Обрабатывать IPv6', ''],
-  ['BLOCK_QUIC', 'Блокировать QUIC', 'Браузеры перейдут с HTTP/3 на TCP'],
-  ['WAKELOCK', 'Не давать телефону спать', 'Повышает расход батареи']
+  ['AUTOSTART', 'Автозапуск при загрузке'],
+  ['WATCHDOG', 'Контроль работы'],
+  ['IPV6_ENABLED', 'Обрабатывать IPv6'],
+  ['BLOCK_QUIC', 'Блокировать QUIC'],
+  ['WAKELOCK', 'Не давать телефону спать']
 ];
 const KEY = {AUTOSTART: 'autostart', WATCHDOG: 'watchdog', IPV6_ENABLED: 'ipv6', BLOCK_QUIC: 'block_quic', WAKELOCK: 'wakelock_on'};
 const LIMITS = [
@@ -1966,10 +1971,9 @@ function renderHeroActions(){
 }
 
 function renderParams(j){
-  const sw = SW.map(([k, label, hint]) =>
-    '<label class="list-item clickable state' + (hint ? ' two-line' : '') + '">' +
-      '<span class="li-text"><span class="li-primary">' + esc(label) + '</span>' +
-        (hint ? '<span class="li-secondary">' + esc(hint) + '</span>' : '') + '</span>' +
+  const sw = SW.map(([k, label]) =>
+    '<label class="list-item clickable state">' +
+      '<span class="li-text"><span class="li-primary">' + esc(label) + '</span></span>' +
       '<span class="li-trail"><input type="checkbox" class="switch" role="switch" aria-label="' + esc(label) + '"' +
         (j[KEY[k]] == 1 ? ' checked' : '') + ' onchange="setp(' + jsArg(k) + ', this.checked ? 1 : 0)"></span>' +
     '</label>');
