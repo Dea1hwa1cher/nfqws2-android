@@ -219,8 +219,6 @@ svg.icon.s24 { width: 24px; height: 24px; }
 .app-bar .title { flex: 1; min-width: 0; padding-left: 8px;
   font-size: var(--ts-title-large); line-height: var(--lh-title-large); font-weight: var(--w-regular);
   color: var(--md-sys-color-on-surface); }
-.app-bar .title .ver { font-size: var(--ts-label-small); line-height: var(--lh-label-small); font-weight: var(--w-medium);
-  color: var(--md-sys-color-on-surface-variant); vertical-align: 5px; margin-left: 8px; }
 /* 32dp чип состояния в баре: PID / выкл / нет связи */
 
 /* Icon button 48×48 */
@@ -438,7 +436,7 @@ body.nav-hidden .content { padding-bottom: calc(var(--bottom-inset) + 24px); }
 .btn[disabled] { pointer-events: none;
   background: color-mix(in srgb, var(--md-sys-color-on-surface) calc(var(--state-disabled-container) * 100%), transparent);
   color: color-mix(in srgb, var(--md-sys-color-on-surface) calc(var(--state-disabled-content) * 100%), transparent); }
-.btn.text[disabled], .btn.outlined[disabled] { background: transparent; }
+.btn.text[disabled] { background: transparent; }
 /* sm = компактные отступы; высота всё равно 40dp — минимум для кнопки в M3 */
 .btn.sm { height: 40px; padding: 0 14px; }
 .btn.sm.with-icon { padding: 0 12px 0 8px; }
@@ -729,10 +727,6 @@ body.nav-hidden .snackbar { bottom: calc(var(--bottom-inset) + 16px); }
 .cd-row { display: flex; flex-direction: column; gap: 4px; }
 .cd-row > label { font-size: var(--ts-label-medium); line-height: var(--lh-label-medium); font-weight: var(--w-emph);
   color: var(--md-sys-color-on-surface-variant); }
-.cd-preview { display: flex; align-items: center; gap: 12px; }
-.cd-swatch { width: 48px; height: 48px; flex: none; border-radius: var(--shape-medium);
-  border: 1px solid var(--md-sys-color-outline);
-  transition: background-color var(--dur-short) var(--standard); }
 
 /* ── Пустое состояние / pill / kv ────────────────────────────────────── */
 .empty { display: flex; flex-direction: column; align-items: center; gap: 12px;
@@ -758,7 +752,6 @@ body.nav-hidden .snackbar { bottom: calc(var(--bottom-inset) + 16px); }
   padding: 16px; display: flex; flex-direction: column; gap: 12px;
 }
 .muted { color: var(--md-sys-color-on-surface-variant); }
-.clamp2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
 /* Кнопка внутри trail-слота поля: сам слот прозрачен для касаний, кнопка — нет */
 
@@ -907,5 +900,4 @@ body.kb-open .snackbar { bottom: 16px; }
 /* ── Type-роли M3 ────────────────────────────────────────────────────────
    В конце файла намеренно: это одноклассовые селекторы, они выигрывают у
    компонентных правил (.card-title, .li-primary, …) только порядком. */
-.t-title-medium { font-size: var(--ts-title-medium); line-height: var(--lh-title-medium); font-weight: var(--w-emph); }
 .t-body-medium { font-size: var(--ts-body-medium); line-height: var(--lh-body-medium); font-weight: var(--w-regular); }

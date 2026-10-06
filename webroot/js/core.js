@@ -527,7 +527,6 @@ function closeSheet(){
   scheduleSync();
 }
 function openMonetModal(){ drawThemeUI(); openSheet('monet-modal'); }
-function closeMonetModal(){ if(openSheetId === 'monet-modal') closeSheet(); }
 
 /* ── «Назад»: сначала оверлеи, потом дочерний экран, потом домой, потом выход ── */
 function handleBack(allowExit){
