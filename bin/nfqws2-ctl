@@ -316,7 +316,14 @@ cmd_import_add() { # $1 = имя, $2 = путь к файлу с содержи�
   [ -n "$safe" ] || safe="import-$(date '+%Y%m%d-%H%M%S' 2>/dev/null)"
   local dst="$IMPORTS_DIR/$safe.conf" n=1
   while [ -f "$dst" ]; do dst="$IMPORTS_DIR/${safe}_$n.conf"; n=$((n + 1)); done
-  cp -f "$src" "$dst" && chmod 0644 "$dst"
+  # Импорт хранится уже в виде встроенной стратегии (см. normalize_import):
+  # редактор показывает его тем же, а смена стратегии не трогает настройки.
+  if ! normalize_import "$src" > "$dst" || ! grep -q '^NFQWS_ARGS=' "$dst" || ! validate_conf "$dst" >/dev/null 2>&1; then
+    rm -f "$dst"
+    echo "Не удалось привести конфиг к виду стратегии" >&2
+    return 1
+  fi
+  chmod 0644 "$dst"
   echo "$(basename "$dst" .conf)"
 }
 
@@ -611,7 +618,10 @@ case "$1" in
   strategy-get-b64)
     case "$2" in default) f="$MODDIR/defaults/nfqws2.conf" ;; *) f=$(strategy_file "$2") ;; esac
     [ -n "$f" ] && [ -f "$f" ] || { echo "Стратегия не найдена" >&2; exit 1; }
-    { command -v base64 >/dev/null 2>&1 && base64 < "$f" || busybox base64 < "$f"; } ;;
+    # Импорт из старой версии мог остаться в исходном виде Keenetic —
+    # в редактор он попадает уже приведённым к виду встроенной стратегии.
+    case "$2" in imp:*) normalize_import "$f" ;; *) cat "$f" ;; esac \
+      | { command -v base64 >/dev/null 2>&1 && base64 || busybox base64; } ;;
   strategy-save-b64)
     n="$2"; t="$STATE_DIR/strat_save.tmp"
     case "$n" in default|'') echo "Стандартную стратегию редактируйте во вкладке «Конфиг»" >&2; exit 1 ;; esac
