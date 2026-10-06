@@ -12,7 +12,7 @@
 <style>
 /* ══════════════════════════════════════════════════════════════════════════
    MATERIAL DESIGN 3 EXPRESSIVE — DESIGN TOKENS
-   Навигация: Navigation bar (4 раздела) + overflow-меню в top app bar.
+   Навигация: Navigation bar (4 раздела) + экран настроек за кнопкой в top app bar.
    Роли цвета, typescale, shape, elevation и motion соответствуют M3 Expressive
    (MotionScheme.expressive(), Purple fallback из таблиц m3.material.io).
    Значения ролей перезаписывает рантайм-генератор палитры (см. applyTheme()).
@@ -666,14 +666,6 @@ body.nav-hidden .content { padding-bottom: calc(var(--bottom-inset) + 24px); }
   font-size: var(--ts-title-large); line-height: var(--lh-title-large); font-weight: var(--w-emph); }
 .fs-body { flex: 1; display: flex; flex-direction: column; gap: 8px;
   padding: 8px var(--screen-margin) calc(8px + var(--bottom-inset)); }
-.fs-body textarea {
-  flex: 1; width: 100%; height: 100%; min-height: 0;
-  background: var(--md-sys-color-surface-container-low); border: none; outline: none; resize: none;
-  border-radius: var(--shape-card); padding: 16px;
-  font-family: var(--md-font-code); font-size: 13px; line-height: 1.6;
-  color: var(--md-sys-color-on-surface);
-  white-space: pre; overflow: auto;
-}
 
 /* ── Dialog (28dp) ───────────────────────────────────────────────────── */
 .dialog-wrap { position: fixed; inset: 0; z-index: 80; display: none;
@@ -931,6 +923,121 @@ body.kb-open .snackbar { bottom: 16px; }
    компонентных правил (.card-title, .li-primary, …) только порядком. */
 .t-title-medium { font-size: var(--ts-title-medium); line-height: var(--lh-title-medium); font-weight: var(--w-emph); }
 .t-body-medium { font-size: var(--ts-body-medium); line-height: var(--lh-body-medium); font-weight: var(--w-regular); }
+
+/* ── Плавное появление перерисованного содержимого ─────────────────────── */
+@keyframes rise-in { from { opacity: 0; transform: translateY(6px); } }
+.appear > * { animation: rise-in var(--dur-medium) var(--emphasized-decelerate) both; }
+.appear > *:nth-child(2) { animation-delay: 20ms; }
+.appear > *:nth-child(3) { animation-delay: 40ms; }
+.appear > *:nth-child(4) { animation-delay: 60ms; }
+.appear > *:nth-child(n+5) { animation-delay: 80ms; }
+pre.appear { animation: fade-in var(--dur-medium) var(--emphasized-decelerate); }
+pre.appear > * { animation: none; }
+.appear-item { animation: rise-in var(--dur-medium) var(--emphasized-decelerate) both; }
+
+/* ── Колонки страницы: в портрете — обычный поток, в альбомной — две ───── */
+.pcol { display: contents; }
+.settings-grid { display: flex; flex-direction: column; gap: var(--gap); }
+
+/* ── Карточка состояния: пауза в домашней Wi-Fi ───────────────────────── */
+.hero.paused { --hero-bg: var(--md-sys-color-tertiary-container); color: var(--md-sys-color-on-tertiary-container); }
+.hero.paused .hero-icon { border-radius: 20px; background: var(--md-sys-color-tertiary); color: var(--md-sys-color-on-tertiary); }
+
+/* ── Номер версии: долгое нажатие открывает параметры разработчика ─────── */
+.app-bar .title .ver { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+  touch-action: manipulation; cursor: default; padding: 8px 4px; margin-left: 4px; }
+
+/* ── Метки в строках списка ──────────────────────────────────────────── */
+.li-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.pill { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: var(--shape-full);
+  background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary);
+  font-size: var(--ts-label-small); line-height: var(--lh-label-small); font-weight: var(--w-emph); white-space: nowrap; }
+.pill.tonal { background: var(--md-sys-color-tertiary-container); color: var(--md-sys-color-on-tertiary-container); }
+.list-item .li-actions { gap: 0; margin-right: -8px; }
+.list-item .li-actions .icon-btn { color: var(--md-sys-color-on-surface-variant); }
+.list-item.selected .li-actions .icon-btn { color: var(--md-sys-color-on-secondary-container); }
+.pending-btn, .list-item .li-trail .pending-btn { color: var(--status-warn); }
+
+/* ── Группы на листе выбора стратегии ────────────────────────────────── */
+.sheet-group { padding: 16px 16px 8px; font-size: var(--ts-title-small); line-height: var(--lh-title-small);
+  font-weight: var(--w-emph); letter-spacing: var(--tr-title-small); color: var(--md-sys-color-primary); }
+.sheet-group:first-child { padding-top: 4px; }
+#strategy-list .list-item { min-height: 56px; }
+
+/* ── Filter chip «Ошибки»: у выбранного появляется галочка ──────────── */
+.chip.filter { padding: 0 16px 0 8px; gap: 4px; color: var(--md-sys-color-on-surface); }
+.chip.filter .chip-check { width: 0; overflow: hidden; display: inline-flex; transition: width var(--dur-short) var(--spring); }
+.chip.filter:not(.selected) { padding-left: 16px; }
+.chip.filter.selected .chip-check { width: 18px; }
+
+/* ── Главный переключатель экрана (как в настройках Android) ─────────── */
+.main-switch { display: flex; align-items: center; gap: 16px; min-height: 72px; padding: 16px 24px; cursor: pointer;
+  border-radius: var(--shape-extra-large); background: var(--md-sys-color-surface-container-high);
+  font-size: 20px; line-height: 26px; font-weight: var(--w-medium);
+  color: var(--md-sys-color-on-surface); transition: background-color var(--dur-medium) var(--standard), color var(--dur-medium) var(--standard); }
+.main-switch.on { background: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); }
+.grow { flex: 1 1 auto; min-width: 0; }
+.is-disabled { opacity: var(--state-disabled-content); pointer-events: none; transition: opacity var(--dur-medium) var(--standard); }
+#wifi-body { transition: opacity var(--dur-medium) var(--standard); }
+.suggest { display: flex; align-items: center; gap: 12px; padding: 12px 12px 12px 16px; border-radius: var(--shape-large);
+  background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container);
+  font-size: var(--ts-body-medium); line-height: var(--lh-body-medium); }
+.suggest .btn { flex: none; }
+.suggest .btn.tonal { background: var(--md-sys-color-surface-container-lowest); color: var(--md-sys-color-primary); }
+
+/* ── Редактор с подсветкой: <pre> под прозрачным текстом textarea ────── */
+.code-edit { position: relative; flex: 1; min-height: 0; overflow: hidden;
+  border-radius: var(--shape-card); background: var(--md-sys-color-surface-container-low); }
+.code-edit > pre, .code-edit > textarea {
+  position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 16px; border: 0;
+  font-family: var(--md-font-code); font-size: 13px; line-height: 1.6; letter-spacing: 0; word-spacing: 0;
+  white-space: pre; tab-size: 4; overflow: auto; font-variant-ligatures: none; }
+.code-edit > pre { pointer-events: none; overflow: hidden; color: var(--md-sys-color-on-surface); }
+.code-edit > textarea { background: transparent; resize: none; outline: none; appearance: none;
+  color: transparent; -webkit-text-fill-color: transparent; caret-color: var(--md-sys-color-on-surface); }
+.code-edit > textarea::placeholder { -webkit-text-fill-color: var(--md-sys-color-on-surface-variant); color: var(--md-sys-color-on-surface-variant); }
+.code-edit > textarea::selection { background: color-mix(in srgb, var(--md-sys-color-primary) 32%, transparent); }
+.code-edit.plain > pre { display: none; }
+.code-edit.plain > textarea { color: var(--md-sys-color-on-surface); -webkit-text-fill-color: currentColor; }
+
+/* Цвета токенов — VS Code Light / Dark, как в nfqws-keenetic-web */
+:root { --tk-keyword: #0000ff; --tk-string: #a31515; --tk-string2: #811f3f; --tk-comment: #008000; --tk-number: #098658;
+  --tk-var2: #001080; --tk-type: #267f99; --tk-def: #0070c1; --tk-builtin: #795e26; --tk-atom: #0451a5;
+  --tk-error: #cd3131; --tk-warn: #b07a00; --tk-tag: #800000; }
+html[data-mode="dark"] { --tk-keyword: #569cd6; --tk-string: #ce9178; --tk-string2: #d16969; --tk-comment: #6a9955; --tk-number: #b5cea8;
+  --tk-var2: #9cdcfe; --tk-type: #4ec9b0; --tk-def: #4fc1ff; --tk-builtin: #dcdcaa; --tk-atom: #c586c0;
+  --tk-error: #f48771; --tk-warn: #cca700; --tk-tag: #569cd6; }
+.tk-keyword { color: var(--tk-keyword); }
+.tk-string { color: var(--tk-string); }
+.tk-string-2 { color: var(--tk-string2); }
+.tk-comment { color: var(--tk-comment); font-style: italic; }
+.tk-number { color: var(--tk-number); }
+.tk-variable-2 { color: var(--tk-var2); }
+.tk-typeName { color: var(--tk-type); }
+.tk-def { color: var(--tk-def); }
+.tk-builtin { color: var(--tk-builtin); }
+.tk-atom { color: var(--tk-atom); }
+.tk-error { color: var(--tk-error); font-weight: var(--w-emph); }
+.tk-warning { color: var(--tk-warn); }
+.tk-tag, .tk-bracket { color: var(--tk-tag); }
+.tk-operator { opacity: .8; }
+.log-view .tk-variable, .code-edit .tk-variable { color: inherit; }
+
+/* ── Сводка журнала ──────────────────────────────────────────────────── */
+.log-summary .list-item { min-height: 56px; }
+
+/* ── Альбомная ориентация: блоки экрана в две колонки ────────────────── */
+@media (orientation: landscape) and (min-width: 700px) {
+  :root { --content-max: 1200px; }
+  .sheet { max-width: 760px; }
+  .page.split.active, .page.split.leaving {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 24px; align-items: start; }
+  .page.split > .pcol { display: flex; flex-direction: column; gap: var(--gap); min-width: 0; }
+  .logs-page.split.active, .logs-page.split.leaving { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); }
+  .log-view { height: calc(100dvh - var(--top-inset) - var(--appbar-height) - var(--navbar-height) - var(--bottom-inset) - 96px); }
+  .settings-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--gap) 24px; align-items: start; }
+  .page[data-page="wifi"], .page[data-page="apps"], .page[data-page="test"], .page[data-page="diag"] { max-width: 820px; margin: 0 auto; width: 100%; }
+}
 </style>
 <!-- Сюда applyTheme() кладёт палитру, сгенерированную из seed. Отдельным блоком,
      а не инлайном: инлайн-стиль нельзя переопределить из CSS. -->
@@ -977,223 +1084,277 @@ body.kb-open .snackbar { bottom: 16px; }
 <symbol id="i-back" viewBox="0 -960 960 960"><path d="m313-440 224 224-57 56-320-320 320-320 57 56-224 224h487v80H313Z"/></symbol>
 <symbol id="i-more" viewBox="0 -960 960 960"><path d="M480-160q-33 0-56.5-23.5T400-240q0-33 23.5-56.5T480-320q33 0 56.5 23.5T560-240q0 33-23.5 56.5T480-160ZM480-400q-33 0-56.5-23.5T400-480q0-33 23.5-56.5T480-560q33 0 56.5 23.5T560-480q0 33-23.5 56.5T480-400ZM480-640q-33 0-56.5-23.5T400-720q0-33 23.5-56.5T480-800q33 0 56.5 23.5T560-720q0 33-23.5 56.5T480-640Z"/></symbol>
 <symbol id="i-copy" viewBox="0 -960 960 960"><path d="M360-240q-33 0-56.5-23.5T280-320v-480q0-33 23.5-56.5T360-880h360q33 0 56.5 23.5T800-800v480q0 33-23.5 56.5T720-240H360Zm0-80h360v-480H360v480ZM200-80q-33 0-56.5-23.5T120-160v-560h80v560h440v80H200Zm160-240v-480 480Z"/></symbol>
+<symbol id="i-settings" viewBox="0 -960 960 960"><path d="m370-80-16-128q-13-5-24.5-12T307-235l-119 50L78-375l103-78q-1-7-1-13.5v-27q0-6.5 1-13.5L78-585l110-190 119 50q11-8 23-15t24-12l16-128h220l16 128q13 5 24.5 12t22.5 15l119-50 110 190-103 78q1 7 1 13.5v27q0 6.5-2 13.5l103 78-110 190-118-50q-11 8-23 15t-24 12L590-80H370Zm70-80h79l14-106q31-8 57.5-23.5T639-327l99 41 39-68-86-65q5-14 7-29.5t2-31.5q0-16-2-31.5t-7-29.5l86-65-39-68-99 42q-22-23-48.5-38.5T533-694l-13-106h-79l-14 106q-31 8-57.5 23.5T321-633l-99-41-39 68 86 64q-5 15-7 30t-2 32q0 16 2 31t7 30l-86 65 39 68 99-42q22 23 48.5 38.5T427-266l13 106Zm42-180q58 0 99-41t41-99q0-58-41-99t-99-41q-59 0-99.5 41T342-480q0 58 40.5 99t99.5 41Zm-2-140Z"/></symbol>
+<symbol id="i-translate" viewBox="0 -960 960 960"><path d="m476-80 182-480h84L924-80h-84l-43-122H603L560-80h-84ZM160-200l-56-56 202-202q-35-35-63.5-80T190-640h84q20 39 40 68t48 58q33-33 68.5-92.5T484-720H40v-80h280v-80h80v80h280v80H564q-21 72-63 148t-83 116l96 98-30 82-122-125-202 201Zm468-72h144l-72-204-72 204Z"/></symbol>
+<symbol id="i-home" viewBox="0 -960 960 960"><path d="M240-200h120v-240h240v240h120v-360L480-740 240-560v360Zm-80 80v-480l320-240 320 240v480H520v-240h-80v240H160Zm320-350Z"/></symbol>
 </defs></svg>
 
-<!-- ═══ Small top app bar: заголовок экрана, его действия и overflow-меню ═══ -->
+<!-- ═══ Small top app bar: заголовок экрана, его действия и кнопка настроек ═══ -->
 <header class="app-bar" id="app-bar">
-  <button class="icon-btn state tone-on" id="back-btn" aria-label="Назад" hidden onclick="goBack()">
+  <button class="icon-btn state tone-on" id="back-btn" aria-label="Назад" data-ta="aria-label" hidden onclick="goBack()">
     <svg aria-hidden="true" class="icon"><use href="#i-back"/></svg>
   </button>
   <h1 class="title truncate" id="app-title">nfqws2</h1>
   <div class="bar-actions" id="bar-actions"></div>
-  <button class="icon-btn state" id="more-btn" aria-label="Ещё" aria-haspopup="menu" aria-expanded="false"
-          onclick="openOverflow(this)">
-    <svg aria-hidden="true" class="icon"><use href="#i-more"/></svg>
+  <button class="icon-btn state" id="settings-btn" aria-label="Настройки" data-ta="aria-label,title" title="Настройки"
+          onclick="navigate('settings')">
+    <svg aria-hidden="true" class="icon"><use href="#i-settings"/></svg>
   </button>
 </header>
 
 <div class="progress-top" id="progress-top" hidden><div class="progress-linear" role="progressbar"
-     aria-label="Выполняется запрос к службе" aria-busy="true"><div class="bar"></div></div></div>
+     aria-label="Выполняется запрос к службе" data-ta="aria-label" aria-busy="true"><div class="bar"></div></div></div>
 
 <main class="content" id="content">
-
-  <!-- ═══ СОСТОЯНИЕ ═════════════════════════════════════════════════════ -->
-  <section class="page active" data-page="control" aria-label="Состояние">
-    <div class="hero" id="hero-status">
-      <div class="hero-head">
-        <span class="hero-icon" aria-hidden="true"><svg aria-hidden="true" class="icon"><use href="#i-shield"/></svg></span>
-        <div class="hero-titles">
-          <div class="hero-state" id="st" aria-live="polite">Опрос службы…</div>
-          <div class="hero-sub" id="sub"></div>
+  <!-- ═══ СОСТОЯНИЕ ═══════════════════════════════════════════════════════ -->
+  <section class="page split active" data-page="control" aria-label="Состояние" data-ta="aria-label">
+    <div class="pcol">
+      <div class="hero" id="hero-status">
+        <div class="hero-head">
+          <span class="hero-icon" aria-hidden="true"><svg aria-hidden="true" class="icon"><use href="#i-shield"/></svg></span>
+          <div class="hero-titles">
+            <div class="hero-state" id="st" aria-live="polite">Опрос службы…</div>
+            <div class="hero-sub" id="sub"></div>
+          </div>
+        </div>
+        <div class="hero-stats">
+          <div class="hstat"><span class="hstat-label" data-t>Время работы</span><span class="hstat-value" id="upt">—</span></div>
+          <div class="hstat"><span class="hstat-label" data-t>Очередь</span><span class="hstat-value" id="queue-num">—</span></div>
+          <div class="hstat"><span class="hstat-label" data-t>Потери</span><span class="hstat-value" id="qdrop-num">—</span></div>
+        </div>
+        <div class="hero-actions">
+          <button class="btn height-m with-icon state" id="bt" onclick="toggle()">
+            <svg aria-hidden="true" class="icon s20"><use href="#i-play"/></svg><span>Запустить</span>
+          </button>
+          <button class="icon-btn hero-restart state" id="bt-restart" onclick="restartSvc()" hidden
+                  aria-label="Перезапустить службу" title="Перезапустить службу" data-ta="aria-label,title">
+            <svg aria-hidden="true" class="icon"><use href="#i-restart"/></svg>
+          </button>
         </div>
       </div>
-      <div class="hero-stats">
-        <div class="hstat"><span class="hstat-label">Время работы</span><span class="hstat-value" id="upt">—</span></div>
-        <div class="hstat"><span class="hstat-label">Очередь</span><span class="hstat-value" id="queue-num">—</span></div>
-        <div class="hstat"><span class="hstat-label">Потери</span><span class="hstat-value" id="qdrop-num">—</span></div>
-      </div>
-      <div class="hero-actions">
-        <button class="btn height-m with-icon state" id="bt" onclick="toggle()">
-          <svg aria-hidden="true" class="icon s20"><use href="#i-play"/></svg><span>Запустить</span>
-        </button>
-        <button class="icon-btn hero-restart state" id="bt-restart" onclick="restartSvc()" hidden
-                aria-label="Перезапустить службу" title="Перезапустить службу">
-          <svg aria-hidden="true" class="icon"><use href="#i-restart"/></svg>
-        </button>
-      </div>
-    </div>
 
-    <div id="warn" class="stack"></div>
+      <div id="warn" class="stack"></div>
 
-    <h2 class="subhead">Стратегия обхода</h2>
-    <div class="list">
-      <div class="list-item two-line clickable state" role="button" tabindex="0" aria-haspopup="dialog"
-           onclick="openStrategySheet()">
-        <span class="li-icon"><svg aria-hidden="true" class="icon s24"><use href="#i-globe"/></svg></span>
-        <span class="li-text">
-          <span class="li-primary" id="strategy-current">—</span>
-          <span class="li-secondary clamp2" id="strategy-desc"></span>
-        </span>
-        <span class="li-trail"><svg aria-hidden="true" class="icon s24"><use href="#i-chevron-right"/></svg></span>
+      <h2 class="subhead" data-t>Стратегия обхода</h2>
+      <div class="list">
+        <div class="list-item two-line clickable state" role="button" tabindex="0" aria-haspopup="dialog"
+             onclick="openStrategySheet()">
+          <span class="li-icon"><svg aria-hidden="true" class="icon s24"><use href="#i-globe"/></svg></span>
+          <span class="li-text">
+            <span class="li-primary" id="strategy-current">—</span>
+            <span class="li-secondary" id="strategy-group"></span>
+          </span>
+          <span class="li-trail"><svg aria-hidden="true" class="icon s24"><use href="#i-chevron-right"/></svg></span>
+        </div>
       </div>
     </div>
 
-    <h2 class="subhead">Параметры</h2>
-    <div class="list" id="sws"></div>
+    <div class="pcol">
+      <h2 class="subhead" data-t>Параметры</h2>
+      <div class="list" id="sws"></div>
+
+      <div id="dev-block" class="stack" hidden>
+        <h2 class="subhead" data-t>Для разработчика</h2>
+        <div class="list" id="dev-sws"></div>
+      </div>
+    </div>
   </section>
 
   <!-- ═══ СПИСКИ ════════════════════════════════════════════════════════ -->
-  <section class="page" data-page="lists" aria-label="Списки">
-    <h2 class="subhead">Режим обработки</h2>
-    <div class="group">
-      <div class="segmented" id="mode" role="group" aria-label="Режим обработки доменов"></div>
-      <div class="helper" id="mode-desc"></div>
-    </div>
+  <section class="page split" data-page="lists" aria-label="Списки" data-ta="aria-label">
+    <div class="pcol">
+      <h2 class="subhead" data-t>Режим обработки</h2>
+      <div class="group">
+        <div class="segmented" id="mode" role="group" aria-label="Режим обработки доменов" data-ta="aria-label"></div>
+        <div class="helper" id="mode-desc"></div>
+      </div>
 
-    <h2 class="subhead">Добавить домен</h2>
-    <div class="group">
-      <div class="field">
-        <div class="tf">
-          <input type="text" id="dom" placeholder="например, youtube.com" autocapitalize="off" autocorrect="off"
-                 spellcheck="false" enterkeyhint="done" onkeydown="if(event.key==='Enter')addDom()"
-                 aria-describedby="dom-help">
-          <label for="dom">Домен</label>
-          <button class="icon-btn state tone-primary" aria-label="Добавить домен" onclick="addDom()">
-            <svg aria-hidden="true" class="icon s24"><use href="#i-add"/></svg>
-          </button>
+      <h2 class="subhead" data-t>Добавить домен</h2>
+      <div class="group">
+        <div class="field">
+          <div class="tf">
+            <input type="text" id="dom" placeholder="например, youtube.com" data-ta="placeholder" autocapitalize="off" autocorrect="off"
+                   spellcheck="false" enterkeyhint="done" onkeydown="if(event.key==='Enter')addDom()"
+                   aria-describedby="dom-help">
+            <label for="dom" data-t>Домен</label>
+            <button class="icon-btn state tone-primary" aria-label="Добавить домен" data-ta="aria-label" onclick="addDom()">
+              <svg aria-hidden="true" class="icon s24"><use href="#i-add"/></svg>
+            </button>
+          </div>
+          <div class="helper" id="dom-help" data-t>Домен попадёт в user.list.</div>
         </div>
-        <div class="helper" id="dom-help">Домен попадёт в user.list.</div>
       </div>
     </div>
 
-    <h2 class="subhead">Файлы</h2>
-    <div class="list" id="list-files"></div>
+    <div class="pcol">
+      <h2 class="subhead" data-t>Файлы</h2>
+      <div class="list" id="list-files"></div>
 
-    <h2 class="subhead">Обслуживание</h2>
-    <div class="list">
-      <div class="list-item two-line clickable state danger" role="button" tabindex="0" onclick="clearAuto()">
-        <span class="li-icon"><svg aria-hidden="true" class="icon s24"><use href="#i-trash"/></svg></span>
-        <span class="li-text">
-          <span class="li-primary">Очистить auto.list</span>
-          <span class="li-secondary">Удалить домены, выученные автоматически</span>
-        </span>
-      </div>
-      <div class="list-item two-line clickable state danger" role="button" tabindex="0" onclick="resetLists()">
-        <span class="li-icon"><svg aria-hidden="true" class="icon s24"><use href="#i-restart"/></svg></span>
-        <span class="li-text">
-          <span class="li-primary">Вернуть стандартные списки</span>
-          <span class="li-secondary">Правки в user, exclude, ipset и probe_hosts будут удалены</span>
-        </span>
+      <h2 class="subhead" data-t>Обслуживание</h2>
+      <div class="list">
+        <div class="list-item two-line clickable state danger" role="button" tabindex="0" onclick="clearAuto()">
+          <span class="li-icon"><svg aria-hidden="true" class="icon s24"><use href="#i-trash"/></svg></span>
+          <span class="li-text">
+            <span class="li-primary" data-t>Очистить auto.list</span>
+            <span class="li-secondary" data-t>Удалить домены, выученные автоматически</span>
+          </span>
+        </div>
+        <div class="list-item two-line clickable state danger" role="button" tabindex="0" onclick="resetLists()">
+          <span class="li-icon"><svg aria-hidden="true" class="icon s24"><use href="#i-restart"/></svg></span>
+          <span class="li-text">
+            <span class="li-primary" data-t>Вернуть стандартные списки</span>
+            <span class="li-secondary" data-t>Правки в user, exclude, ipset и probe_hosts будут удалены</span>
+          </span>
+        </div>
       </div>
     </div>
   </section>
 
   <!-- ═══ ЖУРНАЛЫ ═══════════════════════════════════════════════════════ -->
-  <section class="page" data-page="logs" aria-label="Журналы">
-    <div class="chips" id="log-chips" role="group" aria-label="Параметры журнала"></div>
-    <pre class="log-view" id="lg" tabindex="0" aria-label="Содержимое журнала">Загрузка…</pre>
-    <div class="row">
-      <button class="btn tonal with-icon state" onclick="exportLogs()">
-        <svg aria-hidden="true" class="icon s18"><use href="#i-download"/></svg>Экспорт в Download
-      </button>
-      <button class="btn text danger state" onclick="clearLogs()">Очистить журналы</button>
+  <section class="page split logs-page" data-page="logs" aria-label="Журналы" data-ta="aria-label">
+    <div class="pcol">
+      <div class="chips" id="log-chips" role="group" aria-label="Параметры журнала" data-ta="aria-label"></div>
+      <pre class="log-view" id="lg" tabindex="0" aria-label="Содержимое журнала" data-ta="aria-label">…</pre>
+      <div class="list log-summary" id="lg-sum" hidden></div>
     </div>
-    <div class="list">
-      <label class="list-item two-line clickable state">
-        <span class="li-text">
-          <span class="li-primary">Подробный журнал отладки</span>
-          <span class="li-secondary">Замедляет обработку пакетов, включайте только на время диагностики</span>
-        </span>
-        <span class="li-trail">
-          <input type="checkbox" class="switch" role="switch" id="dbg" aria-label="Подробный журнал отладки"
-                 onchange="setp('LOG_LEVEL', this.checked ? 1 : 0)">
-        </span>
-      </label>
+    <div class="pcol">
+      <div class="row">
+        <button class="btn tonal with-icon state" onclick="exportLogs()">
+          <svg aria-hidden="true" class="icon s18"><use href="#i-download"/></svg><span data-t>Экспорт в Download</span>
+        </button>
+        <button class="btn text danger state" onclick="clearLogs()"><span data-t>Очистить журналы</span></button>
+      </div>
+      <div class="list">
+        <label class="list-item two-line clickable state">
+          <span class="li-text">
+            <span class="li-primary" data-t>Подробный журнал отладки</span>
+            <span class="li-secondary" data-t>Замедляет обработку пакетов, включайте только на время диагностики</span>
+          </span>
+          <span class="li-trail">
+            <input type="checkbox" class="switch" role="switch" id="dbg" aria-label="Подробный журнал отладки" data-ta="aria-label"
+                   onchange="setp('LOG_LEVEL', this.checked ? 1 : 0)">
+          </span>
+        </label>
+      </div>
     </div>
   </section>
 
   <!-- ═══ КОНФИГУРАЦИЯ ══════════════════════════════════════════════════ -->
-  <section class="page" data-page="config" aria-label="Конфигурация">
-    <h2 class="subhead">Действующий конфиг</h2>
-    <div class="list">
-      <div class="list-item two-line clickable state" role="button" tabindex="0" onclick="openSlideEditor('conf')">
-        <span class="li-icon"><svg aria-hidden="true" class="icon s24"><use href="#i-config"/></svg></span>
-        <span class="li-text">
-          <span class="li-primary li-mono">nfqws2.conf</span>
-          <span class="li-secondary">Открыть редактор</span>
-        </span>
-        <span class="li-trail"><svg aria-hidden="true" class="icon s24"><use href="#i-chevron-right"/></svg></span>
-      </div>
-      <div class="list-item clickable state danger" role="button" tabindex="0" onclick="resetConf()">
-        <span class="li-icon"><svg aria-hidden="true" class="icon s24"><use href="#i-restart"/></svg></span>
-        <span class="li-text"><span class="li-primary">Сбросить к стандартному</span></span>
+  <section class="page split" data-page="config" aria-label="Конфигурация" data-ta="aria-label">
+    <div class="pcol">
+      <h2 class="subhead" data-t>Действующий конфиг</h2>
+      <div class="list">
+        <div class="list-item two-line clickable state" role="button" tabindex="0" onclick="openSlideEditor('conf')">
+          <span class="li-icon"><svg aria-hidden="true" class="icon s24"><use href="#i-config"/></svg></span>
+          <span class="li-text">
+            <span class="li-primary li-mono">nfqws2.conf</span>
+            <span class="li-secondary" data-t>Открыть редактор</span>
+          </span>
+          <span class="li-trail"><svg aria-hidden="true" class="icon s24"><use href="#i-chevron-right"/></svg></span>
+        </div>
+        <div class="list-item two-line clickable state danger appear-item" role="button" tabindex="0" id="conf-reset" hidden onclick="resetConf()">
+          <span class="li-icon"><svg aria-hidden="true" class="icon s24"><use href="#i-restart"/></svg></span>
+          <span class="li-text">
+            <span class="li-primary" data-t>Сбросить к исходнику</span>
+            <span class="li-secondary" id="conf-reset-sub"></span>
+          </span>
+        </div>
       </div>
     </div>
 
-    <h2 class="subhead">Импорт конфигов nfqws2-keenetic</h2>
-    <div class="group">
-      <div class="t-body-medium muted">Файлы .txt, .conf, .bat, .ini или вставленный текст. Можно выбрать несколько файлов сразу.</div>
-      <input type="file" id="impFile" multiple hidden onchange="importFiles(this.files)">
-      <div class="row">
-        <button class="btn tonal with-icon state" onclick="$('impFile').click()">
-          <svg aria-hidden="true" class="icon s18"><use href="#i-upload"/></svg>Выбрать файлы
-        </button>
-        <button class="btn text with-icon state" onclick="importPaste()">
-          <svg aria-hidden="true" class="icon s18"><use href="#i-edit"/></svg>Вставить текст
-        </button>
+    <div class="pcol">
+      <h2 class="subhead" data-t>Импорт конфигов nfqws2-keenetic</h2>
+      <div class="group">
+        <div class="t-body-medium muted" data-t>Файлы .txt, .conf, .bat, .ini или вставленный текст. Можно выбрать несколько файлов сразу.</div>
+        <input type="file" id="impFile" multiple hidden onchange="importFiles(this.files)">
+        <div class="row">
+          <button class="btn tonal with-icon state" onclick="$('impFile').click()">
+            <svg aria-hidden="true" class="icon s18"><use href="#i-upload"/></svg><span data-t>Выбрать файлы</span>
+          </button>
+          <button class="btn text with-icon state" onclick="importPaste()">
+            <svg aria-hidden="true" class="icon s18"><use href="#i-edit"/></svg><span data-t>Вставить текст</span>
+          </button>
+        </div>
+        <div class="helper err" id="impMsg" hidden></div>
       </div>
-      <div class="helper err" id="impMsg" hidden></div>
+      <div class="list" id="impList"></div>
     </div>
-    <div class="list" id="impList"></div>
   </section>
 
-  <!-- ═══ ПРИЛОЖЕНИЯ (дочерний экран) ═══════════════════════════════════ -->
-  <section class="page" data-page="apps" aria-label="Приложения">
-    <h2 class="subhead">Режим фильтра</h2>
-    <div class="list" id="amode-list" role="radiogroup" aria-label="Режим фильтра"></div>
+  <!-- ═══ НАСТРОЙКИ (дочерний экран) ════════════════════════════════════ -->
+  <section class="page" data-page="settings" aria-label="Настройки" data-ta="aria-label">
+    <div class="settings-grid" id="settings-body"></div>
+  </section>
+
+  <!-- ═══ ДОМАШНЯЯ WI-FI (дочерний экран настроек) ═══════════════════════ -->
+  <section class="page" data-page="wifi" aria-label="Домашняя Wi‑Fi" data-ta="aria-label">
+    <label class="main-switch state" id="wifi-main">
+      <span class="grow" data-t>Пауза в домашней Wi‑Fi</span>
+      <input type="checkbox" class="switch" role="switch" id="wifi-toggle" aria-label="Пауза в домашней Wi‑Fi" data-ta="aria-label"
+             onchange="setHomeWifi(this.checked)">
+    </label>
+    <div class="helper" data-t>В сетях из списка обход ставится на паузу и сам возобновляется, когда телефон из них уходит. Запустить службу вручную можно в любой момент — до смены сети она останется включённой.</div>
+
+    <div id="wifi-body" class="stack">
+      <div id="wifi-suggest"></div>
+      <h2 class="subhead" data-t>Домашние сети</h2>
+      <div class="list" id="wifi-list"></div>
+      <div class="row">
+        <button class="btn text with-icon state" onclick="addHomeManual()">
+          <svg aria-hidden="true" class="icon s18"><use href="#i-add"/></svg><span data-t>Добавить сеть вручную</span>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ ПРИЛОЖЕНИЯ (дочерний экран настроек) ═══════════════════════════ -->
+  <section class="page" data-page="apps" aria-label="Приложения" data-ta="aria-label">
+    <h2 class="subhead" data-t>Режим фильтра</h2>
+    <div class="list" id="amode-list" role="radiogroup" aria-label="Режим фильтра" data-ta="aria-label"></div>
     <div class="helper" id="apps-info"></div>
 
-    <h2 class="subhead">Установленные приложения</h2>
+    <h2 class="subhead" data-t>Установленные приложения</h2>
     <div class="search-bar">
       <svg aria-hidden="true" class="icon"><use href="#i-search"/></svg>
-      <input type="search" id="pf" placeholder="Поиск приложений" autocapitalize="off" spellcheck="false"
+      <input type="search" id="pf" placeholder="Поиск приложений" data-ta="placeholder,aria-label" autocapitalize="off" spellcheck="false"
              enterkeyhint="search" oninput="pkSearchInput()" aria-label="Поиск приложений" aria-describedby="pk-count">
     </div>
     <div class="helper" id="pk-count"></div>
     <div class="list" id="pk"></div>
     <div class="row">
       <button class="btn text with-icon state" onclick="openSlideEditor('apps')">
-        <svg aria-hidden="true" class="icon s18"><use href="#i-edit"/></svg>Редактировать список вручную
+        <svg aria-hidden="true" class="icon s18"><use href="#i-edit"/></svg><span data-t>Редактировать список вручную</span>
       </button>
     </div>
   </section>
 
-  <!-- ═══ ТЕСТИРОВАНИЕ (дочерний экран) ═════════════════════════════════ -->
-  <section class="page" data-page="test" aria-label="Тестирование">
+  <!-- ═══ ПРОВЕРКА ДОСТУПНОСТИ (дочерний экран настроек) ═════════════════ -->
+  <section class="page" data-page="test" aria-label="Проверка доступности" data-ta="aria-label">
     <div class="group">
-      <div class="t-body-medium muted">Каждый адрес из probe_hosts.list открывается три раза без кэша. Зелёный — прошли все попытки, жёлтый — часть, красный — ни одной.</div>
+      <div class="t-body-medium muted" id="test-desc"></div>
       <div class="row">
         <button class="btn with-icon state" id="tb" onclick="runTest()">
-          <svg aria-hidden="true" class="icon s18"><use href="#i-play"/></svg>Запустить проверку
+          <svg aria-hidden="true" class="icon s18"><use href="#i-play"/></svg><span data-t>Запустить проверку</span>
         </button>
       </div>
     </div>
+    <div id="test-warn" class="stack"></div>
     <div class="list" id="tr"></div>
     <div class="empty" id="test-empty">
       <span class="empty-icon"><svg aria-hidden="true" class="icon"><use href="#i-wifi"/></svg></span>
-      <span class="empty-title">Проверка ещё не запускалась</span>
-      <span>Результаты по каждому адресу появятся здесь.</span>
+      <span class="empty-title" id="test-empty-title" data-t>Проверка ещё не запускалась</span>
+      <span data-t>Результаты по каждому адресу появятся здесь.</span>
     </div>
   </section>
 
-  <!-- ═══ ДИАГНОСТИКА (дочерний экран) ══════════════════════════════════ -->
-  <section class="page" data-page="diag" aria-label="Диагностика">
-    <h2 class="subhead">Ядро и правила</h2>
+  <!-- ═══ ДИАГНОСТИКА (дочерний экран настроек) ══════════════════════════ -->
+  <section class="page" data-page="diag" aria-label="Диагностика" data-ta="aria-label">
+    <h2 class="subhead" data-t>Ядро и правила</h2>
     <div class="list" id="doc"></div>
     <div class="subhead-row">
-      <h2 class="subhead">Аргументы запуска</h2>
+      <h2 class="subhead" data-t>Аргументы запуска</h2>
       <button class="btn text sm with-icon state" onclick="copyArgs()">
-        <svg aria-hidden="true" class="icon s18"><use href="#i-copy"/></svg>Копировать
+        <svg aria-hidden="true" class="icon s18"><use href="#i-copy"/></svg><span data-t>Копировать</span>
       </button>
     </div>
     <pre class="code-block" id="args">—</pre>
@@ -1201,39 +1362,46 @@ body.kb-open .snackbar { bottom: 16px; }
 </main>
 
 <!-- ═══ Navigation bar: 4 раздела верхнего уровня ═════════════════════════ -->
-<nav class="nav-bar" id="nav-bar" aria-label="Разделы">
+<nav class="nav-bar" id="nav-bar" aria-label="Разделы" data-ta="aria-label">
   <div class="nav-bar-inner">
     <button class="nav-dest" data-page="control" aria-current="page">
       <span class="nav-ind state"><svg aria-hidden="true" class="icon"><use href="#i-status"/></svg></span>
-      <span class="nav-label">Состояние</span>
+      <span class="nav-label" data-t>Состояние</span>
     </button>
     <button class="nav-dest" data-page="lists">
       <span class="nav-ind state"><svg aria-hidden="true" class="icon"><use href="#i-list"/></svg></span>
-      <span class="nav-label">Списки</span>
+      <span class="nav-label" data-t>Списки</span>
     </button>
     <button class="nav-dest" data-page="logs">
       <span class="nav-ind state"><svg aria-hidden="true" class="icon"><use href="#i-logs"/></svg></span>
-      <span class="nav-label">Журналы</span>
+      <span class="nav-label" data-t>Журналы</span>
     </button>
     <button class="nav-dest" data-page="config">
       <span class="nav-ind state"><svg aria-hidden="true" class="icon"><use href="#i-config"/></svg></span>
-      <span class="nav-label">Конфиг</span>
+      <span class="nav-label" data-t>Конфиг</span>
     </button>
   </div>
 </nav>
 
-<!-- ═══ Full-screen dialog: редактор конфига и списков ═══════════════════ -->
+<!-- ═══ Full-screen dialog: редактор конфига, стратегий и списков ═════════ -->
 <div class="fs-dialog" id="editor-panel" role="dialog" aria-modal="true" aria-labelledby="panel-title-text">
   <div class="fs-bar">
-    <button class="icon-btn state tone-on" onclick="closeSlideEditor()" aria-label="Закрыть редактор">
+    <button class="icon-btn state tone-on" onclick="closeSlideEditor()" aria-label="Закрыть редактор" data-ta="aria-label">
       <svg aria-hidden="true" class="icon"><use href="#i-close"/></svg>
     </button>
-    <span class="fs-title truncate" id="panel-title-text">Редактор</span>
+    <span class="fs-title truncate" id="panel-title-text">—</span>
+    <button class="icon-btn state pending-btn" id="panel-pending" hidden onclick="offerListUpdate(editorCtx && editorCtx.key)"
+            aria-label="Доступна новая версия списка" title="Доступна новая версия списка" data-ta="aria-label,title">
+      <svg aria-hidden="true" class="icon"><use href="#i-warn"/></svg>
+    </button>
     <button class="btn text state" id="panel-save-btn">Сохранить</button>
   </div>
   <div class="fs-body">
-    <textarea id="panel-editor-text" spellcheck="false" autocapitalize="off" autocorrect="off"
-              placeholder="# Конфигурация…" aria-label="Текст файла"></textarea>
+    <div class="code-edit" id="code-edit">
+      <pre class="ce-hl" id="ce-hl" aria-hidden="true"></pre>
+      <textarea id="panel-editor-text" spellcheck="false" autocapitalize="off" autocorrect="off" wrap="off"
+                aria-label="Текст файла" data-ta="aria-label"></textarea>
+    </div>
     <div class="helper" id="panel-hint"></div>
   </div>
 </div>
@@ -1242,63 +1410,73 @@ body.kb-open .snackbar { bottom: 16px; }
 <div class="scrim" id="sheet-scrim" onclick="closeSheet()" aria-hidden="true"></div>
 
 <div class="sheet list-sheet" id="strategy-sheet" role="dialog" aria-modal="true" aria-labelledby="strategy-sheet-title">
-  <button type="button" class="sheet-drag" aria-label="Закрыть"><span class="handle"></span></button>
-  <div class="sheet-title" id="strategy-sheet-title">Стратегия обхода</div>
-  <div class="sheet-desc">Выбранная стратегия заменит nfqws2.conf, прежний сохранится как .bak.</div>
-  <div class="list sheet-scroll" id="strategy-list" role="radiogroup" aria-label="Стратегии"></div>
+  <button type="button" class="sheet-drag" aria-label="Закрыть" data-ta="aria-label"><span class="handle"></span></button>
+  <div class="sheet-title" id="strategy-sheet-title" data-t>Стратегия обхода</div>
+  <div class="sheet-desc" data-t>Выбранная стратегия заменит nfqws2.conf, прежний сохранится как .bak. Ваши переключатели, режим списков и фильтр приложений сохранятся.</div>
+  <div class="sheet-scroll" id="strategy-list" role="radiogroup" aria-label="Стратегии" data-ta="aria-label"></div>
   <div class="sheet-actions">
-    <button class="btn text state" onclick="closeSheet()">Отмена</button>
+    <button class="btn text state" onclick="closeSheet()"><span data-t>Отмена</span></button>
     <button class="btn with-icon state" id="strategy-apply" onclick="applySelectedStrategy()">Применить</button>
   </div>
 </div>
 
+<div class="sheet list-sheet" id="backup-sheet" role="dialog" aria-modal="true" aria-labelledby="backup-sheet-title">
+  <button type="button" class="sheet-drag" aria-label="Закрыть" data-ta="aria-label"><span class="handle"></span></button>
+  <div class="sheet-title" id="backup-sheet-title" data-t>Восстановить из копии</div>
+  <div class="sheet-desc" data-t>Копии ищутся в папке Download. Текущие настройки, пользовательские списки и стратегии будут заменены.</div>
+  <div class="list sheet-scroll" id="backup-list"></div>
+  <div class="sheet-actions">
+    <button class="btn text state" onclick="closeSheet()"><span data-t>Закрыть</span></button>
+  </div>
+</div>
+
 <div class="sheet" id="monet-modal" role="dialog" aria-modal="true" aria-labelledby="theme-sheet-title">
-  <button type="button" class="sheet-drag" aria-label="Закрыть"><span class="handle"></span></button>
-  <div class="sheet-title" id="theme-sheet-title">Тема оформления</div>
+  <button type="button" class="sheet-drag" aria-label="Закрыть" data-ta="aria-label"><span class="handle"></span></button>
+  <div class="sheet-title" id="theme-sheet-title" data-t>Тема оформления</div>
 
   <div class="stack">
-    <h2 class="subhead plain">Режим цвета</h2>
-    <div class="segmented" id="theme-mode" role="group" aria-label="Режим цвета"></div>
+    <h2 class="subhead plain" data-t>Режим цвета</h2>
+    <div class="segmented" id="theme-mode" role="group" aria-label="Режим цвета" data-ta="aria-label"></div>
   </div>
 
   <label class="list-item clickable state">
     <span class="li-text">
-      <span class="li-primary">Чёрный фон AMOLED</span>
-      <span class="li-secondary">Только в тёмной теме</span>
+      <span class="li-primary" data-t>Чёрный фон AMOLED</span>
+      <span class="li-secondary" data-t>Только в тёмной теме</span>
     </span>
     <span class="li-trail">
-      <input type="checkbox" class="switch" role="switch" id="amoled-toggle" aria-label="Чёрный фон AMOLED"
+      <input type="checkbox" class="switch" role="switch" id="amoled-toggle" aria-label="Чёрный фон AMOLED" data-ta="aria-label"
              onchange="toggleAmoled(this.checked)">
     </span>
   </label>
 
   <div class="stack">
-    <h2 class="subhead plain">Готовые палитры</h2>
+    <h2 class="subhead plain" data-t>Готовые палитры</h2>
     <div class="palette" id="palette-grid"></div>
   </div>
 
   <div class="field">
-    <label for="custom-hex-input">Свой цвет</label>
+    <label for="custom-hex-input" data-t>Свой цвет</label>
     <div class="control">
       <div class="hex-group">
         <button type="button" class="hex-swatch state" id="custom-swatch" onclick="openColorDialog()"
-                aria-label="Открыть выбор цвета"></button>
+                aria-label="Открыть выбор цвета" data-ta="aria-label"></button>
         <span class="pfx">#</span>
         <input type="text" class="hex" id="custom-hex-input" maxlength="6" placeholder="6750A4"
                autocapitalize="characters" spellcheck="false" oninput="onHexInput(this.value)">
       </div>
     </div>
-    <div class="helper">Из одного цвета строятся все роли M3: основной, контейнеры, поверхности, контуры.</div>
+    <div class="helper" data-t>Из одного цвета строятся все роли M3: основной, контейнеры, поверхности, контуры.</div>
   </div>
 
   <div class="row">
     <button class="btn with-icon state" onclick="applyCustomHex()">
-      <svg aria-hidden="true" class="icon s18"><use href="#i-check"/></svg>Применить цвет
+      <svg aria-hidden="true" class="icon s18"><use href="#i-check"/></svg><span data-t>Применить цвет</span>
     </button>
     <button class="btn tonal with-icon state" onclick="detectSystemMonet(true)">
-      <svg aria-hidden="true" class="icon s18"><use href="#i-refresh"/></svg>Цвет обоев
+      <svg aria-hidden="true" class="icon s18"><use href="#i-refresh"/></svg><span data-t>Цвет обоев</span>
     </button>
-    <button class="btn text state" onclick="resetTheme()">Сбросить</button>
+    <button class="btn text state" onclick="resetTheme()"><span data-t>Сбросить</span></button>
   </div>
 </div>
 
@@ -1306,26 +1484,26 @@ body.kb-open .snackbar { bottom: 16px; }
 <div class="dialog-wrap" id="color-wrap" role="presentation">
   <div class="dialog-scrim" onclick="closeColorDialog()" aria-hidden="true"></div>
   <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="cd-title">
-    <div class="d-title" id="cd-title">Выберите цвет</div>
+    <div class="d-title" id="cd-title" data-t>Выберите цвет</div>
     <div class="cd-preview">
       <span class="cd-swatch" id="cd-swatch"></span>
       <span class="t-title-medium" id="cd-hex">—</span>
     </div>
     <div class="cd-row">
-      <label for="cd-hue">Тон</label>
+      <label for="cd-hue" data-t>Тон</label>
       <input type="range" class="slider" id="cd-hue" min="0" max="360" step="1" value="300" oninput="onColorSlide()">
     </div>
     <div class="cd-row">
-      <label for="cd-sat">Насыщенность</label>
+      <label for="cd-sat" data-t>Насыщенность</label>
       <input type="range" class="slider" id="cd-sat" min="0" max="100" step="1" value="60" oninput="onColorSlide()">
     </div>
     <div class="cd-row">
-      <label for="cd-lum">Светлота</label>
+      <label for="cd-lum" data-t>Светлота</label>
       <input type="range" class="slider" id="cd-lum" min="0" max="100" step="1" value="80" oninput="onColorSlide()">
     </div>
     <div class="d-actions">
-      <button class="btn text state" onclick="closeColorDialog()">Отмена</button>
-      <button class="btn text state" onclick="colorDialogApply()">Выбрать</button>
+      <button class="btn text state" onclick="closeColorDialog()"><span data-t>Отмена</span></button>
+      <button class="btn text state" onclick="colorDialogApply()"><span data-t>Выбрать</span></button>
     </div>
   </div>
 </div>
@@ -1335,15 +1513,15 @@ body.kb-open .snackbar { bottom: 16px; }
   <div class="dialog-scrim" onclick="dialogResolve(false)"></div>
   <div class="dialog" id="dialog" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="d-title" aria-describedby="d-body">
     <span class="d-icon" id="d-icon" aria-hidden="true"><svg aria-hidden="true" class="icon"><use href="#i-warn"/></svg></span>
-    <div class="d-title" id="d-title">Заголовок</div>
-    <div class="d-body" id="d-body">Текст</div>
+    <div class="d-title" id="d-title"></div>
+    <div class="d-body" id="d-body"></div>
     <div class="tf" id="d-field" hidden>
       <input type="text" id="d-input" spellcheck="false" autocomplete="off" placeholder=" ">
-      <label for="d-input" id="d-label">Значение</label>
+      <label for="d-input" id="d-label"></label>
     </div>
     <div class="d-actions">
-      <button class="btn text state" id="d-cancel" onclick="dialogResolve(false)">Отмена</button>
-      <button class="btn text state" id="d-ok">ОК</button>
+      <button class="btn text state" id="d-cancel" onclick="dialogResolve(false)"></button>
+      <button class="btn text state" id="d-ok"></button>
     </div>
   </div>
 </div>
@@ -1355,7 +1533,7 @@ body.kb-open .snackbar { bottom: 16px; }
 <!-- ═══ Snackbar: над Navigation bar ═══════════════════════════════════════ -->
 <div class="snackbar" id="prompt-container" role="status" aria-live="polite">
   <span class="snack-msg" id="prompt-msg"></span>
-  <button class="btn text sm state" id="prompt-action" hidden>Отменить</button>
+  <button class="btn text sm state" id="prompt-action" hidden></button>
 </div>
 <script>
 /* ══════════════════════════════════════════════════════════════════════════
@@ -1376,6 +1554,40 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&': '&amp
    а потом получившуюся двойную кавычку прячем от HTML через esc(). */
 const jsArg = v => esc(JSON.stringify(String(v == null ? '' : v)));
 const icon = (name, cls) => '<svg aria-hidden="true" class="icon ' + (cls || 's20') + '"><use href="#i-' + name + '"/></svg>';
+
+/* localStorage бывает недоступен (приватный режим, запрет сайта) — интерфейс от этого не ломается */
+const store = {
+  get(k){ try { return localStorage.getItem(k); } catch(e) { return null; } },
+  set(k, v){ try { localStorage.setItem(k, v); } catch(e) {} },
+  del(k){ try { localStorage.removeItem(k); } catch(e) {} }
+};
+
+/* ── Язык интерфейса ──────────────────────────────────────────────────────
+   Ключ перевода — сама русская строка: разметка и код остаются читаемыми,
+   а словарь EN (в конце скрипта) отображает её на английскую. Русский —
+   язык по умолчанию независимо от языка системы. Статические узлы помечены
+   data-t (текст) и data-ta (список атрибутов): исходник запоминается при
+   первом проходе, поэтому язык переключается без перезагрузки. */
+let LANG = store.get('nfq_lang') === 'en' ? 'en' : 'ru';
+let EN = {};
+function t(s){
+  let r = (LANG === 'en' && EN[s] != null) ? EN[s] : s;
+  for(let i = 1; i < arguments.length; i++) r = r.split('{' + (i - 1) + '}').join(arguments[i]);
+  return r;
+}
+function translateStatic(){
+  document.documentElement.lang = LANG;
+  document.querySelectorAll('[data-t]').forEach(el => {
+    if(el.dataset.ru == null) el.dataset.ru = el.textContent.trim();
+    el.textContent = t(el.dataset.ru);
+  });
+  document.querySelectorAll('[data-ta]').forEach(el => el.dataset.ta.split(',').forEach(a => {
+    const k = 'ru_' + a.replace(/-/g, '_');
+    if(el.dataset[k] == null) el.dataset[k] = el.getAttribute(a) || '';
+    el.setAttribute(a, t(el.dataset[k]));
+  }));
+}
+const fmtCount = n => Number(n).toLocaleString(LANG === 'en' ? 'en-US' : 'ru-RU');
 
 /* ── Ripple: pointerdown на любой .state, делегирование переживает innerHTML ── */
 document.addEventListener('pointerdown', e => {
@@ -1467,24 +1679,80 @@ function openMenu(anchor, items){
   return entry;
 }
 
-/* ── Мост к модулю ─────────────────────────────────────────────────────── */
-function sh(cmd, ms = 15000){
+
+/* ── Мост к модулю ─────────────────────────────────────────────────────────
+   ksu.exec(cmd, opts, cb) в KernelSU выполняет команду СИНХРОННО внутри вызова
+   из JS: пока шелл работает, главный поток страницы стоит. Отсюда рывки
+   анимаций при переходе на «Состояние» и «Списки»: json-status успевал
+   заблокировать поток раньше, чем стартовала анимация экрана. ksu.spawn
+   запускает процесс в фоне и присылает вывод построчно, поэтому, если он
+   есть и отвечает, все команды идут через него; exec — запасной путь для
+   менеджеров без spawn. */
+let spawnOK = false;
+function makeEmitter(){
+  const h = {};
+  return {
+    on(ev, fn){ (h[ev] = h[ev] || []).push(fn); return this; },
+    emit(ev){ const a = [].slice.call(arguments, 1); (h[ev] || []).forEach(f => { try { f.apply(null, a); } catch(e) {} }); }
+  };
+}
+function spawnRun(cmd, ms, onLine){
+  return new Promise(res => {
+    const id = '__sp' + (++seq), out = [], err = [];
+    let done = 0, tm = 0;
+    const child = makeEmitter();
+    child.stdout = makeEmitter();
+    child.stderr = makeEmitter();
+    const fin = (c, extraErr) => {
+      if(done) return; done = 1; clearTimeout(tm);
+      setTimeout(() => { delete window[id]; }, 1000);
+      if(extraErr) err.push(extraErr);
+      res({code: +c || 0, out: out.join('\n'), err: err.join('\n')});
+    };
+    child.stdout.on('data', d => {
+      String(d).split('\n').forEach(l => { out.push(l); if(onLine) try { onLine(l); } catch(e) {} });
+    });
+    child.stderr.on('data', d => err.push(String(d)));
+    child.on('exit', c => fin(c));
+    child.on('error', e => fin(1, String(e)));
+    window[id] = child;
+    tm = setTimeout(() => fin(-1, t('Таймаут')), ms);
+    // Аргументы KernelSU склеивает пробелами без кавычек, поэтому вся команда
+    // уходит одной строкой, а список аргументов пуст.
+    try { window.ksu.spawn(cmd, '[]', '{}', id); } catch(e) { fin(1, String(e)); }
+  });
+}
+function execRun(cmd, ms){
   return new Promise(res => {
     const k = window.ksu;
-    if(!k || !k.exec){ res({code: 1, out: '', err: 'Нет моста ksu.exec'}); return; }
+    if(!k || !k.exec){ res({code: 1, out: '', err: t('Нет моста ksu.exec')}); return; }
     const id = '__cb' + (++seq); let done = 0;
     const fin = (c, o, e) => { if(done) return; done = 1; clearTimeout(tm); delete window[id]; res({code: +c || 0, out: String(o || ''), err: String(e || '')}); };
-    const tm = setTimeout(() => fin(-1, '', 'Таймаут'), ms);
+    const tm = setTimeout(() => fin(-1, '', t('Таймаут')), ms);
     window[id] = fin;
     try { k.exec(cmd, '{}', id); } catch(e) { try { k.exec(cmd, id); } catch(e2) { fin(1, '', String(e2)); } }
   });
 }
+async function sh(cmd, ms, onLine){
+  ms = ms || 15000;
+  if(spawnOK) return spawnRun(cmd, ms, onLine);
+  const r = await execRun(cmd, ms);
+  if(onLine) r.out.split('\n').forEach(l => { try { onLine(l); } catch(e) {} });
+  return r;
+}
+async function detectSpawn(){
+  if(!window.ksu || typeof window.ksu.spawn !== 'function') return;
+  const r = await spawnRun('echo nfq_spawn_ok', 3000);
+  spawnOK = !r.code && r.out.indexOf('nfq_spawn_ok') >= 0;
+}
+const ctlCmd = a => (LANG === 'en' ? 'NFQWS_LANG=en ' : '') + 'sh ' + q(CTL) + ' ' + a.map(q).join(' ');
 async function ctl(a, ms){
-  const r = await sh('sh ' + q(CTL) + ' ' + a.map(q).join(' '), ms);
+  const r = await sh(ctlCmd(a), ms);
   if(r.code && r.err && !r.out) toast(r.err.slice(0, 160));
   return r.out + (r.code && r.err ? '\n' + r.err : '');
 }
-async function ctlx(a, ms){ return await sh('sh ' + q(CTL) + ' ' + a.map(q).join(' '), ms); }
+async function ctlx(a, ms, onLine){ return await sh(ctlCmd(a), ms, onLine); }
+const errText = (r, fallback) => ((r.err || '').trim() || (r.out || '').trim().split('\n').pop() || t(fallback));
 
 /* ── Snackbar: M3 (label + optional text action, 4s / 8s с действием) ──── */
 let snackAction = null;
@@ -1493,7 +1761,7 @@ function toast(m, action){
   const b = $('prompt-action');
   snackAction = action || null;
   b.hidden = !action;
-  if(action) b.textContent = action.label || 'Повторить';
+  if(action) b.textContent = action.label || t('Повторить');
   const pc = $('prompt-container');
   pc.classList.add('show');
   clearTimeout(pc._t);
@@ -1516,6 +1784,17 @@ function busy(on){
 async function withBusy(a, ms){
   busy(true);
   try { return await ctlx(a, ms); } finally { busy(false); }
+}
+
+/* Перерисовка без лишнего мигания: содержимое меняется только если оно
+   действительно другое, а новые строки проявляются, а не возникают. */
+function setHTML(el, html, animate){
+  if(typeof el === 'string') el = $(el);
+  if(!el || el._html === html) return false;
+  el._html = html;
+  el.innerHTML = html;
+  if(animate !== false){ el.classList.remove('appear'); void el.offsetWidth; el.classList.add('appear'); }
+  return true;
 }
 
 /* ── Basic dialog (M3) вместо native confirm/prompt ──────────────────────
@@ -1545,14 +1824,14 @@ function mdDialog(opts){
     const ic = $('d-icon');
     ic.hidden = !showIcon;
     ic.className = 'd-icon' + (opts.danger ? ' danger' : '');
-    ic.innerHTML = icon(opts.danger ? 'error' : 'warn', 's24');
+    ic.innerHTML = icon(opts.iconName || (opts.danger ? 'error' : 'warn'), 's24');
     dlg.classList.toggle('has-icon', showIcon);
     const ok = $('d-ok');
     ok.className = 'btn text state' + (opts.danger ? ' danger' : '');
-    ok.textContent = opts.ok || 'ОК';
+    ok.textContent = opts.ok || t('ОК');
     const cancel = $('d-cancel');
     cancel.hidden = opts.cancel === false;
-    cancel.textContent = typeof opts.cancel === 'string' ? opts.cancel : 'Отмена';
+    cancel.textContent = typeof opts.cancel === 'string' ? opts.cancel : t('Отмена');
     const f = $('d-field');
     f.hidden = !opts.input;
     if(opts.input){
@@ -1560,7 +1839,7 @@ function mdDialog(opts){
       di.type = opts.input.type || 'text';
       di.inputMode = opts.input.inputmode || '';
       di.value = opts.input.value || '';
-      $('d-label').textContent = opts.input.label || 'Значение';
+      $('d-label').textContent = opts.input.label || t('Значение');
     }
     /* alertdialog — только для прерывающих подтверждений; ввод значения это обычный dialog */
     dlg.setAttribute('role', opts.input ? 'dialog' : 'alertdialog');
@@ -1572,7 +1851,7 @@ function mdDialog(opts){
 const mdConfirm = (title, text, o) => mdDialog(Object.assign({title, text}, o || {})).then(v => !!v);
 async function mdPrompt(title, text, value, label, extra){
   extra = extra || {};
-  return mdDialog({title, text, ok: 'Сохранить', icon: false,
+  return mdDialog({title, text, ok: extra.ok || t('Сохранить'), icon: false,
     input: {value, label, type: extra.type, inputmode: extra.inputmode}})
     .then(v => (v === false ? null : v));
 }
@@ -1589,38 +1868,43 @@ $('dialog-wrap').addEventListener('keydown', e => {
 
 /* ══ Навигация: Navigation bar + дочерние экраны ═════════════════════════
    Разделы верхнего уровня — в Navigation bar, переход между ними fade through.
-   Приложения, Тестирование, Диагностика — дочерние экраны из overflow-меню:
+   Настройки — дочерний экран за кнопкой-шестерёнкой; из них открываются
+   следующие уровни (приложения, проверка, диагностика, домашняя Wi‑Fi):
    shared axis X вперёд/назад, стрелка «Назад», панель навигации скрыта. */
 const PAGE_META = {
-  control: {title: 'nfqws2', init: () => stat()},
-  lists:   {title: 'Списки', init: () => listsInit()},
-  logs:    {title: 'Журналы', init: () => loadLog(),
-            actions: [{icon: 'refresh', label: 'Обновить журнал', fn: () => loadLog()}]},
-  config:  {title: 'Конфигурация', init: () => confInit()},
-  apps:    {title: 'Приложения', child: true, init: () => appsInit(),
-            actions: [{icon: 'refresh', label: 'Обновить список приложений', fn: () => loadPk()}]},
-  test:    {title: 'Тестирование', child: true, init: () => {}},
-  diag:    {title: 'Диагностика', child: true, init: () => diagInit(),
-            actions: [{icon: 'refresh', label: 'Проверить снова', fn: () => diagInit()}]}
+  control:  {title: 'nfqws2', init: () => { renderStatus(); stat(); initStrategySelector(); }},
+  lists:    {title: 'Списки', init: () => { renderMode(); renderListFiles(); stat(); }},
+  logs:     {title: 'Журналы', init: () => loadLog(),
+             actions: [{icon: 'refresh', label: 'Обновить журнал', fn: () => loadLog()}]},
+  config:   {title: 'Конфигурация', init: () => confInit()},
+  settings: {title: 'Настройки', child: true, init: () => renderSettings()},
+  wifi:     {title: 'Домашняя Wi‑Fi', child: true, parent: 'settings', init: () => wifiInit()},
+  apps:     {title: 'Фильтр приложений', child: true, parent: 'settings', init: () => appsInit(),
+             actions: [{icon: 'refresh', label: 'Обновить список приложений', fn: () => loadPk()}]},
+  test:     {title: 'Проверка доступности', child: true, parent: 'settings', init: () => testInit()},
+  diag:     {title: 'Диагностика', child: true, parent: 'settings', init: () => diagInit(),
+             actions: [{icon: 'refresh', label: 'Проверить снова', fn: () => diagInit()}]}
 };
 let currentPage = 'control', lastTop = 'control', transitionCleanup = null;
+const pageDepth = p => { const m = PAGE_META[p]; return !m.child ? 0 : (m.parent ? pageDepth(m.parent) + 1 : 1); };
 
 function renderAppBar(page, animate){
   const m = PAGE_META[page];
   $('back-btn').hidden = !m.child;
-  $('more-btn').hidden = !!m.child;
-  const t = $('app-title');
-  t.innerHTML = esc(m.title) +
+  $('settings-btn').hidden = !!m.child;
+  const tEl = $('app-title');
+  tEl.innerHTML = esc(t(m.title)) +
     (page === 'control' && S.version ? ' <span class="ver" id="header-version">' + esc(S.version) + '</span>' : '');
-  if(animate !== false){ t.classList.remove('swap'); void t.offsetWidth; t.classList.add('swap'); }
+  bindVersionPress();
+  if(animate !== false){ tEl.classList.remove('swap'); void tEl.offsetWidth; tEl.classList.add('swap'); }
   const box = $('bar-actions');
   box.innerHTML = '';
   (m.actions || []).forEach(a => {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'icon-btn state';
-    b.title = a.label;
-    b.setAttribute('aria-label', a.label);
+    b.title = t(a.label);
+    b.setAttribute('aria-label', t(a.label));
     b.innerHTML = icon(a.icon, 's24');
     b.onclick = a.fn;
     box.append(b);
@@ -1633,6 +1917,10 @@ function renderNavBar(page){
   });
   document.body.classList.toggle('nav-hidden', !!PAGE_META[page].child);
 }
+/* Анимация экрана снимается по animationend, а не по таймеру: если главный
+   поток занят (exec-фолбэк), таймер успевал сработать раньше первого кадра
+   и срезал анимацию — экран появлялся рывком. Запасной таймер остаётся на
+   случай, когда событие не придёт (reduced motion, скрытая вкладка). */
 function showPage(page, mode){
   if(transitionCleanup) transitionCleanup();
   const from = document.querySelector('.page.active');
@@ -1652,14 +1940,23 @@ function showPage(page, mode){
   scrollTo(0, 0);
   $('app-bar').classList.remove('scrolled');
   let timer = 0;
+  const onEnd = e => { if(e.target === to && e.animationName === 'fade-in') cleanup(); };
   const cleanup = () => {
     clearTimeout(timer);
+    to.removeEventListener('animationend', onEnd);
     if(from){ from.classList.remove('leaving', 'leave-' + mode); from.style.cssText = ''; }
     to.classList.remove('enter-' + mode);
     if(transitionCleanup === cleanup) transitionCleanup = null;
   };
   transitionCleanup = cleanup;
-  timer = setTimeout(cleanup, animate ? 420 : 0);
+  if(animate){ to.addEventListener('animationend', onEnd); timer = setTimeout(cleanup, 1200); }
+  else cleanup();
+}
+/* Данные экрана грузятся после того, как анимация пошла: два кадра, чтобы
+   стиль нового экрана точно ушёл в композитор. Без spawn первый вызов ещё и
+   ждёт конца анимации — синхронный exec иначе заморозил бы её первый кадр. */
+function afterTransition(fn){
+  requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(fn, spawnOK ? 0 : 320)));
 }
 function navigate(page){
   if(page === currentPage){
@@ -1667,27 +1964,43 @@ function navigate(page){
     return;
   }
   closeMenu();
-  const fromChild = !!PAGE_META[currentPage].child, toChild = !!PAGE_META[page].child;
-  const mode = toChild ? 'forward' : (fromChild ? 'back' : 'fade');
+  const d0 = pageDepth(currentPage), d1 = pageDepth(page);
+  const mode = d1 > d0 ? 'forward' : (d1 < d0 ? 'back' : 'fade');
   currentPage = page;
-  if(!toChild) lastTop = page;
+  if(!PAGE_META[page].child) lastTop = page;
   renderNavBar(page);
   renderAppBar(page);
   showPage(page, mode);
-  PAGE_META[page].init();
+  const target = page;
+  afterTransition(() => { if(currentPage === target) PAGE_META[target].init(); });
   scheduleSync();
 }
-function goBack(){ navigate(lastTop); }
+function goBack(){ navigate(PAGE_META[currentPage].parent || lastTop); }
 document.querySelectorAll('.nav-dest').forEach(b => { b.onclick = () => navigate(b.dataset.page); });
 
-function openOverflow(anchor){
-  openMenu(anchor, [
-    {label: 'Приложения', icon: 'apps', onClick: () => navigate('apps')},
-    {label: 'Тестирование', icon: 'test', onClick: () => navigate('test')},
-    {label: 'Диагностика', icon: 'medical', onClick: () => navigate('diag')},
-    '-',
-    {label: 'Тема оформления', icon: 'palette', onClick: openMonetModal}
-  ]);
+/* ── Режим разработчика: долгое нажатие на номер версии ──────────────────
+   Показывает на главном экране служебные переключатели, которые обычному
+   пользователю не нужны (контроль работы, wakelock, лимиты пакетов). */
+let devMode = store.get('nfq_dev') === '1';
+function bindVersionPress(){
+  const v = $('header-version');
+  if(!v || v._bound) return;
+  v._bound = true;
+  let tm = 0;
+  const cancel = () => { clearTimeout(tm); tm = 0; };
+  v.addEventListener('pointerdown', () => {
+    cancel();
+    tm = setTimeout(() => {
+      tm = 0;
+      devMode = !devMode;
+      store.set('nfq_dev', devMode ? '1' : '0');
+      if(navigator.vibrate) try { navigator.vibrate(30); } catch(e) {}
+      renderParams(S);
+      toast(devMode ? t('Режим разработчика включён') : t('Режим разработчика выключен'));
+    }, 650);
+  });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => v.addEventListener(ev, cancel));
+  v.addEventListener('contextmenu', e => e.preventDefault());
 }
 
 /* elevation on scroll: surface → surface-container */
@@ -1833,6 +2146,7 @@ function initSheetDrag(sheet){
 }
 document.querySelectorAll('.sheet').forEach(initSheetDrag);
 
+
 /* ── Время работы: tabular-nums, тик раз в секунду ─────────────────────── */
 let uptTimer = null;
 function fmtUptime(sec){
@@ -1841,114 +2155,161 @@ function fmtUptime(sec){
   const h = Math.floor(sec / 3600); sec -= h * 3600;
   const m = Math.floor(sec / 60); sec -= m * 60;
   const p = n => String(n).padStart(2, '0');
-  if(d > 0) return d + ' д ' + p(h) + ':' + p(m) + ':' + p(sec);
+  if(d > 0) return d + ' ' + t('д') + ' ' + p(h) + ':' + p(m) + ':' + p(sec);
   if(h > 0) return p(h) + ':' + p(m) + ':' + p(sec);
   return p(m) + ':' + p(sec);
 }
+let uptBase = 0, uptAt = 0;
 function stopUptTimer(){ if(uptTimer){ clearInterval(uptTimer); uptTimer = null; } $('upt').textContent = '—'; }
 function startUptTimer(baseSec){
-  if(uptTimer){ clearInterval(uptTimer); uptTimer = null; }
-  let cur = Math.max(0, Math.floor(baseSec));
-  const tick = () => { $('upt').textContent = fmtUptime(cur++); };
+  uptBase = Math.max(0, Math.floor(baseSec)); uptAt = Date.now();
+  const tick = () => { $('upt').textContent = fmtUptime(uptBase + (Date.now() - uptAt) / 1000); };
   tick();
-  uptTimer = setInterval(tick, 1000);
+  if(!uptTimer) uptTimer = setInterval(tick, 1000);
 }
 
-/* ══ Готовые стратегии ═══════════════════════════════════════════════════ */
-const STRATEGY_INFO = {
-  'default': 'Стандартная конфигурация nfqws2 с круговым перебором (circular).',
-  'alt': 'Flowseal ALT: Fake STUN + Google TLS + fakedsplit с отрицательным ACK.',
-  'alt2': 'Flowseal ALT2: Чистый multisplit (pos=2) с seqovl подменой (tls_google).',
-  'alt3': 'Flowseal ALT3: Fake ya.ru + hostfakesplit подмену доменов с tcp_ts.',
-  'alt4': 'Flowseal ALT4: Легковесный fake STUN + Google + базовый multisplit.',
-  'alt4_mod': 'Flowseal ALT4 Mod: Модифицированный ALT4 с hostfakesplit mail.ru.',
-  'alt5': 'Flowseal ALT5: Пейлоад в SYN (syndata) + multidisorder для обхода продвинутых ТСПУ.',
-  'alt6': 'Flowseal ALT6: Прицельный multisplit с полным перекрытием seqovl=681.',
-  'alt7': 'Flowseal ALT7: Двойной multisplit на границе SNI (pos=2, sniext+1).',
-  'alt8': 'Flowseal ALT8: Классический фейк fake_default_tls с badseq фулингом.',
-  'alt9': 'Flowseal ALT9: Hostfakesplit ozon.ru с подписью tcp_md5 и tcp_ts_up.',
-  'alt10': 'Flowseal ALT10: Чистый фейк (STUN + 4pda) без фрагментации — минимальная нагрузка на CPU.',
-  'alt11': 'Flowseal ALT11: Двойной фейк STUN2 + max_ru с multisplit seqovl=664.',
-  'alt12': 'Flowseal ALT12: Популярная стратегия для YouTube: fake max_ru + multisplit seqovl=664.',
-  'alt13': 'Flowseal ALT13: Двойной фейк (Sochi + STUN2) + hostfakesplit mail.ru.',
-  'fake_tls_auto': 'Flowseal FAKE TLS AUTO: Двойной фейк (нули + default) + multidisorder.',
-  'fake_tls_auto_alt': 'Flowseal FAKE TLS AUTO ALT: Фейк default_tls + fakedsplit (pos=1).',
-  'fake_tls_auto_alt2': 'Flowseal FAKE TLS AUTO ALT2: Фейк default_tls + multisplit seqovl=681.',
-  'fake_tls_auto_alt3': 'Flowseal FAKE TLS AUTO ALT3: Фейк default_tls с tcp_ts=-600000 + multisplit.',
-  'simple_fake': 'Flowseal SIMPLE FAKE: Легкий фейк Google + max_ru без фрагментации.',
-  'simple_fake_alt': 'Flowseal SIMPLE FAKE ALT: Фейк STUN2 + Google + max_ru.',
-  'simple_fake_alt2': 'Flowseal SIMPLE FAKE ALT2: Фейк STUN2 + max_ru (без google).',
-  'hardcorp74': 'Hardcorp74: 5-уровневый круговой перебор (Sochi, STUN, Ozon, RZD) + YouTube кастом.',
-  'krushaaa': 'Krushaaa: Lordfilm фейк + STUN2 + двойной multisplit.',
-  'MartinBacker': 'MartinBacker: Мощный 10-уровневый перебор + выделенные профили под Googlevideo/Discord.',
-  'Uvvi2': 'Uvvi2: Сток nfqws2-keenetic с прицельным профилем под войс Discord.',
-  'eduncey': 'Eduncey: 4 стратегии (fonts.google, ozon, www.google) + STUN кастом.',
-  'exp': 'EXP: Экспериментальный профиль STUN2 + max_ru с защитой Discord/unknown.'
-};
-let strategies = ['default'], currentStrategy = 'default', pendingStrategy = 'default';
-const strategyName = s => s === 'default' ? 'По умолчанию' : s;
-const strategyDesc = s => STRATEGY_INFO[s] || 'Пользовательская стратегия.';
+/* ══ Стратегии ═══════════════════════════════════════════════════════════
+   Описаний у стратегий нет намеренно: что работает, зависит от провайдера и
+   региона, и описание обещало бы больше, чем может. Вместо них — группы по
+   происхождению, на одном листе, с заголовком над каждой. */
+let strategies = [{name: 'default', kind: 'builtin', mod: false}], currentStrategy = 'default', pendingStrategy = 'default';
+const STRATEGY_GROUPS = [
+  ['base', 'Базовая'], ['alt', 'Flowseal · ALT'], ['fake', 'Flowseal · FAKE TLS AUTO'],
+  ['simple', 'Flowseal · SIMPLE FAKE'], ['authors', 'Авторские'], ['user', 'Пользовательские']
+];
+function strategyGroup(s){
+  if(s.kind === 'import' || s.kind === 'user') return 'user';
+  if(s.name === 'default') return 'base';
+  if(/^alt\d*(_|$)/i.test(s.name)) return 'alt';
+  if(/^fake_tls_auto/i.test(s.name)) return 'fake';
+  if(/^simple_fake/i.test(s.name)) return 'simple';
+  return 'authors';
+}
+const groupTitle = g => t((STRATEGY_GROUPS.find(x => x[0] === g) || ['', ''])[1]);
+const strategyName = s => s === 'default' ? t('По умолчанию') : String(s).replace(/^imp:/, '');
+const findStrategy = n => strategies.find(s => s.name === n);
 
+async function loadStrategies(){
+  const r = await ctlx(['list-strategies']);
+  const list = r.code ? [] : r.out.split('\n').filter(Boolean).map(l => {
+    const p = l.split('\t');
+    return {name: p[0], kind: p[1] || 'builtin', mod: p[2] === '1'};
+  });
+  strategies = [{name: 'default', kind: 'builtin', mod: false}].concat(list.filter(s => s.name !== 'default'));
+}
 async function initStrategySelector(){
-  const [r1, r2] = await Promise.all([ctlx(['list-strategies']), ctlx(['get-strategy'])]);
-  const list = r1.code ? [] : r1.out.split('\n').map(s => s.trim()).filter(Boolean);
-  strategies = ['default', ...list.filter(s => s !== 'default')];
+  const r2 = await ctlx(['get-strategy']);
   currentStrategy = (!r2.code && r2.out.trim()) || 'default';
+  await loadStrategies();
   renderStrategyRow();
 }
 function renderStrategyRow(){
+  const s = findStrategy(currentStrategy) || {name: currentStrategy, kind: /^imp:/.test(currentStrategy) ? 'import' : 'builtin'};
   $('strategy-current').textContent = strategyName(currentStrategy);
-  $('strategy-desc').textContent = strategyDesc(currentStrategy);
+  $('strategy-group').textContent = groupTitle(strategyGroup(s)) + (s.mod ? ' · ' + t('изменена') : '');
 }
-function openStrategySheet(){
-  pendingStrategy = currentStrategy;
-  $('strategy-list').innerHTML = strategies.map(s =>
-    '<label class="list-item two-line clickable state' + (s === pendingStrategy ? ' selected' : '') + '">' +
-      '<input type="radio" class="radio" name="strategy" value="' + esc(s) + '"' + (s === pendingStrategy ? ' checked' : '') + '>' +
-      '<span class="li-text">' +
-        '<span class="li-primary">' + esc(strategyName(s)) + '</span>' +
-        '<span class="li-secondary">' + esc(strategyDesc(s)) + '</span>' +
-      '</span>' +
-      (s === currentStrategy ? '<span class="li-trail"><span class="pill">Текущая</span></span>' : '') +
-    '</label>').join('');
-  $('strategy-list').querySelectorAll('input.radio').forEach(r => {
+function strategyItem(s){
+  const sel = s.name === pendingStrategy;
+  return '<label class="list-item clickable state' + (sel ? ' selected' : '') + '">' +
+    '<input type="radio" class="radio" name="strategy" value="' + esc(s.name) + '"' + (sel ? ' checked' : '') + '>' +
+    '<span class="li-text"><span class="li-primary truncate">' + esc(strategyName(s.name)) + '</span>' +
+      (s.mod || s.kind === 'import' || s.name === currentStrategy ? '<span class="li-tags">' +
+        (s.name === currentStrategy ? '<span class="pill">' + esc(t('Текущая')) + '</span>' : '') +
+        (s.mod ? '<span class="pill tonal">' + esc(t('Изменена')) + '</span>' : '') +
+        (s.kind === 'import' ? '<span class="pill tonal">' + esc(t('Импорт')) + '</span>' : '') + '</span>' : '') +
+    '</span>' +
+    '<span class="li-trail li-actions">' +
+      (s.mod ? '<button type="button" class="icon-btn sm state" data-act="reset" data-s="' + esc(s.name) + '"' +
+        ' aria-label="' + esc(t('Сбросить «{0}» к исходнику', strategyName(s.name))) + '" title="' + esc(t('Сбросить к исходнику')) + '">' +
+        icon('restart', 's20') + '</button>' : '') +
+      (s.name !== 'default' ? '<button type="button" class="icon-btn sm state" data-act="edit" data-s="' + esc(s.name) + '"' +
+        ' aria-label="' + esc(t('Редактировать «{0}»', strategyName(s.name))) + '" title="' + esc(t('Редактировать')) + '">' +
+        icon('edit', 's20') + '</button>' : '') +
+    '</span></label>';
+}
+function renderStrategyList(animate){
+  const cmp = (a, b) => a.name.localeCompare(b.name, undefined, {numeric: true, sensitivity: 'base'});
+  const html = STRATEGY_GROUPS.map(([g]) => {
+    const items = strategies.filter(s => strategyGroup(s) === g).sort(cmp);
+    if(!items.length) return '';
+    return '<div class="sheet-group" role="presentation">' + esc(groupTitle(g)) + '</div>' +
+      '<div class="list">' + items.map(strategyItem).join('') + '</div>';
+  }).join('');
+  const box = $('strategy-list');
+  box.innerHTML = html;
+  if(animate){ box.classList.remove('appear'); void box.offsetWidth; box.classList.add('appear'); }
+  box.querySelectorAll('input.radio').forEach(r => {
     r.onchange = () => {
       pendingStrategy = r.value;
-      $('strategy-list').querySelectorAll('.list-item').forEach(li =>
-        li.classList.toggle('selected', li.querySelector('input').value === pendingStrategy));
+      box.querySelectorAll('.list-item').forEach(li => li.classList.toggle('selected', li.querySelector('input').value === pendingStrategy));
     };
   });
-  $('strategy-apply').innerHTML = icon('check', 's18') + (S.running ? 'Применить и перезапустить' : 'Применить');
+  box.querySelectorAll('button[data-act]').forEach(b => {
+    b.onclick = e => {
+      e.preventDefault(); e.stopPropagation();
+      if(b.dataset.act === 'edit') editStrategy(b.dataset.s);
+      else resetStrategy(b.dataset.s);
+    };
+  });
+}
+async function openStrategySheet(){
+  pendingStrategy = currentStrategy;
+  renderStrategyList(false);
+  $('strategy-apply').innerHTML = icon('check', 's18') + esc(S.running ? t('Применить и перезапустить') : t('Применить'));
   openSheet('strategy-sheet');
   const list = $('strategy-list'), sel = list.querySelector('.selected');
   if(sel) list.scrollTop = sel.offsetTop - list.offsetTop - (list.clientHeight - sel.offsetHeight) / 2;
+  await loadStrategies();
+  if(openSheetId === 'strategy-sheet'){
+    const top = list.scrollTop;
+    renderStrategyList(false);
+    list.scrollTop = top;
+  }
 }
 async function applySelectedStrategy(){
   const val = pendingStrategy;
   closeSheet();
+  await applyStrategy(val);
+}
+async function applyStrategy(val){
   const r = await withBusy(['set-strategy', val]);
-  if(r.code){ toast((r.err || 'Не удалось применить стратегию').trim()); return; }
+  if(r.code){ toast(errText(r, 'Не удалось применить стратегию')); return; }
   currentStrategy = val;
   renderStrategyRow();
   if(S.running) await act('restart');
-  else { toast('Стратегия «' + strategyName(val) + '» применится при следующем запуске'); stat(); }
+  else { toast(t('Стратегия «{0}» применится при следующем запуске', strategyName(val))); stat(); }
+}
+function editStrategy(name){
+  openEditorWith({target: 'strategy', key: name, title: strategyName(name) + '.conf', lang: 'conf', b64: true,
+    hint: t('Правка сохраняется отдельно от встроенной стратегии: исходник можно вернуть кнопкой сброса.'),
+    load: ['strategy-get-b64', name]});
+}
+async function resetStrategy(name){
+  if(!await mdConfirm(t('Сбросить «{0}»?', strategyName(name)),
+    t('Ваши правки стратегии будут удалены, вернётся версия из релиза.'), {ok: t('Сбросить'), danger: true})) return;
+  const r = await withBusy(['strategy-reset', name]);
+  if(r.code){ toast(errText(r, 'Не удалось сбросить')); return; }
+  await loadStrategies();
+  renderStrategyRow();
+  if(openSheetId === 'strategy-sheet') renderStrategyList(true);
+  toast(t('Стратегия «{0}» сброшена', strategyName(name)),
+    name === currentStrategy ? {label: t('Применить'), fn: () => applyStrategy(name)} : null);
 }
 
 /* ══ СОСТОЯНИЕ ═══════════════════════════════════════════════════════════ */
-/* [ключ, подпись, пояснение]: пояснение только там, где подпись сама не объясняет эффект */
 /* Строки-переключатели — однострочные: только заголовок и сам переключатель.
-   Описания под ними владелец считает лишними, они ломают ритм списка. Это
-   конвенция проекта, а не свойство нового файла: он принёс двухстрочные строки,
-   и они возвращены к однострочным. Подсказки остались только у лимитов ниже —
-   там они поясняют число, а не дублируют название. */
+   Описания под ними владелец считает лишними, они ломают ритм списка.
+   На главном — только то, что действительно нужно пользователю; служебное
+   (контроль работы, wakelock, лимиты) — в блоке разработчика. */
 const SW = [
-  ['AUTOSTART', 'Автозапуск при загрузке'],
-  ['WATCHDOG', 'Контроль работы'],
-  ['IPV6_ENABLED', 'Обрабатывать IPv6'],
-  ['BLOCK_QUIC', 'Блокировать QUIC'],
-  ['WAKELOCK', 'Не давать телефону спать']
+  ['AUTOSTART', 'Автозапуск при загрузке', 'autostart'],
+  ['IPV6_ENABLED', 'Обрабатывать IPv6', 'ipv6'],
+  ['BLOCK_QUIC', 'Блокировать QUIC', 'block_quic']
 ];
-const KEY = {AUTOSTART: 'autostart', WATCHDOG: 'watchdog', IPV6_ENABLED: 'ipv6', BLOCK_QUIC: 'block_quic', WAKELOCK: 'wakelock_on'};
+const DEV_SW = [
+  ['WATCHDOG', 'Контроль работы', 'watchdog'],
+  ['WAKELOCK', 'Не давать телефону спать', 'wakelock_on']
+];
 const LIMITS = [
   ['PKT_LIMIT_OUT', 'Исходящие пакеты', 'Сколько первых пакетов соединения обрабатывать', 'pkt_limit_out'],
   ['PKT_LIMIT_IN', 'Входящие пакеты', 'Сколько первых ответных пакетов обрабатывать', 'pkt_limit_in']
@@ -1962,61 +2323,51 @@ function banner(kind, ic, text){
 let svcBusy = '';
 function renderHeroActions(){
   const run = !!S.running, bt = $('bt'), rs = $('bt-restart');
-  const busyLabel = {start: 'Запуск…', stop: 'Остановка…', restart: 'Перезапуск…'}[svcBusy];
+  const busyLabel = {start: t('Запуск…'), stop: t('Остановка…'), restart: t('Перезапуск…')}[svcBusy];
   bt.disabled = !!svcBusy;
   bt.innerHTML = busyLabel
-    ? '<span class="spinner"></span><span>' + busyLabel + '</span>'
-    : icon(run ? 'stop' : 'play') + '<span>' + (run ? 'Остановить' : 'Запустить') + '</span>';
+    ? '<span class="spinner"></span><span>' + esc(busyLabel) + '</span>'
+    : icon(run ? 'stop' : 'play') + '<span>' + esc(run ? t('Остановить') : t('Запустить')) + '</span>';
   rs.hidden = !run || !!svcBusy;
 }
 
+function switchRow(k, label, on){
+  return '<label class="list-item clickable state">' +
+    '<span class="li-text"><span class="li-primary">' + esc(t(label)) + '</span></span>' +
+    '<span class="li-trail"><input type="checkbox" class="switch" role="switch" aria-label="' + esc(t(label)) + '"' +
+      (on ? ' checked' : '') + ' onchange="setp(' + jsArg(k) + ', this.checked ? 1 : 0)"></span>' +
+  '</label>';
+}
 function renderParams(j){
-  const sw = SW.map(([k, label]) =>
-    '<label class="list-item clickable state">' +
-      '<span class="li-text"><span class="li-primary">' + esc(label) + '</span></span>' +
-      '<span class="li-trail"><input type="checkbox" class="switch" role="switch" aria-label="' + esc(label) + '"' +
-        (j[KEY[k]] == 1 ? ' checked' : '') + ' onchange="setp(' + jsArg(k) + ', this.checked ? 1 : 0)"></span>' +
-    '</label>');
-  const lim = LIMITS.map(([k, label, hint, jk]) =>
-    '<div class="list-item two-line clickable state" role="button" tabindex="0" aria-haspopup="dialog"' +
-      ' onclick="editLimit(' + jsArg(k) + ', ' + jsArg(label) + ', ' + (+j[jk] || 15) + ')">' +
-      '<span class="li-text"><span class="li-primary">' + esc(label) + '</span>' +
-        '<span class="li-secondary">' + esc(hint) + '</span></span>' +
-      '<span class="li-trail li-value">' + esc(j[jk] != null ? j[jk] : '—') + '</span>' +
-    '</div>');
-  $('sws').innerHTML = sw.concat(lim).join('');
+  j = j || {};
+  setHTML('sws', SW.map(([k, label, jk]) => switchRow(k, label, j[jk] == 1)).join(''), false);
+  $('dev-block').hidden = !devMode;
+  if(devMode){
+    const lim = LIMITS.map(([k, label, hint, jk]) =>
+      '<div class="list-item two-line clickable state" role="button" tabindex="0" aria-haspopup="dialog"' +
+        ' onclick="editLimit(' + jsArg(k) + ', ' + jsArg(t(label)) + ', ' + (+j[jk] || 15) + ')">' +
+        '<span class="li-text"><span class="li-primary">' + esc(t(label)) + '</span>' +
+          '<span class="li-secondary">' + esc(t(hint)) + '</span></span>' +
+        '<span class="li-trail li-value">' + esc(j[jk] != null ? j[jk] : '—') + '</span>' +
+      '</div>');
+    setHTML('dev-sws', DEV_SW.map(([k, label, jk]) => switchRow(k, label, j[jk] == 1)).concat(lim).join(''), false);
+  }
 }
 
-async function stat(){
-  busy(true);
-  const raw = await ctl(['json-status']);
-  busy(false);
-  let j = null, a = raw.indexOf('{'), b = raw.lastIndexOf('}');
-  if(a >= 0 && b > a){ try { j = JSON.parse(raw.slice(a, b + 1)); } catch(e) {} }
-  if(!j){
-    $('hero-status').className = 'hero offline';
-    $('st').textContent = 'Нет связи с модулем';
-    $('sub').textContent = 'Проверьте root-доступ и наличие ' + CTL;
-    $('queue-num').textContent = '—';
-    $('qdrop-num').textContent = '—';
-    stopUptTimer();
-    renderHeroActions();
-    $('warn').innerHTML = banner('danger', 'error', 'json-status: ' + (raw.trim() || '(пустой ответ)').slice(0, 200));
-    return;
-  }
-  S = j;
-  const hv = $('header-version');
-  if(hv) hv.textContent = j.version || '';
-  else if(currentPage === 'control') renderAppBar('control', false);
-
-  $('hero-status').className = 'hero' + (j.running ? ' running' : '');
-  $('st').textContent = j.running ? 'Служба работает' : 'Служба остановлена';
-  const lim = {connbytes: 'лимит connbytes', connmark_out: 'лимит connmark'}[j.limiter] || '';
-  // PID и пресет — из нашей версии: ctl их отдаёт, и без читателя они были
-  // мёртвым грузом в json-status (проверка контракта это ловила).
-  $('sub').textContent = (j.running && j.pid ? 'PID ' + j.pid + ' · ' : '') +
-    'Режим ' + (j.mode || '—') + (j.strategy ? ' · пресет ' + j.strategy : '') +
-    (j.running && lim ? ', ' + lim : '');
+/* Отрисовка из последнего известного статуса: экран показывает данные сразу,
+   а свежие приходят следом, без пустого кадра. */
+function renderStatus(){
+  const j = S;
+  if(!j || j.running == null){ renderHeroActions(); renderParams({}); return; }
+  if(currentPage === 'control') renderAppBar('control', false);
+  const paused = !j.running && !!j.paused;
+  $('hero-status').className = 'hero' + (j.running ? ' running' : (paused ? ' paused' : ''));
+  $('st').textContent = j.running ? t('Служба работает') : (paused ? t('Пауза') : t('Служба остановлена'));
+  const lim = {connbytes: t('лимит connbytes'), connmark_out: t('лимит connmark')}[j.limiter] || '';
+  $('sub').textContent = paused
+    ? t('Домашняя Wi‑Fi «{0}». Обход возобновится, когда телефон уйдёт из этой сети.', j.paused)
+    : (j.running && j.pid ? 'PID ' + j.pid + ' · ' : '') + t('Режим') + ' ' + (j.mode || '—') +
+      (j.strategy ? ' · ' + t('стратегия') + ' ' + strategyName(j.strategy) : '') + (j.running && lim ? ', ' + lim : '');
   $('queue-num').textContent = j.running ? (j.queue || '—') : '—';
   const qd = $('qdrop-num');
   qd.textContent = j.running ? (j.qdrop || 0) : '—';
@@ -2027,26 +2378,65 @@ async function stat(){
   $('dbg').checked = (j.log_level == 1);
 
   let w = '';
-  if(j.qdrop > 0) w += banner('danger', 'warn',
-    'Ядро сбросило ' + j.qdrop + ' пакетов: nfqws2 не успевает обрабатывать очередь ' + j.queue + '.');
-  if(j.log_level == 1) w += banner('', 'info', 'Включён подробный журнал отладки: обработка заметно медленнее.');
-  $('warn').innerHTML = w;
-
-  if(currentPage === 'lists'){ renderMode(); renderListFiles(); }
+  if(j.qdrop > 0) w += banner('danger', 'warn', t('Ядро сбросило {0} пакетов: nfqws2 не успевает обрабатывать очередь {1}.', j.qdrop, j.queue));
+  if(j.log_level == 1) w += banner('', 'info', t('Включён подробный журнал отладки: обработка заметно медленнее.'));
+  setHTML('warn', w, false);
 }
+
+let statPending = null;
+async function stat(quiet){
+  if(statPending) return statPending;
+  statPending = (async () => {
+    if(!quiet) busy(true);
+    const raw = await ctl(['json-status']);
+    if(!quiet) busy(false);
+    let j = null, a = raw.indexOf('{'), b = raw.lastIndexOf('}');
+    if(a >= 0 && b > a){ try { j = JSON.parse(raw.slice(a, b + 1)); } catch(e) {} }
+    if(!j){
+      if(quiet) return;
+      $('hero-status').className = 'hero offline';
+      $('st').textContent = t('Нет связи с модулем');
+      $('sub').textContent = t('Проверьте root-доступ и наличие {0}', CTL);
+      $('queue-num').textContent = '—';
+      $('qdrop-num').textContent = '—';
+      stopUptTimer();
+      renderHeroActions();
+      setHTML('warn', banner('danger', 'error', 'json-status: ' + (raw.trim() || t('(пустой ответ)')).slice(0, 200)), false);
+      return;
+    }
+    S = j;
+    renderStatus();
+    if(currentPage === 'lists'){ renderMode(); renderListFiles(); }
+  })();
+  try { return await statPending; } finally { statPending = null; }
+}
+
+/* ── Автообновление статуса: пока экран виден и на нём есть что обновлять ──
+   Падение службы, пауза в домашней сети и рост auto.list видны без
+   перезахода. Опрос тихий — без полосы загрузки, и пропускается, пока
+   открыт редактор или идёт другая команда. */
+const POLL_PAGES = {control: 1, lists: 1};
+setInterval(() => {
+  if(document.visibilityState !== 'visible' || !POLL_PAGES[currentPage]) return;
+  if(busyCount || svcBusy || editorCtx || openSheetId) return;
+  stat(true);
+}, 5000);
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState === 'visible' && POLL_PAGES[currentPage]) stat(true);
+});
 
 async function setp(k, v){
   const r = await withBusy(['set', k, String(v)]);
-  const msg = r.code ? (r.err || 'Не удалось сохранить').trim() : (r.out.trim().split('\n').pop() || 'Сохранено');
   const needRestart = !r.code && S.running && /перезапуск/i.test(r.out);
-  toast(msg, needRestart ? {label: 'Перезапустить', fn: restartSvc} : null);
+  toast(r.code ? errText(r, 'Не удалось сохранить') : (needRestart ? t('Применится после перезапуска службы') : t('Сохранено')),
+    needRestart ? {label: t('Перезапустить'), fn: restartSvc} : null);
   stat();
 }
 async function editLimit(key, title, cur){
-  const v = await mdPrompt(title, 'Целое число от 1 до 15.', String(cur), 'Пакетов на соединение', {type: 'number', inputmode: 'numeric'});
+  const v = await mdPrompt(title, t('Целое число от 1 до 15.'), String(cur), t('Пакетов на соединение'), {type: 'number', inputmode: 'numeric'});
   if(v == null || v === '') return;
   const n = parseInt(v, 10);
-  if(!(n >= 1 && n <= 15)){ toast('Нужно целое число от 1 до 15'); return; }
+  if(!(n >= 1 && n <= 15)){ toast(t('Нужно целое число от 1 до 15')); return; }
   if(n !== cur) setp(key, n);
 }
 async function act(a){
@@ -2055,7 +2445,8 @@ async function act(a){
   renderHeroActions();
   const r = await withBusy([a], 40000);
   svcBusy = '';
-  toast(((r.out || '') + (r.err || '')).trim().split('\n').pop() || 'Готово');
+  const ok = {start: 'Служба запущена', stop: 'Служба остановлена', restart: 'Служба перезапущена'}[a];
+  toast(r.code ? errText(r, 'Команда не выполнена') : t(ok));
   await stat();
 }
 function toggle(){ act(S.running ? 'stop' : 'start'); }
@@ -2067,161 +2458,233 @@ const MODE_INFO = {
   list: 'Обходит только домены из user.list.',
   all: 'Обходит всё, кроме доменов из exclude.list.'
 };
+/* Здесь только общие списки. Сервисные (google, youtube, ipset_discord …)
+   принадлежат стратегиям с отдельными профилями и приходят с релизом. */
 const LIST_FILES = [
   ['auto', 'auto.list', 'Выученные автоматически', 'list'],
   ['user', 'user.list', 'Домены для обхода', 'list'],
   ['exclude', 'exclude.list', 'Домены-исключения', 'list'],
   ['ipset', 'ipset.list', 'IP-адреса и подсети для обхода', 'globe'],
   ['ipset_exclude', 'ipset_exclude.list', 'IP-исключения', 'globe'],
-  ['probe_hosts', 'probe_hosts.list', 'Адреса для проверки связи', 'wifi']
+  ['probe_hosts', 'probe_hosts.list', 'Адреса для проверки доступности', 'wifi']
 ];
-const fmtCount = n => Number(n).toLocaleString('ru-RU');
+const pendingLists = () => String(S.pending || '').split(',').filter(Boolean);
 
-async function listsInit(){ await stat(); renderMode(); renderListFiles(); }
 function renderMode(){
-  $('mode').innerHTML = ['auto', 'list', 'all'].map(m =>
+  setHTML('mode', ['auto', 'list', 'all'].map(m =>
     '<button class="seg state' + (S.mode === m ? ' on' : '') + '" aria-pressed="' + (S.mode === m) + '"' +
-    ' onclick="setMode(' + jsArg(m) + ')"><span class="check">' + icon('check', 's18') + '</span>' + m + '</button>').join('');
-  $('mode-desc').textContent = MODE_INFO[S.mode] || '';
+    ' onclick="setMode(' + jsArg(m) + ')"><span class="check">' + icon('check', 's18') + '</span>' + m + '</button>').join(''), false);
+  $('mode-desc').textContent = MODE_INFO[S.mode] ? t(MODE_INFO[S.mode]) : '';
 }
 function renderListFiles(){
-  const c = S.counts || {};
-  $('list-files').innerHTML = LIST_FILES.map(([key, file, desc, ic]) =>
+  const c = S.counts || {}, pend = pendingLists();
+  setHTML('list-files', LIST_FILES.map(([key, file, desc, ic]) =>
     '<div class="list-item two-line clickable state" role="button" tabindex="0"' +
       ' onclick="openSlideEditor(' + jsArg('list') + ', ' + jsArg(key) + ')">' +
       '<span class="li-icon">' + icon(ic, 's24') + '</span>' +
       '<span class="li-text"><span class="li-primary li-mono">' + file + '</span>' +
-        '<span class="li-secondary">' + desc + '</span></span>' +
-      '<span class="li-trail">' + (c[key] != null ? '<span class="li-value">' + fmtCount(c[key]) + '</span>' : '') +
+        '<span class="li-secondary">' + esc(pend.includes(key) ? t('Доступна новая версия из релиза') : t(desc)) + '</span></span>' +
+      '<span class="li-trail">' +
+        (pend.includes(key) ? '<button type="button" class="icon-btn sm state pending-btn" aria-label="' + esc(t('Доступна новая версия списка')) + '"' +
+          ' onclick="event.stopPropagation(); offerListUpdate(' + jsArg(key) + ')">' + icon('warn', 's20') + '</button>' : '') +
+        (c[key] != null ? '<span class="li-value">' + fmtCount(c[key]) + '</span>' : '') +
         icon('chevron-right', 's24') + '</span>' +
-    '</div>').join('');
+    '</div>').join(''), false);
+}
+/* Новая версия списка из релиза ждёт, пока пользователь сам решит: его
+   правки установщик не трогает. «Отмена» просто оставляет всё как есть. */
+async function offerListUpdate(key){
+  if(!key) return;
+  const ok = await mdConfirm(t('Обновить {0}.list?', key),
+    t('В новой версии модуля этот список обновился, а у вас он изменён. Заменить ваш список версией из релиза? Ваши правки будут потеряны.'),
+    {ok: t('Заменить'), iconName: 'warn'});
+  if(!ok) return;
+  const r = await withBusy(['list-update', key], 30000);
+  if(r.code){ toast(errText(r, 'Не удалось обновить список')); return; }
+  toast(t('{0}.list обновлён', key));
+  await stat();
+  renderListFiles();
+  if(editorCtx && editorCtx.target === 'list' && editorCtx.key === key){
+    const r2 = await ctlx(['get-list', key], 30000);
+    if(!r2.code && editorCtx && editorCtx.key === key){
+      $('panel-editor-text').value = r2.out;
+      editorCtx.original = r2.out;
+      highlightEditor();
+    }
+    $('panel-pending').hidden = true;
+  }
 }
 async function setMode(m){
   const r = await withBusy(['set-mode', m]);
   const needRestart = !r.code && S.running && /перезапуск/i.test(r.out);
-  toast(r.code ? (r.err || 'Не удалось сменить режим').trim() : 'Режим: ' + m,
-    needRestart ? {label: 'Перезапустить', fn: restartSvc} : null);
-  listsInit();
+  toast(r.code ? errText(r, 'Не удалось сменить режим') : t('Режим: {0}', m),
+    needRestart ? {label: t('Перезапустить'), fn: restartSvc} : null);
+  stat();
 }
 async function clearAuto(){
-  if(!await mdConfirm('Очистить auto.list?', 'Выученные автоматически домены будут удалены.', {ok: 'Очистить', danger: true})) return;
+  if(!await mdConfirm(t('Очистить auto.list?'), t('Выученные автоматически домены будут удалены.'), {ok: t('Очистить'), danger: true})) return;
   const r = await withBusy(['clear-auto']);
-  toast(r.code ? (r.err || 'Не удалось очистить').trim() : 'auto.list очищен');
+  toast(r.code ? errText(r, 'Не удалось очистить') : t('auto.list очищен'));
   stat();
 }
 async function addDom(){
   const d = $('dom').value.trim();
   if(!d) return;
   const r = await withBusy(['add-domain', d]);
-  toast((r.out + r.err).trim() || 'Добавлено');
+  toast(r.code ? errText(r, 'Не удалось добавить') : t('Добавлено: {0}', (r.out.trim().split(': ').pop() || d)));
   if(!r.code) $('dom').value = '';
   stat();
 }
 async function resetLists(){
-  const ok = await mdConfirm('Вернуть стандартные списки?',
-    'Правки в user, exclude, ipset и probe_hosts будут удалены.', {ok: 'Вернуть', danger: true});
+  const ok = await mdConfirm(t('Вернуть стандартные списки?'),
+    t('Правки в user, exclude, ipset и probe_hosts будут удалены.'), {ok: t('Вернуть'), danger: true});
   if(!ok) return;
-  await withBusy(['reset-lists']);
-  toast('Списки возвращены к стандартным');
+  const r = await withBusy(['reset-lists']);
+  toast(r.code ? errText(r, 'Не удалось вернуть списки') : t('Списки возвращены к стандартным'));
   stat();
 }
 
 /* ══ ЖУРНАЛЫ ═════════════════════════════════════════════════════════════ */
-const LOG_SOURCES = [['service', 'Служба'], ['nfqws', 'Процесс'], ['auto', 'Автообучение'], ['debug', 'Отладка']];
-let logSource = 'service', logLines = '100';
+const LOG_SOURCES = [['summary', 'Краткая статистика'], ['service', 'Служба'], ['nfqws', 'Процесс'],
+  ['auto', 'Автообучение'], ['debug', 'Отладка']];
+let logSource = store.get('nfq_log_src') || 'service', logLines = '100', logErrors = false;
+if(!LOG_SOURCES.some(s => s[0] === logSource)) logSource = 'service';
 function renderLogChips(){
-  const src = (LOG_SOURCES.find(s => s[0] === logSource) || LOG_SOURCES[0])[1];
+  const src = t((LOG_SOURCES.find(s => s[0] === logSource) || LOG_SOURCES[1])[1]);
+  const sum = logSource === 'summary';
   $('log-chips').innerHTML =
-    '<button class="chip dropdown state" aria-haspopup="menu" aria-expanded="false" aria-label="Журнал: ' + src + '"' +
-      ' onclick="pickLogSource(this)"><span>' + src + '</span>' + icon('caret', 's18') + '</button>' +
-    '<button class="chip dropdown state" aria-haspopup="menu" aria-expanded="false" aria-label="Показывать строк: ' + logLines + '"' +
-      ' onclick="pickLogLines(this)"><span>' + logLines + ' строк</span>' + icon('caret', 's18') + '</button>';
+    '<button class="chip dropdown state" aria-haspopup="menu" aria-expanded="false" aria-label="' + esc(t('Журнал: {0}', src)) + '"' +
+      ' onclick="pickLogSource(this)"><span>' + esc(src) + '</span>' + icon('caret', 's18') + '</button>' +
+    (sum ? '' :
+      '<button class="chip dropdown state" aria-haspopup="menu" aria-expanded="false" aria-label="' + esc(t('Показывать строк: {0}', logLines)) + '"' +
+        ' onclick="pickLogLines(this)"><span>' + esc(t('{0} строк', logLines)) + '</span>' + icon('caret', 's18') + '</button>' +
+      '<button class="chip filter state' + (logErrors ? ' selected' : '') + '" aria-pressed="' + logErrors + '" onclick="toggleLogErrors()">' +
+        '<span class="chip-check">' + icon('check', 's18') + '</span><span>' + esc(t('Ошибки')) + '</span></button>');
 }
 function pickLogSource(anchor){
   openMenu(anchor, LOG_SOURCES.map(([k, label]) => ({
-    label, icon: k === logSource ? 'check' : '',
-    onClick: () => { logSource = k; loadLog(); }
+    label: t(label), icon: k === logSource ? 'check' : '',
+    onClick: () => { logSource = k; store.set('nfq_log_src', k); loadLog(); }
   })));
 }
 function pickLogLines(anchor){
   openMenu(anchor, ['100', '300', '1000'].map(n => ({
-    label: n + ' строк', icon: n === logLines ? 'check' : '',
+    label: t('{0} строк', n), icon: n === logLines ? 'check' : '',
     onClick: () => { logLines = n; loadLog(); }
   })));
 }
+function toggleLogErrors(){ logErrors = !logErrors; loadLog(); }
+const STATUS_MAP = {ok: ['ok', 'check'], warn: ['warn', 'warn'], fail: ['bad', 'error'], info: ['info', 'info']};
+function statusRows(text){
+  return text.trim().split('\n').filter(Boolean).map(l => l.split('\t')).map(([s, n, d]) => {
+    const m = STATUS_MAP[s] || STATUS_MAP.info;
+    return '<div class="list-item' + (d ? ' two-line' : '') + '">' +
+      '<span class="status ' + m[0] + '">' + icon(m[1], 's16') + '</span>' +
+      '<span class="li-text"><span class="li-primary">' + esc(n || '') + '</span>' +
+      (d ? '<span class="li-secondary">' + esc(d) + '</span>' : '') + '</span></div>';
+  }).join('');
+}
 async function loadLog(){
   renderLogChips();
-  const r = await ctlx(['get-logs', logSource, logLines], 30000);
-  $('lg').textContent = (r.code ? (r.err || 'Не удалось прочитать журнал') : r.out).trim() || 'Журнал пуст';
-  $('lg').scrollTop = $('lg').scrollHeight;
+  const sum = logSource === 'summary';
+  $('lg').hidden = sum;
+  $('lg-sum').hidden = !sum;
+  if(sum){
+    const r = await ctlx(['get-logs', 'summary'], 30000);
+    setHTML('lg-sum', statusRows(r.code ? '' : r.out) || '<div class="list-item"><span class="li-text"><span class="li-secondary">' +
+      esc(r.code ? errText(r, 'Не удалось прочитать журнал') : t('Нет данных')) + '</span></span></div>');
+    return;
+  }
+  const r = await ctlx(['get-logs', logSource, logLines].concat(logErrors ? ['errors'] : []), 30000);
+  const text = (r.code ? errText(r, 'Не удалось прочитать журнал') : r.out).replace(/\s+$/, '') || t('Журнал пуст');
+  const lg = $('lg');
+  lg.innerHTML = text.length < 400000 ? highlight(text, 'log') : esc(text);
+  lg.classList.remove('appear'); void lg.offsetWidth; lg.classList.add('appear');
+  lg.scrollTop = lg.scrollHeight;
 }
 async function exportLogs(){
   const r = await withBusy(['export-logs'], 30000);
-  toast((r.out + r.err).trim() || 'Журналы сохранены в Download');
+  toast(r.code ? errText(r, 'Не удалось сохранить журналы') : t('Журналы сохранены в {0}', r.out.trim().replace(/^.* в /, '')));
 }
 async function clearLogs(){
-  if(!await mdConfirm('Очистить журналы?', 'service.log, nfqws2.log, отладочный и журнал автообучения будут обнулены.',
-    {ok: 'Очистить', danger: true})) return;
+  if(!await mdConfirm(t('Очистить журналы?'), t('service.log, nfqws2.log, отладочный и журнал автообучения будут обнулены.'),
+    {ok: t('Очистить'), danger: true})) return;
   await withBusy(['clear-logs']);
-  toast('Журналы очищены');
+  toast(t('Журналы очищены'));
   loadLog();
 }
 
 /* ══ КОНФИГУРАЦИЯ И ИМПОРТ ═══════════════════════════════════════════════ */
 const IMPORT_EXTS = ['.txt', '.conf', '.ini', '.cfg', '.list', '.bat'];
-async function confInit(){ await loadImports(); }
+async function confInit(){ await Promise.all([loadImports(), checkConfModified()]); }
+/* «Сбросить» видна, только когда сбрасывать есть что: действующий конфиг
+   отличается от исходника текущей стратегии (без учёта переключателей). */
+async function checkConfModified(){
+  const [r, r2] = await Promise.all([ctlx(['conf-modified']), ctlx(['get-strategy'])]);
+  if(!r2.code && r2.out.trim()) currentStrategy = r2.out.trim();
+  const mod = !r.code && r.out.trim() === '1';
+  const row = $('conf-reset');
+  if(row.hidden === mod){
+    row.hidden = !mod;
+    if(mod){ row.classList.remove('appear-item'); void row.offsetWidth; row.classList.add('appear-item'); }
+  }
+  $('conf-reset-sub').textContent = t('Отменить ручные правки и вернуть стратегию «{0}»', strategyName(currentStrategy));
+}
 async function resetConf(){
-  const ok = await mdConfirm('Сбросить конфиг к стандартному?',
-    'Действующий nfqws2.conf сохранится как .bak.', {ok: 'Сбросить', danger: true});
+  const ok = await mdConfirm(t('Сбросить конфиг?'),
+    t('Ручные правки nfqws2.conf будут отменены, вернётся стратегия «{0}». Прежний конфиг сохранится как .bak.', strategyName(currentStrategy)),
+    {ok: t('Сбросить'), danger: true});
   if(!ok) return;
   const r = await withBusy(['reset-conf']);
-  toast(r.code ? (r.err || 'Не удалось сбросить').trim() : 'Конфиг сброшен',
-    !r.code && S.running ? {label: 'Перезапустить', fn: restartSvc} : null);
+  toast(r.code ? errText(r, 'Не удалось сбросить') : t('Конфиг сброшен'),
+    !r.code && S.running ? {label: t('Перезапустить'), fn: restartSvc} : null);
+  checkConfModified();
   stat();
 }
 async function loadImports(){
   const r = await ctlx(['list-imports']);
   const names = r.code ? [] : r.out.split('\n').map(s => s.trim()).filter(Boolean);
-  $('impList').innerHTML = names.length ? names.map(n =>
+  setHTML('impList', names.length ? names.map(n =>
     '<div class="list-item clickable state" role="button" tabindex="0" data-imp="' + esc(n) + '"' +
       ' onclick="openImport(this.dataset.imp)">' +
       '<span class="li-icon">' + icon('file', 's24') + '</span>' +
       '<span class="li-text"><span class="li-primary truncate">' + esc(n) + '</span></span>' +
-      '<button class="icon-btn sm state" aria-haspopup="menu" aria-label="Действия с конфигом ' + esc(n) + '"' +
+      '<button class="icon-btn sm state" aria-haspopup="menu" aria-label="' + esc(t('Действия с конфигом {0}', n)) + '"' +
         ' data-imp="' + esc(n) + '" onclick="event.stopPropagation(); importMenu(this, this.dataset.imp)">' +
         icon('more', 's24') + '</button>' +
     '</div>').join('')
     : '<div class="empty"><span class="empty-icon">' + icon('upload', 's24') + '</span>' +
-      '<span>Импортированные конфиги появятся здесь. Откройте любой, чтобы посмотреть его вместе с вашими настройками Android и сохранить как nfqws2.conf.</span></div>';
+      '<span>' + esc(t('Импортированные конфиги появятся здесь и в выборе стратегии, в группе «Пользовательские».')) + '</span></div>');
 }
 function importMenu(anchor, name){
   openMenu(anchor, [
-    {label: 'Открыть', icon: 'edit', onClick: () => openImport(name)},
-    {label: 'Переименовать', icon: 'tune', onClick: () => renameImport(name)},
+    {label: t('Применить как стратегию'), icon: 'check', onClick: () => applyStrategy('imp:' + name)},
+    {label: t('Открыть'), icon: 'edit', onClick: () => openImport(name)},
+    {label: t('Переименовать'), icon: 'tune', onClick: () => renameImport(name)},
     '-',
-    {label: 'Удалить', icon: 'trash', onClick: () => delImport(name)}
+    {label: t('Удалить'), icon: 'trash', onClick: () => delImport(name)}
   ]);
 }
 async function openImport(name){
   const r = await withBusy(['get-import-merged-b64', name]);
-  if(r.code){ toast((r.err || 'Импорт не найден').trim()); return; }
+  if(r.code){ toast(errText(r, 'Импорт не найден')); return; }
   openEditorWith({
-    target: 'conf', title: name,
-    hint: 'Предпросмотр импорта с вашими настройками Android. «Сохранить» заменит nfqws2.conf.',
+    target: 'conf', title: name, lang: 'conf',
+    hint: t('Предпросмотр импорта с вашими настройками Android. «Сохранить» заменит nfqws2.conf.'),
     text: unb64(r.out.trim()), dirty: true
   });
 }
 async function renameImport(name){
-  const v = await mdPrompt('Переименовать конфиг', 'Слэши, кавычки и $ будут убраны.', name, 'Имя');
+  const v = await mdPrompt(t('Переименовать конфиг'), t('Слэши, кавычки и $ будут убраны.'), name, t('Имя'));
   if(!v || v === name) return;
   const r = await withBusy(['rename-import', name, v]);
-  toast(r.code ? (r.err || 'Не удалось переименовать').trim() : 'Переименовано');
+  toast(r.code ? errText(r, 'Не удалось переименовать') : t('Переименовано'));
   loadImports();
 }
 async function delImport(name){
-  if(!await mdConfirm('Удалить «' + name + '»?', 'Файл импорта будет удалён безвозвратно.', {ok: 'Удалить', danger: true})) return;
+  if(!await mdConfirm(t('Удалить «{0}»?', name), t('Файл импорта будет удалён безвозвратно.'), {ok: t('Удалить'), danger: true})) return;
   await withBusy(['delete-import', name]);
-  toast('Удалено');
+  toast(t('Удалено'));
   loadImports();
 }
 function showImportMsg(text){
@@ -2234,43 +2697,267 @@ async function importFiles(files){
   const errs = [];
   for(const f of files){
     const ext = (f.name.match(/\.[^.]+$/) || [''])[0].toLowerCase();
-    if(!IMPORT_EXTS.includes(ext)){ fail++; errs.push(f.name + ': расширение не подходит (' + IMPORT_EXTS.join(' ') + ')'); continue; }
+    if(!IMPORT_EXTS.includes(ext)){ fail++; errs.push(f.name + ': ' + t('расширение не подходит ({0})', IMPORT_EXTS.join(' '))); continue; }
     const r = await withBusy(['import-add-b64', b64(f.name.replace(/\.[^.]+$/, '')), b64(await f.text())]);
-    if(!r.code) ok++; else { fail++; errs.push(f.name + ': ' + (r.err || 'отклонён').trim()); }
+    if(!r.code) ok++; else { fail++; errs.push(f.name + ': ' + errText(r, 'отклонён')); }
   }
   $('impFile').value = '';
   showImportMsg(errs.join('\n'));
-  toast('Импортировано: ' + ok + (fail ? ', отклонено: ' + fail : ''));
+  toast(t('Импортировано: {0}', ok) + (fail ? ', ' + t('отклонено: {0}', fail) : ''));
   loadImports();
 }
 function importPaste(){
-  openEditorWith({target: 'import-new', title: 'Новый импорт', saveLabel: 'Импортировать', text: '',
-    hint: 'Вставьте конфиг nfqws2-keenetic целиком. Перед сохранением модуль проверит, что это действительно он.'});
+  openEditorWith({target: 'import-new', title: t('Новый импорт'), saveLabel: t('Импортировать'), text: '', lang: 'conf',
+    hint: t('Вставьте конфиг nfqws2-keenetic целиком. Перед сохранением модуль проверит, что это действительно он.')});
+}
+
+/* ══ Подсветка синтаксиса ════════════════════════════════════════════════
+   Порт токенайзеров nfqws-keenetic-web (CodeMirror StreamLanguage для
+   nfqws.conf, *.list и журналов) без самого CodeMirror: тот же разбор,
+   результатом — span-ы с классами tk-*. */
+class SStream {
+  constructor(s){ this.string = s; this.pos = 0; this.start = 0; }
+  eol(){ return this.pos >= this.string.length; }
+  sol(){ return this.pos === 0; }
+  peek(){ return this.pos < this.string.length ? this.string.charAt(this.pos) : undefined; }
+  next(){ if(this.pos < this.string.length) return this.string.charAt(this.pos++); }
+  eat(m){
+    const ch = this.string.charAt(this.pos);
+    if(!ch) return undefined;
+    const ok = typeof m === 'string' ? ch === m : m.test(ch);
+    if(ok){ this.pos++; return ch; }
+  }
+  eatWhile(m){ const s = this.pos; while(this.eat(m) !== undefined); return this.pos > s; }
+  eatSpace(){ const s = this.pos; while(this.pos < this.string.length && /[\s ]/.test(this.string.charAt(this.pos))) this.pos++; return this.pos > s; }
+  skipToEnd(){ this.pos = this.string.length; }
+  match(re){ const m = this.string.slice(this.pos).match(re); if(m && m.index === 0){ this.pos += m[0].length; return m; } return null; }
+  current(){ return this.string.slice(this.start, this.pos); }
+}
+const HL = (() => {
+  const wordRe = w => new RegExp('^(?:' + w.join('|') + ')$', 'i');
+  /* ── nfqws2.conf ── */
+  const ops = wordRe(['iptables', 'ip', 'tc', 'route', 'sysctl', 'echo']);
+  const builtin = wordRe(['ROOT', 'BIN', 'SBIN', 'ETC', 'VAR', 'LOG', 'TMP', 'PID', 'LOCK', 'RUN', 'SYS', 'PROC', 'DEV', 'OPT']);
+  const isOperatorChar = /[+\-*&%=<>!?|]/;
+  const chain = (st, s, f) => { s.tokenize = f; return f(st, s); };
+  const resetDq = s => { s.dqAtCmdStart = true; s.dqLastFlag = ''; s.dqInFlagValue = false; s.dqInParamValue = false; s.dqAfterColon = false; };
+  function tokenString(quote){
+    return function(st, s){
+      let escaped = false, next, end = false;
+      while((next = st.next()) !== undefined){
+        if(next === quote && !escaped){ end = true; break; }
+        escaped = !escaped && next === '\\';
+      }
+      if(end || !escaped) s.tokenize = tokenBase;
+      return 'string';
+    };
+  }
+  function tokenDQuote(st, s){
+    if(st.eat('"')){ s.tokenize = tokenBase; return 'string'; }
+    if(st.eat('\\')){ st.next(); return 'string'; }
+    if(st.eatSpace()){ resetDq(s); return 'string'; }
+    if(st.eat('$')){
+      if(st.eat('{')){ st.eatWhile(/[\w_]/); st.eat('}'); return 'variable-2'; }
+      st.eatWhile(/[\w_]/); return 'variable-2';
+    }
+    if(st.peek() === '-' && st.string.charAt(st.pos + 1) === '-'){
+      st.next(); st.next(); st.eatWhile(/[\w-]/);
+      s.dqLastFlag = st.current().slice(2); s.dqAtCmdStart = false;
+      s.dqInFlagValue = false; s.dqInParamValue = false; s.dqAfterColon = false;
+      return 'keyword';
+    }
+    const p = st.peek();
+    if(p === ':'){ st.next(); s.dqAfterColon = true; s.dqInParamValue = false; return 'operator'; }
+    if(p === ','){ st.next(); return 'operator'; }
+    if(p === '='){
+      st.next();
+      if(s.dqLastFlag && !s.dqInFlagValue){ s.dqInFlagValue = true; s.dqInParamValue = false; s.dqAfterColon = false; }
+      else if(s.dqInFlagValue){ s.dqInParamValue = true; s.dqAfterColon = false; }
+      return 'operator';
+    }
+    if(st.eat('@')){
+      if(st.peek() === '/' || st.peek() === '$'){ st.eatWhile(/[\w\-./$]/); return 'string-2'; }
+      st.eatWhile(/[^$"\\\s]/); return 'string';
+    }
+    if(st.peek() === '/'){ st.next(); st.eatWhile(/[\w\-./]/); return 'string-2'; }
+    if(st.peek() === '-' && /\d/.test(st.string.charAt(st.pos + 1))){ st.next(); st.eatWhile(/[0-9,._\-+]/); return 'number'; }
+    if(st.peek() && /\d/.test(st.peek())){ st.next(); st.eatWhile(/[A-Za-z0-9,._\-+]/); return 'number'; }
+    if(st.peek() && /[A-Za-z_]/.test(st.peek())){
+      st.eatWhile(/[\w.-]/);
+      if(s.dqAfterColon && st.peek() === '='){ s.dqAfterColon = false; return 'typeName'; }
+      if(s.dqAfterColon){ s.dqAfterColon = false; return 'typeName'; }
+      if(s.dqInParamValue) return 'string';
+      return 'typeName';
+    }
+    if(st.peek() === '-' && (s.dqInFlagValue || s.dqInParamValue)){ st.next(); st.eatWhile(/[A-Za-z0-9._\-+]/); return 'typeName'; }
+    if(st.peek() === '-'){ st.next(); st.eatWhile(/[A-Za-z0-9]/); return 'keyword'; }
+    const start = st.pos;
+    st.eatWhile(/[^$"\\\s]/);
+    if(st.pos === start) st.next();
+    return 'string';
+  }
+  function tokenVariable(st, s){ st.eatWhile(/[\w_]/); if(st.eat('}')) s.tokenize = tokenBase; return 'variable-2'; }
+  function tokenComment(st, s){
+    let maybeEnd = false, ch;
+    while((ch = st.next()) !== undefined){ if(ch === '/' && maybeEnd){ s.tokenize = tokenBase; break; } maybeEnd = ch === '*'; }
+    return 'comment';
+  }
+  function tokenBase(st, s){
+    const ch = st.next();
+    if(ch === undefined) return null;
+    if(ch === '#'){ st.skipToEnd(); return 'comment'; }
+    if(ch === '\\' && st.eol()) return 'operator';
+    if(ch === "'") return chain(st, s, tokenString(ch));
+    if(ch === '"'){ resetDq(s); s.tokenize = tokenDQuote; return 'string'; }
+    if(ch === '=') return 'operator';
+    if(ch === '$' && st.eat('{')) return chain(st, s, tokenVariable);
+    if(ch === '$'){ st.eatWhile(/[\w_]/); return 'variable-2'; }
+    if(/\d/.test(ch)){
+      st.eatWhile(/[A-Za-z0-9,:._-]/);
+      const num = st.current();
+      if(/^0x[0-9a-fA-F]+$/.test(num) || /^\d+(?:[,:-]\d+)*$/.test(num)) return 'number';
+      return 'variable';
+    }
+    if(ch === '.' && st.eat('.')) return 'operator';
+    if(ch === '/' && st.eat('*')) return chain(st, s, tokenComment);
+    if(ch === '/' && st.peek() && /[\w\-./]/.test(st.peek())){ st.eatWhile(/[\w\-./]/); return 'string-2'; }
+    if(ch === '@' && st.peek() === '/'){ st.eatWhile(/[\w\-./]/); return 'string-2'; }
+    if(ch === '-' && st.peek() === '-'){ st.eatWhile(/[\w\-:]/); return 'keyword'; }
+    if(isOperatorChar.test(ch)){ st.eatWhile(isOperatorChar); return 'operator'; }
+    if(/[A-Za-z_]/.test(ch)){
+      st.eatWhile(/[\w_]/);
+      if(st.peek() === '=' || st.peek() === ':') return 'def';
+    }
+    st.eatWhile(/[\w$_]/);
+    const cur = st.current();
+    if(ops.test(cur)) return 'builtin';
+    if(builtin.test(cur)) return 'variable-2';
+    return 'variable';
+  }
+  const conf = {start: () => { const s = {tokenize: tokenBase}; resetDq(s); return s; }, token: (st, s) => s.tokenize(st, s)};
+
+  /* ── *.list: только комментарии ── */
+  const list = {start: () => ({}), token: st => {
+    if(st.sol()){ st.eatSpace(); if(st.peek() === '#'){ st.skipToEnd(); return 'comment'; } }
+    st.skipToEnd(); return null;
+  }};
+
+  /* ── журналы ── */
+  const logLevels = wordRe(['ERROR', 'WARN', 'WARNING', 'INFO', 'DEBUG', 'TRACE', 'FATAL', 'CRITICAL', 'SEVERE', 'NOTICE']);
+  const logKeywords = wordRe(['started', 'stopped', 'restarted', 'failed', 'success', 'connection', 'packet', 'rule', 'match',
+    'drop', 'accept', 'forward', 'queue', 'process', 'thread', 'memory', 'cpu', 'timeout', 'retry', 'attempt', 'session',
+    'client', 'server', 'profile', 'proto', 'udp_in', 'udp_out', 'fail', 'counter', 'retrans', 'threshold', 'reached',
+    'src', 'dst', 'sport', 'dport', 'ttl', 'flags', 'seq', 'ack', 'ack_seq', 'len', 'id', 'mark', 'ifin', 'ifout',
+    'hostname', 'ssid', 'icmp', 'l7proto', 'track_direction', 'fixed_direction', 'connection_proto', 'payload_type']);
+  const logProtocols = wordRe(['tls', 'quic', 'http', 'https', 'tcp', 'udp', 'ip4', 'ip6']);
+  const logWarnWords = wordRe(['retrans', 'threshold', 'reached', 'timeout', 'retry', 'watchdog', 'netwatch']);
+  const logErrorWords = wordRe(['failed', 'error', 'fatal', 'critical', 'ошибка', 'ошибки', 'упал', 'отсутствуют']);
+  const looksLikeDomain = s => /[A-Za-z]/.test(s) && s.includes('.') && !s.includes('..');
+  const log = {start: () => ({}), token: st => {
+    if(st.peek() === ':' || st.peek() === '='){ st.next(); return 'operator'; }
+    if(st.sol()){
+      if(st.match(/^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\]/)) return 'atom';
+      if(st.match(/^\d{2}\.\d{2}\.\d{4}\s+\d{2}:\d{2}:\d{2}/)) return 'atom';
+      if(st.match(/^\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}(?:\.\d+)?Z?/)) return 'atom';
+      if(st.match(/^\d{2}:\d{2}:\d{2}/)) return 'atom';
+    }
+    if(st.peek() === '['){ st.next(); st.eatWhile(/[^\]]/); if(st.peek() === ']') st.next(); return 'bracket'; }
+    if(st.peek() === '('){ st.next(); st.eatWhile(/[^)]/); if(st.peek() === ')') st.next(); return 'comment'; }
+    if(st.match(/^(<==|==>|<=>|<=|>=|=>|=<)/)) return 'operator';
+    if(st.match(/^\d+\.\d+\.\d+\.\d+(?::\d+)?/)) return 'number';
+    if(st.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i)) return 'string-2';
+    if(st.match(/^[0-9a-f]{12,}(?![A-Za-z0-9_.-])/i)) return 'string-2';
+    if(st.match(/^\d+\/\d+/)) return 'number';
+    if(st.match(/^\d+(?![A-Za-z0-9_.-])/)) return 'number';
+    if(st.match(/^0x[0-9a-f]+/i)) return 'number';
+    const ch = st.next();
+    if(ch === undefined) return null;
+    st.eatWhile(/[\w\-./Ѐ-ӿ]/);
+    const cur = st.current();
+    if(st.peek() === '=') return 'def';
+    if(logLevels.test(cur)){
+      if(/^(ERROR|FATAL|CRITICAL)$/i.test(cur)) return 'error';
+      if(/^WARN/i.test(cur)) return 'warning';
+      if(/^(DEBUG|TRACE)$/i.test(cur)) return 'comment';
+      return 'tag';
+    }
+    if(logProtocols.test(cur)) return 'typeName';
+    if(logErrorWords.test(cur)) return 'error';
+    if(logWarnWords.test(cur)) return 'warning';
+    if(logKeywords.test(cur)) return 'def';
+    if(looksLikeDomain(cur)) return 'string-2';
+    return null;
+  }};
+  return {conf, list, log};
+})();
+function highlight(text, lang){
+  const mode = HL[lang];
+  if(!mode) return esc(text);
+  const state = mode.start();
+  let out = '';
+  for(const line of text.split('\n')){
+    const st = new SStream(line);
+    let guard = 0;
+    while(!st.eol() && guard++ < 4000){
+      st.start = st.pos;
+      if(st.eatSpace()){ out += esc(st.current()); continue; }
+      const style = mode.token(st, state);
+      if(st.pos === st.start) st.next();
+      const txt = esc(st.current());
+      out += style ? '<span class="tk-' + style + '">' + txt + '</span>' : txt;
+    }
+    if(!st.eol()) out += esc(line.slice(st.pos));
+    out += '\n';
+  }
+  return out;
 }
 
 /* ══ Full-screen dialog: редактор ════════════════════════════════════════
    Ошибка сохранения не закрывает редактор: правки остаются на месте.
-   Закрытие с несохранёнными правками спрашивает подтверждение. */
-let editorCtx = null, editorReturnFocus = null;
+   Закрытие с несохранёнными правками спрашивает подтверждение.
+   Подсветка — слой <pre> под прозрачным текстом textarea; для больших
+   файлов (ipset.list и т. п.) она выключается, чтобы не тормозил ввод. */
+const HL_LIMIT = 150000;
+let editorCtx = null, editorReturnFocus = null, hlFrame = 0;
+function highlightEditor(){
+  hlFrame = 0;
+  const ta = $('panel-editor-text'), pre = $('ce-hl'), box = $('code-edit');
+  const lang = editorCtx && editorCtx.lang;
+  const on = !!lang && !ta.readOnly && ta.value.length <= HL_LIMIT;
+  box.classList.toggle('plain', !on);
+  if(!on){ pre.textContent = ''; return; }
+  pre.innerHTML = highlight(ta.value, lang) + ' ';
+  pre.scrollTop = ta.scrollTop; pre.scrollLeft = ta.scrollLeft;
+}
+$('panel-editor-text').addEventListener('input', () => { if(!hlFrame) hlFrame = requestAnimationFrame(highlightEditor); });
+$('panel-editor-text').addEventListener('scroll', () => {
+  const ta = $('panel-editor-text'), pre = $('ce-hl');
+  pre.scrollTop = ta.scrollTop; pre.scrollLeft = ta.scrollLeft;
+}, {passive: true});
+
 function openSlideEditor(type, key){
-  if(type === 'conf') openEditorWith({target: 'conf', title: 'nfqws2.conf',
-    hint: 'Конфиг проверяется на устройстве: при ошибке сохранение отклоняется. Изменения вступят в силу после перезапуска службы.',
+  if(type === 'conf') openEditorWith({target: 'conf', title: 'nfqws2.conf', lang: 'conf',
+    hint: t('Конфиг проверяется на устройстве: при ошибке сохранение отклоняется. Изменения вступят в силу после перезапуска службы.'),
     load: ['get-conf']});
-  else if(type === 'list') openEditorWith({target: 'list', key, title: key + '.list',
-    hint: 'По одной записи на строку. Строки с # игнорируются.', load: ['get-list', key]});
-  else if(type === 'apps') openEditorWith({target: 'list', key: 'apps', title: 'apps.list',
-    hint: 'Имена пакетов по одному на строку, например com.example.app.', load: ['get-list', 'apps']});
+  else if(type === 'list') openEditorWith({target: 'list', key, title: key + '.list', lang: 'list',
+    hint: t('По одной записи на строку. Строки с # игнорируются.'), load: ['get-list', key]});
+  else if(type === 'apps') openEditorWith({target: 'list', key: 'apps', title: 'apps.list', lang: 'list',
+    hint: t('Имена пакетов по одному на строку, например com.example.app.'), load: ['get-list', 'apps']});
 }
 async function openEditorWith(o){
   editorCtx = o;
-  const t = $('panel-editor-text');
+  const ta = $('panel-editor-text');
   $('panel-title-text').textContent = o.title;
   $('panel-hint').textContent = o.hint;
   $('panel-hint').className = 'helper';
   $('panel-save-btn').disabled = !!o.load;
-  $('panel-save-btn').textContent = o.saveLabel || 'Сохранить';
-  t.value = o.load ? 'Загрузка…' : o.text;
-  t.readOnly = !!o.load;
+  $('panel-save-btn').textContent = o.saveLabel || t('Сохранить');
+  $('panel-pending').hidden = !(o.target === 'list' && pendingLists().includes(o.key));
+  ta.placeholder = o.target === 'list' ? '' : t('# Конфигурация…');
+  ta.value = o.load ? t('Загрузка…') : o.text;
+  ta.readOnly = !!o.load;
+  ta.scrollTop = 0; ta.scrollLeft = 0;
+  highlightEditor();
   editorReturnFocus = document.activeElement;
   $('editor-panel').classList.add('open');
   setBackgroundInert(true);
@@ -2283,25 +2970,26 @@ async function openEditorWith(o){
       setBackgroundInert(false);
       editorCtx = null;
       scheduleSync();
-      toast((r.err || 'Не удалось открыть файл').trim());
+      toast(errText(r, 'Не удалось открыть файл'));
       return;
     }
-    t.value = r.out;
-    t.readOnly = false;
+    ta.value = o.b64 ? unb64(r.out.replace(/\s+/g, '')) : r.out;
+    ta.readOnly = false;
     $('panel-save-btn').disabled = false;
+    highlightEditor();
   }
-  o.original = o.dirty ? null : t.value;
-  t.focus({ preventScroll: true });
+  o.original = o.dirty ? null : ta.value;
+  ta.focus({ preventScroll: true });
 }
 async function closeSlideEditor(force){
   const o = editorCtx;
   if(!force && o && o.original !== $('panel-editor-text').value){
-    const discard = await mdConfirm('Закрыть без сохранения?', 'Изменения в «' + o.title + '» будут потеряны.',
-      {ok: 'Закрыть', cancel: 'Продолжить правку'});
+    const discard = await mdConfirm(t('Закрыть без сохранения?'), t('Изменения в «{0}» будут потеряны.', o.title),
+      {ok: t('Закрыть'), cancel: t('Продолжить правку')});
     if(!discard) return;
   }
   $('editor-panel').classList.remove('open');
-  setBackgroundInert(false);
+  if(!openSheetId) setBackgroundInert(false);
   if(editorReturnFocus && editorReturnFocus.focus) editorReturnFocus.focus({ preventScroll: true });
   editorReturnFocus = null;
   editorCtx = null;
@@ -2312,29 +3000,43 @@ $('panel-save-btn').onclick = async () => {
   if(!o) return;
   const val = $('panel-editor-text').value;
   if(o.target === 'import-new'){
-    if(!val.trim()){ toast('Вставьте текст конфига'); return; }
-    const name = await mdPrompt('Имя конфига', 'Можно по-русски. Слэши, кавычки и $ будут убраны.', 'import', 'Имя');
+    if(!val.trim()){ toast(t('Вставьте текст конфига')); return; }
+    const name = await mdPrompt(t('Имя конфига'), t('Можно по-русски. Слэши, кавычки и $ будут убраны.'), 'import', t('Имя'));
     if(!name) return;
     const ri = await withBusy(['import-add-b64', b64(name), b64(val)]);
     if(ri.code){
-      $('panel-hint').textContent = (ri.err || 'Конфиг отклонён').trim();
+      $('panel-hint').textContent = errText(ri, 'Конфиг отклонён');
       $('panel-hint').className = 'helper err';
-      toast('Конфиг отклонён');
+      toast(t('Конфиг отклонён'));
       return;
     }
     closeSlideEditor(true);
     showImportMsg('');
-    toast('Импортировано');
+    toast(t('Импортировано'));
     loadImports();
     return;
   }
-  const r = o.target === 'conf'
-    ? await withBusy(['save-conf-b64', b64(val)])
-    : await withBusy(['save-list-b64', o.key, b64(val)], 30000);
-  if(r.code){ toast((r.err || 'Сохранение отклонено').trim()); return; }
+  let r;
+  if(o.target === 'conf') r = await withBusy(['save-conf-b64', b64(val)]);
+  else if(o.target === 'strategy') r = await withBusy(['strategy-save-b64', o.key, b64(val)]);
+  else r = await withBusy(['save-list-b64', o.key, b64(val)], 30000);
+  if(r.code){
+    $('panel-hint').textContent = errText(r, 'Сохранение отклонено');
+    $('panel-hint').className = 'helper err';
+    toast(errText(r, 'Сохранение отклонено'));
+    return;
+  }
   closeSlideEditor(true);
-  if(o.target === 'conf') toast('Конфиг сохранён', S.running ? {label: 'Перезапустить', fn: restartSvc} : null);
-  else toast(o.key + '.list сохранён');
+  if(o.target === 'conf'){
+    toast(t('Конфиг сохранён'), S.running ? {label: t('Перезапустить'), fn: restartSvc} : null);
+    if(currentPage === 'config') checkConfModified();
+  } else if(o.target === 'strategy'){
+    await loadStrategies();
+    renderStrategyRow();
+    if(openSheetId === 'strategy-sheet'){ const l = $('strategy-list'), top = l.scrollTop; renderStrategyList(false); l.scrollTop = top; }
+    toast(t('Стратегия «{0}» сохранена', strategyName(o.key)),
+      o.key === currentStrategy ? {label: t('Применить'), fn: () => applyStrategy(o.key)} : null);
+  } else toast(t('{0} сохранён', o.title));
   stat();
   // Список правили вручную мимо togglePkg() — кэш выбранных приложений устарел.
   if(o.key === 'apps') appsCache = null;
@@ -2348,37 +3050,39 @@ const APP_MODES = [
   ['exclude', 'Все, кроме выбранных', 'Выбранные приложения идут напрямую']
 ];
 async function appsInit(){
-  await stat();
   renderAppModes();
   if(pkgs.length) drawPk(); else loadPk();
+  await stat(true);
+  renderAppModes();
 }
 function renderAppModes(){
   const cur = S.app_mode || 'off';
-  $('amode-list').innerHTML = APP_MODES.map(([v, label, hint]) =>
+  setHTML('amode-list', APP_MODES.map(([v, label, hint]) =>
     '<label class="list-item two-line clickable state' + (v === cur ? ' selected' : '') + '">' +
       '<input type="radio" class="radio" name="amode" value="' + v + '"' + (v === cur ? ' checked' : '') +
         ' onchange="setAppMode(this.value)">' +
-      '<span class="li-text"><span class="li-primary">' + label + '</span><span class="li-secondary">' + hint + '</span></span>' +
-    '</label>').join('');
+      '<span class="li-text"><span class="li-primary">' + esc(t(label)) + '</span><span class="li-secondary">' + esc(t(hint)) + '</span></span>' +
+    '</label>').join(''), false);
   const n = (S.counts || {}).apps || 0;
   $('apps-info').textContent = cur === 'off'
-    ? 'Фильтр выключен. Выбрано приложений: ' + n + '.'
-    : 'Фильтр включён. Выбрано приложений: ' + n + (S.app_uids > 0 ? ', UID найдено: ' + S.app_uids : '') + '.';
+    ? t('Фильтр выключен. Выбрано приложений: {0}.', n)
+    : t('Фильтр включён. Выбрано приложений: {0}.', n) + (S.app_uids > 0 ? ' ' + t('UID найдено: {0}.', S.app_uids) : '');
 }
 async function setAppMode(v){
   const r = await withBusy(['set', 'APP_MODE', v], 30000);
-  toast(r.code ? (r.err || 'Не удалось сменить режим').trim() : 'Режим фильтра сохранён');
+  toast(r.code ? errText(r, 'Не удалось сменить режим') : t('Режим фильтра сохранён'));
   await stat();
   renderAppModes();
 }
 async function loadPk(){
   clearTimeout(pkTimer);   // отменяем отложенную перерисовку от старого ввода
   $('pk').innerHTML = '<div class="list-item"><span class="spinner"></span>' +
-    '<span class="li-text"><span class="li-secondary">Загрузка списка приложений…</span></span></div>';
+    '<span class="li-text"><span class="li-secondary">' + esc(t('Загрузка списка приложений…')) + '</span></span></div>';
+  $('pk')._html = null;
   const r = await ctlx(['list-apps'], 30000);
   pkgs = r.code ? [] : r.out.split('\n').map(s => s.trim()).filter(Boolean);
-  if(r.code) toast((r.err || 'Не удалось получить список приложений').trim());
-  await drawPk();
+  if(r.code) toast(errText(r, 'Не удалось получить список приложений'));
+  await drawPk(true);
 }
 /* Список выбранных приложений кэшируется. drawPk() — обработчик oninput у поля
    поиска, и без кэша каждая нажатая буква запускала отдельный шелл: на телефоне
@@ -2397,20 +3101,20 @@ async function getAppsList(){
 let pkTimer = null;
 function pkSearchInput(){
   clearTimeout(pkTimer);
-  pkTimer = setTimeout(drawPk, 180);
+  pkTimer = setTimeout(() => drawPk(false), 180);
 }
-async function drawPk(){
+async function drawPk(animate){
   const f = $('pf').value.toLowerCase();
   const s = await getAppsList();
   const shown = pkgs.filter(p => p.toLowerCase().includes(f));
-  $('pk-count').textContent = 'Найдено ' + shown.length + ' из ' + pkgs.length + ', выбрано ' + s.size +
-    (shown.length > 120 ? '. Показаны первые 120, уточните поиск' : '');
-  $('pk').innerHTML = shown.slice(0, 120).map(p =>
+  $('pk-count').textContent = t('Найдено {0} из {1}, выбрано {2}', shown.length, pkgs.length, s.size) +
+    (shown.length > 120 ? '. ' + t('Показаны первые 120, уточните поиск') : '');
+  setHTML('pk', shown.slice(0, 120).map(p =>
     '<label class="list-item clickable state' + (s.has(p) ? ' selected' : '') + '">' +
       '<input type="checkbox" class="checkbox" data-pkg="' + esc(p) + '"' + (s.has(p) ? ' checked' : '') + '>' +
       '<span class="li-text"><span class="li-primary li-mono">' + esc(p) + '</span></span>' +
     '</label>').join('') ||
-    '<div class="list-item"><span class="li-text"><span class="li-secondary">Ничего не найдено</span></span></div>';
+    '<div class="list-item"><span class="li-text"><span class="li-secondary">' + esc(t('Ничего не найдено')) + '</span></span></div>', !!animate);
   $('pk').querySelectorAll('input[data-pkg]').forEach(cb => {
     cb.onchange = () => togglePkg(cb.getAttribute('data-pkg'), cb.checked);
   });
@@ -2421,67 +3125,126 @@ async function togglePkg(p, want){
   // актуален и перечитывать список после сохранения не нужно.
   if(want) s.add(p); else s.delete(p);
   const r = await withBusy(['save-list-b64', 'apps', b64([...s].join('\n'))], 30000);
-  if(r.code) toast((r.err || 'Не удалось сохранить').trim(), {label: 'Повторить', fn: () => togglePkg(p, want)});
-  else toast((want ? 'Добавлено: ' : 'Убрано: ') + p);
-  await drawPk();
-  await stat();
+  if(r.code) toast(errText(r, 'Не удалось сохранить'), {label: t('Повторить'), fn: () => togglePkg(p, want)});
+  else toast((want ? t('Добавлено: {0}', p) : t('Убрано: {0}', p)));
+  await drawPk(false);
+  await stat(true);
   renderAppModes();
 }
 
-/* ══ ТЕСТИРОВАНИЕ ════════════════════════════════════════════════════════ */
-async function probe(u){
-  const t0 = performance.now(), c = new AbortController(), m = setTimeout(() => c.abort(), 6000);
-  try {
-    await fetch('https://' + u + (u.includes('?') ? '&' : '?') + '_=' + Date.now(),
-      {mode: 'no-cors', cache: 'no-store', signal: c.signal});
-    return performance.now() - t0;
-  } catch(e) { return null; } finally { clearTimeout(m); }
+/* ══ ПРОВЕРКА ДОСТУПНОСТИ ════════════════════════════════════════════════
+   Раньше адреса открывались через fetch() из WebView. Это давало неверную
+   картину: (1) три попытки и «Проверить снова» шли по уже открытому
+   HTTP/2-соединению из пула браузера — после смены стратегии проверялось
+   старое соединение, а не новое; (2) трафик WebView идёт от UID менеджера,
+   и при фильтре «только выбранные приложения» он не попадал в обход.
+   Теперь проверка выполняется на устройстве (probe-all): каждая попытка —
+   новое TLS-соединение, а на время проверки её трафик проходит через обход
+   так же, как трафик выбранных приложений. WebView — только запасной путь,
+   если на устройстве нет ни curl, ни busybox wget с TLS. */
+const PROBE_REASON = {dns: 'DNS не отвечает', reset: 'Соединение сброшено', timeout: 'Нет ответа',
+  tls: 'Ошибка TLS', refused: 'Соединение отклонено', other: 'Ошибка'};
+let testRunning = false;
+function testInit(){
+  $('test-desc').textContent = t('Каждый адрес из probe_hosts.list открывается с устройства три раза, каждый раз новым соединением. Зелёный — прошли все попытки, жёлтый — часть, красный — ни одной.');
+  stat(true).then(renderTestWarn);
+  renderTestWarn();
+}
+function renderTestWarn(){
+  let w = '';
+  if(S.running === false) w += banner('', 'info', S.paused
+    ? t('Служба на паузе в домашней Wi‑Fi: проверяется прямое соединение, без обхода.')
+    : t('Служба остановлена: проверяется прямое соединение, без обхода.'));
+  setHTML('test-warn', w, false);
+}
+function testRow(i, h){
+  return '<div class="list-item two-line" id="trow' + i + '">' +
+    '<span class="status info" id="ti' + i + '"><span class="spinner" style="width:14px;height:14px;"></span></span>' +
+    '<span class="li-text"><span class="li-primary li-mono truncate">' + esc(h) + '</span>' +
+      '<span class="li-secondary" id="ts' + i + '">' + esc(t('Проверка…')) + '</span></span>' +
+    '<span class="li-trail li-value" id="tr' + i + '">…</span>' +
+  '</div>';
+}
+function finishTestRow(i, res){
+  const ok = res.filter(x => x.ok), n = res.length;
+  const badge = $('ti' + i);
+  if(!badge) return;
+  badge.className = 'status ' + (ok.length === n ? 'ok' : (ok.length ? 'warn' : 'bad'));
+  badge.innerHTML = icon(ok.length === n ? 'check' : (ok.length ? 'warn' : 'close'), 's16');
+  $('tr' + i).textContent = ok.length + '/' + n;
+  const reasons = [...new Set(res.filter(x => !x.ok).map(x => t(PROBE_REASON[x.reason] || PROBE_REASON.other)))];
+  $('ts' + i).textContent = (ok.length ? t('{0} мс в среднем', Math.round(ok.reduce((a, x) => a + x.ms, 0) / ok.length)) : '') +
+    (ok.length && reasons.length ? ' · ' : '') + reasons.join(', ');
 }
 async function runTest(){
+  if(testRunning) return;
+  testRunning = true;
   $('tb').disabled = true;
-  $('tb').innerHTML = '<span class="spinner"></span>Проверка идёт';
+  $('tb').innerHTML = '<span class="spinner"></span><span>' + esc(t('Проверка идёт')) + '</span>';
+  $('test-empty').hidden = true;
+  setHTML('tr', '', false);
+  await stat(true);
+  renderTestWarn();
+  const hosts = [], res = {};
+  let tool = '';
+  const onLine = l => {
+    const p = l.split('\t');
+    if(p[0] === 'tool') tool = p[1];
+    else if(p[0] === 'H'){ hosts[+p[1]] = p[2]; res[p[1]] = []; $('tr').insertAdjacentHTML('beforeend', testRow(p[1], p[2])); }
+    else if(p[0] === 'R' && res[p[1]]){
+      const v = (p[3] || '').split(' ');
+      res[p[1]].push(v[0] === 'ok' ? {ok: true, ms: +v[1] || 0} : {ok: false, reason: v[1] || 'other'});
+      $('tr' + p[1]).textContent = res[p[1]].filter(x => x.ok).length + '/' + res[p[1]].length;
+      if(res[p[1]].length === 3) finishTestRow(p[1], res[p[1]]);
+    }
+  };
+  const r = await ctlx(['probe-all'], 120000, onLine);
+  if(tool === 'none' || (r.code && !hosts.length)) await runTestWebView();
+  else {
+    Object.keys(res).forEach(i => { if(res[i].length < 3) finishTestRow(i, res[i].length ? res[i] : [{ok: false, reason: 'timeout'}]); });
+    if(!hosts.length){ $('test-empty').hidden = false; $('test-empty-title').textContent = t('probe_hosts.list пуст'); }
+  }
+  testRunning = false;
+  $('tb').disabled = false;
+  $('tb').innerHTML = icon('play', 's18') + '<span>' + esc(t('Проверить снова')) + '</span>';
+}
+/* Запасной путь: fetch из WebView. Результат приблизительный — об этом
+   говорит баннер; уникальный параметр хотя бы обходит кэш. */
+async function probeFetch(u){
+  const t0 = performance.now(), c = new AbortController(), m = setTimeout(() => c.abort(), 6000);
+  try {
+    await fetch('https://' + u + (u.includes('?') ? '&' : '?') + '_=' + Date.now() + Math.random(),
+      {mode: 'no-cors', cache: 'no-store', credentials: 'omit', signal: c.signal});
+    return {ok: true, ms: performance.now() - t0};
+  } catch(e) { return {ok: false, reason: c.signal.aborted ? 'timeout' : 'reset'}; } finally { clearTimeout(m); }
+}
+async function runTestWebView(){
+  setHTML('test-warn', $('test-warn').innerHTML + banner('', 'warn',
+    t('На устройстве нет curl или busybox wget с TLS — проверка идёт через WebView и показывает лишь приблизительную картину.')), false);
   const r = await ctlx(['get-list', 'probe_hosts']);
   const hosts = (r.code ? '' : r.out).split('\n').map(s => s.trim()).filter(s => s && s[0] !== '#');
-  $('test-empty').hidden = hosts.length > 0;
-  if(!hosts.length) $('test-empty').querySelector('.empty-title').textContent = 'probe_hosts.list пуст';
-  $('tr').innerHTML = hosts.map((h, i) =>
-    '<div class="list-item">' +
-      '<span class="status info" id="ti' + i + '"><span class="spinner" style="width:14px;height:14px;"></span></span>' +
-      '<span class="li-text"><span class="li-primary li-mono truncate">' + esc(h) + '</span></span>' +
-      '<span class="li-trail li-value" id="tr' + i + '">…</span>' +
-    '</div>').join('');
+  setHTML('tr', hosts.map((h, i) => testRow(i, h)).join(''), false);
+  if(!hosts.length){ $('test-empty').hidden = false; $('test-empty-title').textContent = t('probe_hosts.list пуст'); }
   await Promise.all(hosts.map(async (h, i) => {
-    let ok = 0, sum = 0;
-    for(let k = 0; k < 3; k++){ const t = await probe(h); if(t != null){ ok++; sum += t; } }
-    const badge = $('ti' + i);
-    badge.className = 'status ' + (ok === 3 ? 'ok' : (ok > 0 ? 'warn' : 'bad'));
-    badge.innerHTML = icon(ok === 3 ? 'check' : (ok > 0 ? 'warn' : 'close'), 's16');
-    $('tr' + i).textContent = ok + '/3' + (ok ? ', ' + Math.round(sum / ok) + ' мс' : '');
+    const out = [];
+    for(let k = 0; k < 3; k++) out.push(await probeFetch(h));
+    finishTestRow(i, out);
   }));
-  $('tb').disabled = false;
-  $('tb').innerHTML = icon('play', 's18') + 'Проверить снова';
 }
 
 /* ══ ДИАГНОСТИКА ═════════════════════════════════════════════════════════ */
 function diagInit(){ doctor(); loadArgs(); }
 async function doctor(){
-  $('doc').innerHTML = '<div class="list-item"><span class="spinner"></span>' +
-    '<span class="li-text"><span class="li-secondary">Проверка ядра и правил…</span></span></div>';
+  setHTML('doc', '<div class="list-item"><span class="spinner"></span>' +
+    '<span class="li-text"><span class="li-secondary">' + esc(t('Проверка ядра и правил…')) + '</span></span></div>', false);
   const r = await ctlx(['doctor'], 30000);
-  const map = {ok: ['ok', 'check'], warn: ['warn', 'warn'], fail: ['bad', 'error'], info: ['info', 'info']};
-  $('doc').innerHTML = (r.code ? '' : r.out).trim().split('\n').filter(Boolean).map(l => l.split('\t')).map(([s, n, d]) => {
-    const m = map[s] || map.info;
-    return '<div class="list-item two-line">' +
-      '<span class="status ' + m[0] + '">' + icon(m[1], 's16') + '</span>' +
-      '<span class="li-text"><span class="li-primary">' + esc(n || '') + '</span>' +
-      '<span class="li-secondary">' + esc(d || '') + '</span></span></div>';
-  }).join('') || '<div class="list-item"><span class="li-text"><span class="li-secondary">' +
-    esc(r.code ? (r.err || 'Проверка не удалась').trim() : 'Нет данных') + '</span></span></div>';
+  setHTML('doc', statusRows(r.code ? '' : r.out) || '<div class="list-item"><span class="li-text"><span class="li-secondary">' +
+    esc(r.code ? errText(r, 'Проверка не удалась') : t('Нет данных')) + '</span></span></div>');
 }
 async function loadArgs(){
-  $('args').textContent = 'Загрузка…';
+  $('args').textContent = t('Загрузка…');
   const r = await ctlx(['get-logs', 'args', '5']);
-  $('args').textContent = (r.code ? (r.err || 'Нет данных') : r.out).trim() || 'Служба ещё не запускалась';
+  $('args').textContent = (r.code ? errText(r, 'Нет данных') : r.out).trim() || t('Служба ещё не запускалась');
 }
 async function copyArgs(){
   const text = $('args').textContent;
@@ -2496,9 +3259,199 @@ async function copyArgs(){
     try { ok = document.execCommand('copy'); } catch(e2) {}
     ta.remove();
   }
-  toast(ok ? 'Аргументы скопированы' : 'Не удалось скопировать: выделите текст вручную');
+  toast(ok ? t('Аргументы скопированы') : t('Не удалось скопировать: выделите текст вручную'));
 }
 
+/* ══ НАСТРОЙКИ ═══════════════════════════════════════════════════════════
+   Как настройки Android: группы с заголовком, у каждой строки — пояснение. */
+function settingsRow(o){
+  return '<div class="list-item two-line' + (o.on ? ' clickable state" role="button" tabindex="0"' +
+      (o.menu ? ' aria-haspopup="menu"' : '') + ' onclick="' + o.on + '"' : '"') + '>' +
+    '<span class="li-icon">' + icon(o.icon, 's24') + '</span>' +
+    '<span class="li-text"><span class="li-primary">' + esc(t(o.title)) + '</span>' +
+      '<span class="li-secondary">' + esc(o.sub) + '</span></span>' +
+    (o.value ? '<span class="li-trail li-value">' + esc(o.value) + '</span>' : '') +
+    (o.chevron ? '<span class="li-trail">' + icon('chevron-right', 's24') + '</span>' : '') +
+  '</div>';
+}
+function renderSettings(){
+  const homeN = S.home_wifi == 1 ? t('Включено') : t('Выключено');
+  const groups = [
+    ['Работа', [
+      {icon: 'home', title: 'Домашняя Wi‑Fi', sub: t('Пауза обхода в домашних сетях') + ' · ' + homeN, on: "navigate('wifi')", chevron: true}
+    ]],
+    ['Инструменты', [
+      {icon: 'apps', title: 'Фильтр приложений', sub: t('Обход только для выбранных приложений или для всех, кроме них'), on: "navigate('apps')", chevron: true},
+      {icon: 'test', title: 'Проверка доступности', sub: t('Открывает адреса из probe_hosts.list через обход'), on: "navigate('test')", chevron: true},
+      {icon: 'medical', title: 'Диагностика', sub: t('Ядро, правила iptables и аргументы запуска'), on: "navigate('diag')", chevron: true}
+    ]],
+    ['Резервная копия', [
+      {icon: 'download', title: 'Создать копию', sub: t('Конфиг, списки, стратегии и оформление — архивом в Download'), on: 'createBackup()'},
+      {icon: 'upload', title: 'Восстановить из копии', sub: t('Выбрать архив из Download'), on: 'openBackupSheet()'}
+    ]],
+    ['Оформление', [
+      {icon: 'palette', title: 'Тема оформления', sub: t('Светлая, тёмная, AMOLED и цвет акцента'), on: 'openMonetModal()'},
+      {icon: 'translate', title: 'Язык', sub: LANG === 'en' ? 'English' : 'Русский', on: 'pickLanguage(this)', menu: true}
+    ]],
+    ['О модуле', [
+      {icon: 'info', title: 'nfqws2 for Android', sub: (S.version || '—') + ' · ' + t('удерживайте номер версии на главном экране, чтобы открыть параметры для разработчика'), on: ''}
+    ]]
+  ];
+  setHTML('settings-body', groups.map(([title, rows]) =>
+    '<div class="stack"><h2 class="subhead">' + esc(t(title)) + '</h2><div class="list">' + rows.map(settingsRow).join('') + '</div></div>').join(''), false);
+}
+function pickLanguage(anchor){
+  openMenu(anchor, [['ru', 'Русский'], ['en', 'English']].map(([k, label]) => ({
+    label, icon: k === LANG ? 'check' : '', onClick: () => setLanguage(k)
+  })));
+}
+function setLanguage(l){
+  if(l === LANG) return;
+  LANG = l;
+  store.set('nfq_lang', l);
+  rerenderAll();
+}
+/* Смена языка без перезагрузки: статические узлы переводятся по data-t,
+   динамические перерисовываются, видимый экран дочитывает свои данные. */
+function rerenderAll(){
+  translateStatic();
+  renderAppBar(currentPage, false);
+  renderStatus();
+  renderStrategyRow();
+  renderMode(); renderListFiles();
+  renderLogChips();
+  drawThemeUI();
+  if(currentPage === 'settings') renderSettings();
+  if(currentPage === 'apps'){ renderAppModes(); drawPk(false); }
+  if(currentPage === 'wifi') renderWifi();
+  if(currentPage === 'test') testInit();
+  if(currentPage === 'diag') diagInit();
+  if(currentPage === 'logs') loadLog();
+  if(currentPage === 'config'){ loadImports(); checkConfModified(); }
+}
+
+/* ══ ДОМАШНЯЯ WI-FI ══════════════════════════════════════════════════════ */
+let homeList = [], currentSsid = '';
+async function wifiInit(){
+  renderWifi();
+  const [r1, r2] = await Promise.all([ctlx(['get-list', 'home']), ctlx(['wifi-ssid'])]);
+  homeList = (r1.code ? '' : r1.out).split('\n').map(s => s.replace(/\r$/, '')).filter(s => s.trim() && s.trim()[0] !== '#');
+  currentSsid = r2.code ? '' : r2.out.replace(/\n+$/, '');
+  await stat(true);
+  renderWifi();
+}
+function renderWifi(){
+  const on = S.home_wifi == 1;
+  $('wifi-toggle').checked = on;
+  $('wifi-main').classList.toggle('on', on);
+  $('wifi-body').classList.toggle('is-disabled', !on);
+  $('wifi-body').inert = !on;
+  setHTML('wifi-suggest', on && currentSsid && !homeList.includes(currentSsid)
+    ? '<div class="suggest">' + icon('wifi', 's24') +
+        '<span class="grow">' + esc(t('Сейчас телефон подключён к «{0}». Добавить эту сеть в домашние?', currentSsid)) + '</span>' +
+        '<button class="btn tonal sm state" onclick="addHome(' + jsArg(currentSsid) + ')">' + esc(t('Добавить')) + '</button></div>'
+    : '', true);
+  setHTML('wifi-list', homeList.length ? homeList.map(s =>
+    '<div class="list-item">' +
+      '<span class="li-icon plain">' + icon('wifi', 's24') + '</span>' +
+      '<span class="li-text"><span class="li-primary truncate">' + esc(s) + '</span>' +
+        (s === currentSsid ? '<span class="li-secondary">' + esc(t('Подключено сейчас')) + '</span>' : '') + '</span>' +
+      '<button class="icon-btn sm state" aria-label="' + esc(t('Убрать сеть {0}', s)) + '" onclick="removeHome(' + jsArg(s) + ')">' +
+        icon('trash', 's20') + '</button>' +
+    '</div>').join('')
+    : '<div class="empty"><span class="empty-icon">' + icon('home', 's24') + '</span><span>' +
+      esc(t('Домашних сетей пока нет. Подключитесь к своей Wi‑Fi — модуль сам предложит её добавить.')) + '</span></div>', false);
+}
+async function saveHomeList(list){
+  const r = await withBusy(['save-list-b64', 'home', b64(list.join('\n') + (list.length ? '\n' : ''))], 30000);
+  if(r.code){ toast(errText(r, 'Не удалось сохранить')); return false; }
+  homeList = list;
+  return true;
+}
+async function addHome(ssid){
+  ssid = String(ssid || '');
+  if(!ssid || homeList.includes(ssid)) return;
+  if(await saveHomeList(homeList.concat([ssid]))){
+    toast(t('«{0}» добавлена в домашние сети', ssid));
+    await stat(true);
+    renderWifi();
+  }
+}
+async function removeHome(ssid){
+  if(await saveHomeList(homeList.filter(s => s !== ssid))){
+    toast(t('«{0}» убрана из домашних сетей', ssid));
+    await stat(true);
+    renderWifi();
+  }
+}
+async function addHomeManual(){
+  const v = await mdPrompt(t('Добавить сеть'), t('Имя сети (SSID) в точности как в настройках Wi‑Fi.'), currentSsid && !homeList.includes(currentSsid) ? currentSsid : '', 'SSID',
+    {ok: t('Добавить')});
+  if(v) addHome(v);
+}
+async function setHomeWifi(on){
+  const r = await withBusy(['set', 'HOME_WIFI', on ? '1' : '0'], 40000);
+  if(r.code){ toast(errText(r, 'Не удалось сохранить')); $('wifi-toggle').checked = !on; return; }
+  await stat(true);
+  renderWifi();
+  // Умное предложение: функцию включили, телефон уже в Wi‑Fi, а сеть ещё не в списке.
+  if(on && currentSsid && !homeList.includes(currentSsid)){
+    const ok = await mdConfirm(t('Это домашняя сеть?'),
+      t('Сейчас телефон подключён к «{0}». Добавить её в домашние — тогда в ней обход будет вставать на паузу.', currentSsid),
+      {ok: t('Добавить'), cancel: t('Не сейчас'), iconName: 'home'});
+    if(ok) addHome(currentSsid);
+  }
+}
+
+/* ══ РЕЗЕРВНАЯ КОПИЯ ═════════════════════════════════════════════════════ */
+const UI_KEYS = ['m3_seed', 'm3_mode', 'm3_amoled', 'nfq_lang', 'nfq_dev'];
+async function createBackup(){
+  const ui = {};
+  UI_KEYS.forEach(k => { const v = store.get(k); if(v != null) ui[k] = v; });
+  const r = await withBusy(['backup-create', b64(JSON.stringify(ui))], 60000);
+  toast(r.code ? errText(r, 'Не удалось создать копию') : t('Копия сохранена: {0}', r.out.trim().split('/').pop()));
+}
+async function openBackupSheet(){
+  setHTML('backup-list', '<div class="list-item"><span class="spinner"></span><span class="li-text"><span class="li-secondary">' +
+    esc(t('Поиск копий…')) + '</span></span></div>', false);
+  openSheet('backup-sheet');
+  const r = await ctlx(['backup-list']);
+  const rows = (r.code ? '' : r.out).split('\n').filter(Boolean).map(l => l.split('\t'));
+  setHTML('backup-list', rows.length ? rows.map(([name, size]) => {
+    const m = name.match(/(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})/);
+    const when = m ? m[3] + '.' + m[2] + '.' + m[1] + ' ' + m[4] + ':' + m[5] : name;
+    return '<div class="list-item two-line clickable state" role="button" tabindex="0" onclick="restoreBackup(' + jsArg(name) + ')">' +
+      '<span class="li-icon">' + icon('upload', 's24') + '</span>' +
+      '<span class="li-text"><span class="li-primary">' + esc(when) + '</span>' +
+        '<span class="li-secondary li-mono truncate">' + esc(name) + ' · ' + Math.max(1, Math.round((+size || 0) / 1024)) + ' KB</span></span>' +
+    '</div>';
+  }).join('') : '<div class="empty"><span class="empty-icon">' + icon('download', 's24') + '</span><span>' +
+    esc(t('В папке Download нет копий nfqws2-backup-*.tar.')) + '</span></div>');
+}
+async function restoreBackup(name){
+  if(!await mdConfirm(t('Восстановить копию?'), t('Конфиг, пользовательские списки, стратегии и оформление будут заменены содержимым «{0}».', name),
+    {ok: t('Восстановить'), danger: true})) return;
+  closeSheet();
+  const r = await withBusy(['backup-restore', name], 90000);
+  if(r.code){ toast(errText(r, 'Не удалось восстановить копию')); return; }
+  const raw = r.out.trim().split('\n')[0];
+  if(raw){
+    try {
+      const ui = JSON.parse(unb64(raw));
+      UI_KEYS.forEach(k => { if(ui[k] != null) store.set(k, String(ui[k])); });
+      LANG = store.get('nfq_lang') === 'en' ? 'en' : 'ru';
+      devMode = store.get('nfq_dev') === '1';
+      currentMode = store.get('m3_mode') || 'auto';
+      const sd = (store.get('m3_seed') || '').toLowerCase();
+      if(/^#[0-9a-f]{6}$/.test(sd)) currentSeed = sd;
+      applyTheme();
+    } catch(e) {}
+  }
+  await stat();
+  await initStrategySelector();
+  rerenderAll();
+  toast(t('Копия восстановлена'));
+}
 /* ══ Тема: генератор цветовых ролей M3 из seed ═══════════════════════════ */
 function hexToRgb(hex){
   hex = String(hex).replace('#', '');
@@ -2703,7 +3656,7 @@ const ROLE_VAR = {
 };
 function applyTheme(){
   const dark = isDark();
-  const amoled = localStorage.getItem('m3_amoled') === 'true' && dark;
+  const amoled = store.get('m3_amoled') === 'true' && dark;
   const R = roles(currentSeed, dark, amoled);
   // Палитра уходит в <style id="theme-vars">, а не инлайном на documentElement.
   // Инлайн-стиль нельзя переопределить из CSS — ни правилом компонента, ни
@@ -2720,35 +3673,35 @@ function applyTheme(){
   drawThemeUI();
 }
 function drawThemeUI(){
-  $('theme-mode').innerHTML = [['auto', 'Авто'], ['light', 'Светлая'], ['dark', 'Тёмная']].map(m =>
+  $('theme-mode').innerHTML = [['auto', t('Авто')], ['light', t('Светлая')], ['dark', t('Тёмная')]].map(m =>
     '<button class="seg state' + (currentMode === m[0] ? ' on' : '') + '" aria-pressed="' + (currentMode === m[0]) +
-    '" onclick="setThemeMode(' + jsArg(m[0]) + ')"><span class="check">' + icon('check', 's18') + '</span>' + m[1] + '</button>').join('');
+    '" onclick="setThemeMode(' + jsArg(m[0]) + ')"><span class="check">' + icon('check', 's18') + '</span>' + esc(m[1]) + '</button>').join('');
   const dark = isDark();
   $('palette-grid').innerHTML = PALETTES.map(p => {
     const r = roles(p[1], dark, false);
     return '<button class="swatch state" style="background:' + r.primaryContainer + ';color:' + r.onPrimaryContainer + '"' +
       ' aria-pressed="' + (p[1].toLowerCase() === currentSeed) + '"' +
-      ' onclick="applyMonet(' + jsArg(p[1]) + ')">' + p[0] + '</button>';
+      ' onclick="applyMonet(' + jsArg(p[1]) + ')">' + esc(t(p[0])) + '</button>';
   }).join('');
-  $('amoled-toggle').checked = localStorage.getItem('m3_amoled') === 'true';
+  $('amoled-toggle').checked = store.get('m3_amoled') === 'true';
   $('amoled-toggle').disabled = !dark;
   $('custom-hex-input').value = currentSeed.replace('#', '').toUpperCase();
   $('custom-swatch').style.background = currentSeed;
 }
 function setThemeMode(m){
   currentMode = m;
-  localStorage.setItem('m3_mode', m);
+  store.set('m3_mode', m);
   applyTheme();
 }
 function applyMonet(seedHex, quiet){
   if(!/^#[0-9a-fA-F]{6}$/.test(seedHex)) return;
   currentSeed = seedHex.toLowerCase();
-  localStorage.setItem('m3_seed', currentSeed);
+  store.set('m3_seed', currentSeed);
   applyTheme();
   if(!quiet) closeMonetModal();
 }
 function toggleAmoled(on){
-  localStorage.setItem('m3_amoled', on ? 'true' : 'false');
+  store.set('m3_amoled', on ? 'true' : 'false');
   applyTheme();
 }
 function colorHex(){
@@ -2793,16 +3746,16 @@ function onHexInput(val){
 function applyCustomHex(){
   let val = $('custom-hex-input').value.trim().replace('#', '');
   if(val.length === 3) val = val.split('').map(x => x + x).join('');
-  if(!/^[0-9a-fA-F]{6}$/.test(val)){ toast('Введите 6-значный HEX'); return; }
+  if(!/^[0-9a-fA-F]{6}$/.test(val)){ toast(t('Введите 6-значный HEX')); return; }
   applyMonet('#' + val, true);
-  toast('Цвет применён: #' + val.toUpperCase());
+  toast(t('Цвет применён: {0}', '#' + val.toUpperCase()));
 }
 function resetTheme(){
-  ['m3_seed', 'm3_mode', 'm3_amoled'].forEach(k => localStorage.removeItem(k));
+  ['m3_seed', 'm3_mode', 'm3_amoled'].forEach(k => store.del(k));
   currentMode = 'auto';
   currentSeed = systemSeed();
   applyTheme();
-  toast('Тема сброшена к системной');
+  toast(t('Тема сброшена к системной'));
 }
 async function detectSystemMonet(showToastNotice){
   const r = await sh(`
@@ -2833,19 +3786,361 @@ async function detectSystemMonet(showToastNotice){
   }
   if(!hex) hex = systemSeed();
   applyMonet(hex, true);
-  if(showToastNotice) toast('Акцент с обоев: ' + hex.toUpperCase());
+  if(showToastNotice) toast(t('Акцент с обоев: {0}', hex.toUpperCase()));
 }
+/* ══ Словарь EN: ключ — русская строка интерфейса ═══════════════════════ */
+EN = {
+ "Таймаут": "Timeout",
+ "Нет моста ksu.exec": "No ksu.exec bridge",
+ "Повторить": "Retry",
+ "ОК": "OK",
+ "Отмена": "Cancel",
+ "Значение": "Value",
+ "Сохранить": "Save",
+ "Списки": "Lists",
+ "Журналы": "Logs",
+ "Обновить журнал": "Refresh log",
+ "Конфигурация": "Configuration",
+ "Настройки": "Settings",
+ "Домашняя Wi‑Fi": "Home Wi‑Fi",
+ "Фильтр приложений": "App filter",
+ "Обновить список приложений": "Refresh app list",
+ "Проверка доступности": "Reachability check",
+ "Диагностика": "Diagnostics",
+ "Проверить снова": "Check again",
+ "Режим разработчика включён": "Developer options enabled",
+ "Режим разработчика выключен": "Developer options disabled",
+ "д": "d",
+ "Базовая": "Base",
+ "Авторские": "Community",
+ "Пользовательские": "Custom",
+ "По умолчанию": "Default",
+ "изменена": "modified",
+ "Текущая": "Current",
+ "Изменена": "Modified",
+ "Импорт": "Import",
+ "Сбросить «{0}» к исходнику": "Reset “{0}” to original",
+ "Сбросить к исходнику": "Reset to original",
+ "Редактировать «{0}»": "Edit “{0}”",
+ "Редактировать": "Edit",
+ "Применить и перезапустить": "Apply and restart",
+ "Применить": "Apply",
+ "Не удалось применить стратегию": "Could not apply the strategy",
+ "Стратегия «{0}» применится при следующем запуске": "Strategy “{0}” will be used on the next start",
+ "Правка сохраняется отдельно от встроенной стратегии: исходник можно вернуть кнопкой сброса.": "Your edit is stored separately from the built-in strategy: the original can be restored with the reset button.",
+ "Сбросить «{0}»?": "Reset “{0}”?",
+ "Ваши правки стратегии будут удалены, вернётся версия из релиза.": "Your edits will be removed and the release version restored.",
+ "Сбросить": "Reset",
+ "Не удалось сбросить": "Could not reset",
+ "Стратегия «{0}» сброшена": "Strategy “{0}” reset",
+ "Автозапуск при загрузке": "Start on boot",
+ "Обрабатывать IPv6": "Process IPv6",
+ "Блокировать QUIC": "Block QUIC",
+ "Контроль работы": "Watchdog",
+ "Не давать телефону спать": "Keep the phone awake",
+ "Исходящие пакеты": "Outgoing packets",
+ "Сколько первых пакетов соединения обрабатывать": "How many first packets of a connection to process",
+ "Входящие пакеты": "Incoming packets",
+ "Сколько первых ответных пакетов обрабатывать": "How many first reply packets to process",
+ "Запуск…": "Starting…",
+ "Остановка…": "Stopping…",
+ "Перезапуск…": "Restarting…",
+ "Остановить": "Stop",
+ "Запустить": "Start",
+ "Служба работает": "Service is running",
+ "Пауза": "Paused",
+ "Служба остановлена": "Service is stopped",
+ "лимит connbytes": "connbytes limit",
+ "лимит connmark": "connmark limit",
+ "Домашняя Wi‑Fi «{0}». Обход возобновится, когда телефон уйдёт из этой сети.": "Home Wi‑Fi “{0}”. Bypass resumes once the phone leaves this network.",
+ "Режим": "Mode",
+ "стратегия": "strategy",
+ "Ядро сбросило {0} пакетов: nfqws2 не успевает обрабатывать очередь {1}.": "The kernel dropped {0} packets: nfqws2 can't keep up with queue {1}.",
+ "Включён подробный журнал отладки: обработка заметно медленнее.": "Verbose debug log is on: processing is noticeably slower.",
+ "Нет связи с модулем": "No connection to the module",
+ "Проверьте root-доступ и наличие {0}": "Check root access and that {0} exists",
+ "(пустой ответ)": "(empty response)",
+ "Не удалось сохранить": "Could not save",
+ "Применится после перезапуска службы": "Takes effect after a service restart",
+ "Сохранено": "Saved",
+ "Перезапустить": "Restart",
+ "Целое число от 1 до 15.": "Whole number from 1 to 15.",
+ "Пакетов на соединение": "Packets per connection",
+ "Нужно целое число от 1 до 15": "Enter a whole number from 1 to 15",
+ "Служба запущена": "Service started",
+ "Служба перезапущена": "Service restarted",
+ "Команда не выполнена": "Command failed",
+ "Обходит домены из user.list и сам добавляет в auto.list те, что оказались заблокированы.": "Bypasses domains from user.list and adds blocked ones to auto.list on its own.",
+ "Обходит только домены из user.list.": "Bypasses only domains from user.list.",
+ "Обходит всё, кроме доменов из exclude.list.": "Bypasses everything except domains from exclude.list.",
+ "Выученные автоматически": "Learned automatically",
+ "Домены для обхода": "Domains to bypass",
+ "Домены-исключения": "Excluded domains",
+ "IP-адреса и подсети для обхода": "IP addresses and subnets to bypass",
+ "IP-исключения": "Excluded IPs",
+ "Адреса для проверки доступности": "Addresses for the reachability check",
+ "Доступна новая версия из релиза": "A newer release version is available",
+ "Доступна новая версия списка": "A newer version of the list is available",
+ "Обновить {0}.list?": "Update {0}.list?",
+ "В новой версии модуля этот список обновился, а у вас он изменён. Заменить ваш список версией из релиза? Ваши правки будут потеряны.": "This list was updated in the new module version, but you have edited yours. Replace it with the release version? Your edits will be lost.",
+ "Заменить": "Replace",
+ "Не удалось обновить список": "Could not update the list",
+ "{0}.list обновлён": "{0}.list updated",
+ "Не удалось сменить режим": "Could not change the mode",
+ "Режим: {0}": "Mode: {0}",
+ "Очистить auto.list?": "Clear auto.list?",
+ "Выученные автоматически домены будут удалены.": "Automatically learned domains will be removed.",
+ "Очистить": "Clear",
+ "Не удалось очистить": "Could not clear",
+ "auto.list очищен": "auto.list cleared",
+ "Не удалось добавить": "Could not add",
+ "Добавлено: {0}": "Added: {0}",
+ "Вернуть стандартные списки?": "Restore default lists?",
+ "Правки в user, exclude, ipset и probe_hosts будут удалены.": "Edits in user, exclude, ipset and probe_hosts will be removed.",
+ "Вернуть": "Restore",
+ "Не удалось вернуть списки": "Could not restore the lists",
+ "Списки возвращены к стандартным": "Lists restored to defaults",
+ "Краткая статистика": "Summary",
+ "Служба": "Service",
+ "Процесс": "Process",
+ "Автообучение": "Auto-learning",
+ "Отладка": "Debug",
+ "Журнал: {0}": "Log: {0}",
+ "Показывать строк: {0}": "Lines to show: {0}",
+ "{0} строк": "{0} lines",
+ "Ошибки": "Errors",
+ "Не удалось прочитать журнал": "Could not read the log",
+ "Нет данных": "No data",
+ "Журнал пуст": "Log is empty",
+ "Не удалось сохранить журналы": "Could not save the logs",
+ "Журналы сохранены в {0}": "Logs saved to {0}",
+ "Очистить журналы?": "Clear logs?",
+ "service.log, nfqws2.log, отладочный и журнал автообучения будут обнулены.": "service.log, nfqws2.log, the debug and auto-learning logs will be emptied.",
+ "Журналы очищены": "Logs cleared",
+ "Отменить ручные правки и вернуть стратегию «{0}»": "Discard manual edits and restore strategy “{0}”",
+ "Сбросить конфиг?": "Reset the config?",
+ "Ручные правки nfqws2.conf будут отменены, вернётся стратегия «{0}». Прежний конфиг сохранится как .bak.": "Manual edits to nfqws2.conf will be discarded and strategy “{0}” restored. The previous config is kept as .bak.",
+ "Конфиг сброшен": "Config reset",
+ "Действия с конфигом {0}": "Actions for config {0}",
+ "Импортированные конфиги появятся здесь и в выборе стратегии, в группе «Пользовательские».": "Imported configs appear here and in the strategy picker, in the “Custom” group.",
+ "Применить как стратегию": "Apply as strategy",
+ "Открыть": "Open",
+ "Переименовать": "Rename",
+ "Удалить": "Delete",
+ "Импорт не найден": "Import not found",
+ "Предпросмотр импорта с вашими настройками Android. «Сохранить» заменит nfqws2.conf.": "Import preview with your Android settings. “Save” replaces nfqws2.conf.",
+ "Переименовать конфиг": "Rename config",
+ "Слэши, кавычки и $ будут убраны.": "Slashes, quotes and $ will be removed.",
+ "Имя": "Name",
+ "Не удалось переименовать": "Could not rename",
+ "Переименовано": "Renamed",
+ "Удалить «{0}»?": "Delete “{0}”?",
+ "Файл импорта будет удалён безвозвратно.": "The import file will be deleted permanently.",
+ "Удалено": "Deleted",
+ "расширение не подходит ({0})": "unsupported extension ({0})",
+ "отклонён": "rejected",
+ "Импортировано: {0}": "Imported: {0}",
+ "отклонено: {0}": "rejected: {0}",
+ "Новый импорт": "New import",
+ "Импортировать": "Import",
+ "Вставьте конфиг nfqws2-keenetic целиком. Перед сохранением модуль проверит, что это действительно он.": "Paste a whole nfqws2-keenetic config. The module checks that it really is one before saving.",
+ "Конфиг проверяется на устройстве: при ошибке сохранение отклоняется. Изменения вступят в силу после перезапуска службы.": "The config is checked on the device: saving is rejected on errors. Changes take effect after a service restart.",
+ "По одной записи на строку. Строки с # игнорируются.": "One entry per line. Lines starting with # are ignored.",
+ "Имена пакетов по одному на строку, например com.example.app.": "Package names, one per line, e.g. com.example.app.",
+ "# Конфигурация…": "# Configuration…",
+ "Загрузка…": "Loading…",
+ "Не удалось открыть файл": "Could not open the file",
+ "Закрыть без сохранения?": "Close without saving?",
+ "Изменения в «{0}» будут потеряны.": "Changes to “{0}” will be lost.",
+ "Закрыть": "Close",
+ "Продолжить правку": "Keep editing",
+ "Вставьте текст конфига": "Paste the config text",
+ "Имя конфига": "Config name",
+ "Можно по-русски. Слэши, кавычки и $ будут убраны.": "Any language is fine. Slashes, quotes and $ will be removed.",
+ "Конфиг отклонён": "Config rejected",
+ "Импортировано": "Imported",
+ "Сохранение отклонено": "Save rejected",
+ "Конфиг сохранён": "Config saved",
+ "Стратегия «{0}» сохранена": "Strategy “{0}” saved",
+ "{0} сохранён": "{0} saved",
+ "Выключен": "Off",
+ "Обрабатывается трафик всех приложений": "Traffic of all apps is processed",
+ "Только выбранные": "Selected only",
+ "Трафик раздачи (hotspot) не обрабатывается": "Hotspot traffic is not processed",
+ "Все, кроме выбранных": "All except selected",
+ "Выбранные приложения идут напрямую": "Selected apps go direct",
+ "Фильтр выключен. Выбрано приложений: {0}.": "Filter is off. Apps selected: {0}.",
+ "Фильтр включён. Выбрано приложений: {0}.": "Filter is on. Apps selected: {0}.",
+ "UID найдено: {0}.": "UIDs found: {0}.",
+ "Режим фильтра сохранён": "Filter mode saved",
+ "Загрузка списка приложений…": "Loading the app list…",
+ "Не удалось получить список приложений": "Could not get the app list",
+ "Найдено {0} из {1}, выбрано {2}": "Found {0} of {1}, selected {2}",
+ "Показаны первые 120, уточните поиск": "Showing the first 120, refine your search",
+ "Ничего не найдено": "Nothing found",
+ "Убрано: {0}": "Removed: {0}",
+ "DNS не отвечает": "DNS not responding",
+ "Соединение сброшено": "Connection reset",
+ "Нет ответа": "No response",
+ "Ошибка TLS": "TLS error",
+ "Соединение отклонено": "Connection refused",
+ "Ошибка": "Error",
+ "Каждый адрес из probe_hosts.list открывается с устройства три раза, каждый раз новым соединением. Зелёный — прошли все попытки, жёлтый — часть, красный — ни одной.": "Each address from probe_hosts.list is opened from the device three times, each time over a new connection. Green — all attempts passed, yellow — some, red — none.",
+ "Служба на паузе в домашней Wi‑Fi: проверяется прямое соединение, без обхода.": "The service is paused on home Wi‑Fi: the direct connection is checked, without bypass.",
+ "Служба остановлена: проверяется прямое соединение, без обхода.": "The service is stopped: the direct connection is checked, without bypass.",
+ "Проверка…": "Checking…",
+ "{0} мс в среднем": "{0} ms on average",
+ "Проверка идёт": "Checking",
+ "probe_hosts.list пуст": "probe_hosts.list is empty",
+ "На устройстве нет curl или busybox wget с TLS — проверка идёт через WebView и показывает лишь приблизительную картину.": "There is no curl or busybox wget with TLS on the device — the check runs through WebView and is only approximate.",
+ "Проверка ядра и правил…": "Checking the kernel and rules…",
+ "Проверка не удалась": "Check failed",
+ "Служба ещё не запускалась": "The service has not been started yet",
+ "Аргументы скопированы": "Arguments copied",
+ "Не удалось скопировать: выделите текст вручную": "Could not copy: select the text manually",
+ "Включено": "On",
+ "Выключено": "Off",
+ "Работа": "Operation",
+ "Пауза обхода в домашних сетях": "Pause bypass on home networks",
+ "Инструменты": "Tools",
+ "Обход только для выбранных приложений или для всех, кроме них": "Bypass only for selected apps, or for all except them",
+ "Открывает адреса из probe_hosts.list через обход": "Opens addresses from probe_hosts.list through the bypass",
+ "Ядро, правила iptables и аргументы запуска": "Kernel, iptables rules and launch arguments",
+ "Резервная копия": "Backup",
+ "Создать копию": "Create backup",
+ "Конфиг, списки, стратегии и оформление — архивом в Download": "Config, lists, strategies and appearance — as an archive in Download",
+ "Восстановить из копии": "Restore from backup",
+ "Выбрать архив из Download": "Pick an archive from Download",
+ "Оформление": "Appearance",
+ "Тема оформления": "Theme",
+ "Светлая, тёмная, AMOLED и цвет акцента": "Light, dark, AMOLED and accent color",
+ "Язык": "Language",
+ "Русский": "Русский",
+ "О модуле": "About",
+ "удерживайте номер версии на главном экране, чтобы открыть параметры для разработчика": "long-press the version number on the main screen to open developer options",
+ "Сейчас телефон подключён к «{0}». Добавить эту сеть в домашние?": "The phone is connected to “{0}”. Add this network to home networks?",
+ "Добавить": "Add",
+ "Подключено сейчас": "Connected now",
+ "Убрать сеть {0}": "Remove network {0}",
+ "Домашних сетей пока нет. Подключитесь к своей Wi‑Fi — модуль сам предложит её добавить.": "No home networks yet. Connect to your Wi‑Fi and the module will offer to add it.",
+ "«{0}» добавлена в домашние сети": "“{0}” added to home networks",
+ "«{0}» убрана из домашних сетей": "“{0}” removed from home networks",
+ "Добавить сеть": "Add network",
+ "Имя сети (SSID) в точности как в настройках Wi‑Fi.": "Network name (SSID) exactly as in Wi‑Fi settings.",
+ "Это домашняя сеть?": "Is this your home network?",
+ "Сейчас телефон подключён к «{0}». Добавить её в домашние — тогда в ней обход будет вставать на паузу.": "The phone is connected to “{0}”. Add it to home networks so the bypass pauses there.",
+ "Не сейчас": "Not now",
+ "Не удалось создать копию": "Could not create a backup",
+ "Копия сохранена: {0}": "Backup saved: {0}",
+ "Поиск копий…": "Looking for backups…",
+ "В папке Download нет копий nfqws2-backup-*.tar.": "No nfqws2-backup-*.tar backups in Download.",
+ "Восстановить копию?": "Restore this backup?",
+ "Конфиг, пользовательские списки, стратегии и оформление будут заменены содержимым «{0}».": "Config, custom lists, strategies and appearance will be replaced with the contents of “{0}”.",
+ "Восстановить": "Restore",
+ "Не удалось восстановить копию": "Could not restore the backup",
+ "Копия восстановлена": "Backup restored",
+ "Сирень": "Lilac",
+ "Лаванда": "Lavender",
+ "Сакура": "Sakura",
+ "Циан": "Cyan",
+ "Изумруд": "Emerald",
+ "Янтарь": "Amber",
+ "Коралл": "Coral",
+ "Авто": "Auto",
+ "Светлая": "Light",
+ "Тёмная": "Dark",
+ "Введите 6-значный HEX": "Enter a 6-digit HEX",
+ "Цвет применён: {0}": "Color applied: {0}",
+ "Тема сброшена к системной": "Theme reset to system",
+ "Акцент с обоев: {0}": "Wallpaper accent: {0}",
+ "Время работы": "Uptime",
+ "Очередь": "Queue",
+ "Потери": "Drops",
+ "Стратегия обхода": "Bypass strategy",
+ "Параметры": "Options",
+ "Для разработчика": "Developer",
+ "Режим обработки": "Processing mode",
+ "Добавить домен": "Add domain",
+ "Домен": "Domain",
+ "Домен попадёт в user.list.": "The domain goes to user.list.",
+ "Файлы": "Files",
+ "Обслуживание": "Maintenance",
+ "Очистить auto.list": "Clear auto.list",
+ "Удалить домены, выученные автоматически": "Remove automatically learned domains",
+ "Вернуть стандартные списки": "Restore default lists",
+ "Правки в user, exclude, ipset и probe_hosts будут удалены": "Edits in user, exclude, ipset and probe_hosts will be removed",
+ "Экспорт в Download": "Export to Download",
+ "Очистить журналы": "Clear logs",
+ "Подробный журнал отладки": "Verbose debug log",
+ "Замедляет обработку пакетов, включайте только на время диагностики": "Slows packet processing, enable only while diagnosing",
+ "Действующий конфиг": "Active config",
+ "Открыть редактор": "Open editor",
+ "Импорт конфигов nfqws2-keenetic": "Import nfqws2-keenetic configs",
+ "Файлы .txt, .conf, .bat, .ini или вставленный текст. Можно выбрать несколько файлов сразу.": ".txt, .conf, .bat, .ini files or pasted text. Several files can be selected at once.",
+ "Выбрать файлы": "Choose files",
+ "Вставить текст": "Paste text",
+ "Пауза в домашней Wi‑Fi": "Pause on home Wi‑Fi",
+ "В сетях из списка обход ставится на паузу и сам возобновляется, когда телефон из них уходит. Запустить службу вручную можно в любой момент — до смены сети она останется включённой.": "On the listed networks the bypass is paused and resumes by itself once the phone leaves them. You can start the service manually at any time — it stays on until the network changes.",
+ "Домашние сети": "Home networks",
+ "Добавить сеть вручную": "Add network manually",
+ "Режим фильтра": "Filter mode",
+ "Установленные приложения": "Installed apps",
+ "Редактировать список вручную": "Edit the list manually",
+ "Запустить проверку": "Run check",
+ "Проверка ещё не запускалась": "No check has been run yet",
+ "Результаты по каждому адресу появятся здесь.": "Results for each address will appear here.",
+ "Ядро и правила": "Kernel and rules",
+ "Аргументы запуска": "Launch arguments",
+ "Копировать": "Copy",
+ "Состояние": "Status",
+ "Конфиг": "Config",
+ "Выбранная стратегия заменит nfqws2.conf, прежний сохранится как .bak. Ваши переключатели, режим списков и фильтр приложений сохранятся.": "The selected strategy replaces nfqws2.conf, the previous one is kept as .bak. Your switches, list mode and app filter are kept.",
+ "Копии ищутся в папке Download. Текущие настройки, пользовательские списки и стратегии будут заменены.": "Backups are looked up in Download. Current settings, custom lists and strategies will be replaced.",
+ "Режим цвета": "Color mode",
+ "Чёрный фон AMOLED": "AMOLED black background",
+ "Только в тёмной теме": "Dark theme only",
+ "Готовые палитры": "Palettes",
+ "Свой цвет": "Custom color",
+ "Из одного цвета строятся все роли M3: основной, контейнеры, поверхности, контуры.": "All M3 roles are derived from one color: primary, containers, surfaces, outlines.",
+ "Применить цвет": "Apply color",
+ "Цвет обоев": "Wallpaper color",
+ "Выберите цвет": "Pick a color",
+ "Тон": "Hue",
+ "Насыщенность": "Saturation",
+ "Светлота": "Lightness",
+ "Выбрать": "Select",
+ "Назад": "Back",
+ "Выполняется запрос к службе": "Talking to the service",
+ "Перезапустить службу": "Restart service",
+ "Режим обработки доменов": "Domain processing mode",
+ "например, youtube.com": "e.g. youtube.com",
+ "Параметры журнала": "Log options",
+ "Содержимое журнала": "Log contents",
+ "Приложения": "Apps",
+ "Поиск приложений": "Search apps",
+ "Разделы": "Sections",
+ "Закрыть редактор": "Close editor",
+ "Текст файла": "File text",
+ "Стратегии": "Strategies",
+ "Открыть выбор цвета": "Open color picker"
+};
+
 /* ══ Init ════════════════════════════════════════════════════════════════ */
-currentMode = localStorage.getItem('m3_mode') || 'auto';
-const savedSeed = (localStorage.getItem('m3_seed') || '').toLowerCase();
+currentMode = store.get('m3_mode') || 'auto';
+const savedSeed = (store.get('m3_seed') || '').toLowerCase();
 currentSeed = /^#[0-9a-f]{6}$/.test(savedSeed) ? savedSeed : systemSeed();
 applyTheme();
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if(currentMode === 'auto') applyTheme(); });
+translateStatic();
 renderNavBar('control');
 renderAppBar('control', false);
 renderLogChips();
-stat();
-initStrategySelector();
+renderParams({});
+(async () => {
+  await detectSpawn();
+  await stat();
+  initStrategySelector();
+})();
 </script>
 </body>
 </html>

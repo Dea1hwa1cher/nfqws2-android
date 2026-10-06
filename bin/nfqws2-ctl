@@ -28,6 +28,7 @@ list_file() {
     auto|auto.list) echo "$LISTS_DIR/auto.list" ;;
     probe_hosts|probe_hosts.list) echo "$LISTS_DIR/probe_hosts.list" ;;
     apps|apps.list) echo "$CONFDIR/apps.list" ;;
+    home|home_wifi.list) echo "$HOME_FILE" ;;
     *) return 1 ;;
   esac
 }
@@ -42,60 +43,78 @@ set_conf_param() {   # только однострочные значения
   chmod 0644 "$CONFFILE"
 }
 
-current_mode() {
-  grep -m1 '^NFQWS_EXTRA_ARGS=' "$CONFFILE" 2>/dev/null | grep -o 'MODE_[A-Z]*' | head -n1 | sed 's/MODE_//' | tr 'A-Z' 'a-z'
-}
-
-json_str() { printf '%s' "$1" | tr -d '"\\'; }
+json_str() { printf '%s' "$1" | tr -d '"\\' | tr -d '\000-\037'; }
 
 # Код возврата этой функции — последний в ветках save-conf-b64/set/set-mode, поэтому if, а не &&:
 # иначе сохранение успешного конфига выходило бы с 1, когда служба остановлена, и WebUI считал его ошибкой.
 need_restart_note() { if is_running; then echo "Изменения применятся после перезапуска службы"; fi; }
 
+# Строка на стратегию: имя <TAB> вид (builtin|user|import) <TAB> 1, если
+# встроенная стратегия отредактирована и отличается от исходника.
 list_strategies() {
+  local f n kind mod
   for f in "$STRATEGIES_DIR"/*.conf "$USER_STRATEGIES_DIR"/*.conf; do
     [ -f "$f" ] || continue
     basename "$f" .conf
-  done | sort -u
+  done | sort -u | while IFS= read -r n; do
+    [ -n "$n" ] || continue
+    kind=user; mod=0
+    if [ -f "$STRATEGIES_DIR/$n.conf" ]; then
+      kind=builtin
+      if [ -f "$USER_STRATEGIES_DIR/$n.conf" ]; then
+        # Правка, совпавшая с исходником, — уже не правка: убираем копию, чтобы
+        # кнопка сброса не появлялась без причины.
+        if strategy_modified "$n"; then mod=1; else rm -f "$USER_STRATEGIES_DIR/$n.conf"; fi
+      fi
+    fi
+    printf '%s\t%s\t%s\n' "$n" "$kind" "$mod"
+  done
+  list_imports | while IFS= read -r n; do
+    [ -n "$n" ] && printf 'imp:%s\timport\t0\n' "$n"
+  done
 }
 
 get_current_strategy() {
-  cat "$STATE_DIR/active_strategy" 2>/dev/null || echo "default"
+  cat "$ACTIVE_FILE" 2>/dev/null || echo "default"
+}
+
+# Готовый nfqws2.conf для стратегии: её текст плюс настройки пользователя из
+# действующего конфига (USER_KEYS в lib/common.sh).
+build_strategy_conf() { # <имя> <файл-результат>
+  local raw="$STATE_DIR/strat_raw.$$"
+  render_strategy "$1" > "$raw" 2>/dev/null || { rm -f "$raw"; return 1; }
+  [ -s "$raw" ] || { rm -f "$raw"; return 1; }
+  if [ -f "$CONFFILE" ]; then merge_user_keys "$raw" "$CONFFILE" > "$2"; else cp -f "$raw" "$2"; fi
+  rm -f "$raw"
 }
 
 set_strategy() {
-  local name="$1"
-  if [ "$name" = "default" ] || [ -z "$name" ]; then
-    cp -f "$CONFFILE" "$CONFFILE.bak" 2>/dev/null
-    cp -f "$MODDIR/defaults/nfqws2.conf" "$CONFFILE"
-    echo "default" > "$STATE_DIR/active_strategy"
-    echo "Применена стратегия: default"
-    return 0
-  fi
-
-  local src="$STRATEGIES_DIR/$name.conf"
-  [ -f "$src" ] || src="$USER_STRATEGIES_DIR/$name.conf"
-  if [ ! -f "$src" ]; then
+  local name="${1:-default}" tmp="$STATE_DIR/strat_apply.tmp"
+  case "$name" in default) ;; imp:*) strategy_name_ok "${name#imp:}" || { echo "Некорректное имя" >&2; return 1; } ;;
+    *) strategy_name_ok "$name" || { echo "Некорректное имя" >&2; return 1; } ;; esac
+  if [ "$name" != "default" ] && ! strategy_file "$name" >/dev/null; then
     echo "Стратегия '$name' не найдена" >&2
     return 1
   fi
-
-  local tmp="$STATE_DIR/strat_apply.tmp"
-  rewrite_keenetic_paths < "$src" \
-    | sed -e 's#^[[:space:]]*ISP_INTERFACE=.*#ISP_INTERFACE=""#' \
-          -e 's#^[[:space:]]*USER=.*#NFQWS_USER=root#' > "$tmp"
-
-  if validate_conf "$tmp" >/dev/null 2>&1; then
-    cp -f "$CONFFILE" "$CONFFILE.bak" 2>/dev/null
-    mv -f "$tmp" "$CONFFILE"
-    chmod 0644 "$CONFFILE"
-    echo "$name" > "$STATE_DIR/active_strategy"
-    echo "Применена стратегия: $name"
-  else
+  if ! build_strategy_conf "$name" "$tmp" || ! validate_conf "$tmp" >/dev/null 2>&1; then
     echo "Ошибка валидации стратегии '$name'" >&2
     rm -f "$tmp"
     return 1
   fi
+  cp -f "$CONFFILE" "$CONFFILE.bak" 2>/dev/null
+  mv -f "$tmp" "$CONFFILE"
+  chmod 0644 "$CONFFILE"
+  echo "$name" > "$ACTIVE_FILE"
+  echo "Применена стратегия: ${name#imp:}"
+}
+
+# 1 — действующий конфиг отличается от того, что дала бы повторная установка
+# текущей стратегии; 0 — совпадает. Кнопка «Сбросить» в WebUI видна только при 1.
+conf_modified() {
+  local tmp="$STATE_DIR/conf_cmp.$$" r=1
+  if build_strategy_conf "$(get_current_strategy)" "$tmp" && cmp -s "$tmp" "$CONFFILE"; then r=0; fi
+  rm -f "$tmp"
+  echo "$r"
 }
 
 cmd_json_status() {
@@ -126,8 +145,10 @@ cmd_json_status() {
   # обоим наборам аргументов на КАЖДЫЙ вызов, — плюс всегда пустой preset.
   # Ни одно из этих полей интерфейс не читал. Если диагностика по стратегиям
   # понадобится, её стоит отдавать отдельной командой, а не в статусе.
-  local ver cur_strat
+  local ver cur_strat paused pending
   ver=$(sed -n 's/^version=//p' "$MODDIR/module.prop" | head -n1)
+  paused=$(cat "$HOME_PAUSED_FILE" 2>/dev/null)
+  pending=$(ls "$LISTS_PENDING_DIR" 2>/dev/null | sed -n 's/\.list$//p' | tr '\n' ',' | sed 's/,$//')
   cur_strat=$(get_current_strategy)
   local qdrop
   qdrop=$(awk -v q="$NFQUEUE_NUM" '$1 == q { print $6 + $7; f = 1 } END { if (!f) print 0 }' /proc/net/netfilter/nfnetlink_queue 2>/dev/null)
@@ -141,7 +162,7 @@ cmd_json_status() {
   cnt_apps=$(list_count "$CONFDIR/apps.list" 2>/dev/null)
   # нечисловое значение обваливает весь JSON и убивает WebUI, поэтому проверяем каждое поле
   for v in appn cnt_user cnt_auto cnt_excl cnt_ipset cnt_ipset_excl cnt_apps uptime qdrop \
-           PKT_LIMIT_OUT PKT_LIMIT_IN BLOCK_QUIC AUTOSTART WATCHDOG IPV6_ENABLED LOG_LEVEL NFQUEUE_NUM WAKELOCK; do
+           PKT_LIMIT_OUT PKT_LIMIT_IN BLOCK_QUIC AUTOSTART WATCHDOG IPV6_ENABLED LOG_LEVEL NFQUEUE_NUM WAKELOCK HOME_WIFI; do
     eval "case \"\${$v}\" in ''|*[!0-9]*) $v=0 ;; esac"
   done
 
@@ -149,6 +170,7 @@ cmd_json_status() {
 {"running":$run,"pid":"$pid","uptime":$uptime,"strategy":"$(json_str "$cur_strat")","version":"$(json_str "$ver")","mode":"$(json_str "$(current_mode)")",
 "limiter":"$(json_str "$(cat "$STATE_DIR/limiter" 2>/dev/null)")","pkt_limit_out":$PKT_LIMIT_OUT,"pkt_limit_in":$PKT_LIMIT_IN,"block_quic":$BLOCK_QUIC,"app_mode":"$(json_str "$APP_MODE")","autostart":$AUTOSTART,"watchdog":$WATCHDOG,"wakelock_on":$WAKELOCK,
 "ipv6":$IPV6_ENABLED,"log_level":$LOG_LEVEL,"qdrop":$qdrop,"queue":$NFQUEUE_NUM,"app_uids":$appn,
+"home_wifi":$HOME_WIFI,"paused":"$(json_str "$paused")","pending":"$(json_str "$pending")",
 "counts":{"user":$cnt_user,"auto":$cnt_auto,"exclude":$cnt_excl,"ipset":$cnt_ipset,"ipset_exclude":$cnt_ipset_excl,"apps":$cnt_apps}}
 JSON
 }
@@ -164,67 +186,72 @@ cmd_status() {
 cmd_doctor() {
   row() { printf '%s\t%s\t%s\n' "$1" "$2" "$3"; }
   local arch
-  [ "$(id -u)" = "0" ] && row ok root "uid 0" || row fail root "нужен root"
+  [ "$(id -u)" = "0" ] && row ok root "uid 0" || row fail root "$(M 'нужен root' 'root required')"
   arch=$(getprop ro.product.cpu.abi 2>/dev/null)
-  row ok abi "$arch, ядро $(uname -r)"
-  [ -x "$NFQWS_BIN" ] && row ok nfqws2 "$(ls -l "$NFQWS_BIN" | awk '{print $5}') байт" || row fail nfqws2 "бинарник не найден или не исполняемый"
-  command -v iptables >/dev/null 2>&1 && row ok iptables "есть" || row fail iptables "не найден"
-  command -v ip6tables >/dev/null 2>&1 && row ok ip6tables "есть" || row warn ip6tables "нет — отключите IPV6_ENABLED"
+  row ok abi "$arch, $(M ядро kernel) $(uname -r)"
+  [ -x "$NFQWS_BIN" ] && row ok nfqws2 "$(ls -l "$NFQWS_BIN" | awk '{print $5}') $(M байт bytes)" \
+    || row fail nfqws2 "$(M 'бинарник не найден или не исполняемый' 'binary is missing or not executable')"
+  command -v iptables >/dev/null 2>&1 && row ok iptables "$(M есть present)" || row fail iptables "$(M 'не найден' 'not found')"
+  command -v ip6tables >/dev/null 2>&1 && row ok ip6tables "$(M есть present)" || row warn ip6tables "$(M 'нет — отключите обработку IPv6' 'missing — turn IPv6 processing off')"
   has_ipt_feature iptables -p tcp --dport 65000 -j NFQUEUE --queue-num "$NFQUEUE_NUM" --queue-bypass \
-    && row ok NFQUEUE "цель NFQUEUE доступна" || row fail NFQUEUE "ядро без NFQUEUE — модуль работать НЕ БУДЕТ"
+    && row ok NFQUEUE "$(M 'цель NFQUEUE доступна' 'NFQUEUE target available')" \
+    || row fail NFQUEUE "$(M 'ядро без NFQUEUE — модуль работать НЕ БУДЕТ' 'kernel has no NFQUEUE — the module will NOT work')"
   has_ipt_feature iptables -p tcp -m multiport --dports 80,443 -j RETURN \
-    && row ok multiport "есть" || row fail multiport "нет xt_multiport"
+    && row ok multiport "$(M есть present)" || row fail multiport "$(M 'нет xt_multiport' 'xt_multiport missing')"
   local lim
   lim=$(detect_limiter iptables)
   case "$lim" in
-    connbytes)   row ok limiter "есть connbytes: обе стороны, лимит исх. $PKT_LIMIT_OUT / вх. $PKT_LIMIT_IN пак. на соединение" ;;
-    connmark_out) row warn limiter "нет connbytes: вход/выход ограничены $PKT_LIMIT_IN/$PKT_LIMIT_OUT пак. на соединение через CONNMARK, обнуляется раз в 20 сек" ;;
+    connbytes)   row ok limiter "$(M "есть connbytes: лимит исх. $PKT_LIMIT_OUT / вх. $PKT_LIMIT_IN пак. на соединение" "connbytes present: limit out $PKT_LIMIT_OUT / in $PKT_LIMIT_IN packets per connection")" ;;
+    connmark_out) row warn limiter "$(M "нет connbytes: лимит вх./исх. $PKT_LIMIT_IN/$PKT_LIMIT_OUT пак. через CONNMARK, обнуляется раз в 20 сек" "no connbytes: in/out limit $PKT_LIMIT_IN/$PKT_LIMIT_OUT packets via CONNMARK, reset every 20 s")" ;;
   esac
   has_ipt_feature iptables -m owner --uid-owner 0 -j RETURN \
-    && row ok owner "фильтр приложений доступен" || row warn owner "нет xt_owner — фильтр приложений не сработает"
+    && row ok owner "$(M 'фильтр приложений доступен' 'app filter available')" \
+    || row warn owner "$(M 'нет xt_owner — фильтр приложений не сработает' 'no xt_owner — app filter will not work')"
   if app_mode_active; then
     local n=$(app_uid_count)
     if [ "$n" = "0" ]; then
-      row warn apps "режим $APP_MODE, но apps.list не разрешился в UID ($(list_count "$CONFDIR/apps.list") пакетов)"
+      row warn apps "$(M "режим $APP_MODE, но apps.list не разрешился в UID ($(list_count "$CONFDIR/apps.list") пакетов)" "mode $APP_MODE, but apps.list resolved to no UID ($(list_count "$CONFDIR/apps.list") packages)")"
     else
-      row ok apps "режим $APP_MODE, $n UID"
+      row ok apps "$(M "режим $APP_MODE, $n UID" "mode $APP_MODE, $n UID")"
     fi
   else
-    row info apps "фильтр по приложениям выключен (APP_MODE=off)"
+    row info apps "$(M 'фильтр по приложениям выключен' 'app filter is off')"
   fi
   if [ -e /proc/sys/net/netfilter/nf_conntrack_checksum ]; then
     local est cnt mx
     est=$(sysctl -n net.netfilter.nf_conntrack_tcp_timeout_established 2>/dev/null)
     cnt=$(sysctl -n net.netfilter.nf_conntrack_count 2>/dev/null)
     mx=$(sysctl -n net.netfilter.nf_conntrack_max 2>/dev/null)
-    row ok conntrack "timeout_established=${est:-?}с, записей ${cnt:-?}/${mx:-?} (на эталонном роутере: 1200с, max 16384)"
+    row ok conntrack "timeout_established=${est:-?}$(M с s), $(M записей entries) ${cnt:-?}/${mx:-?}"
   else
-    row warn conntrack "нет nf_conntrack sysctl"
+    row warn conntrack "$(M 'нет nf_conntrack sysctl' 'no nf_conntrack sysctl')"
   fi
   if is_running; then
     local _pid _cg
     _pid=$(cat "$PIDFILE" 2>/dev/null)
     row ok process "nfqws2 PID $_pid"
     _cg=$(cat "/proc/$_pid/cgroup" 2>/dev/null | tr '\n' ' ')
-    row info cgroup "${_cg:-недоступно}"
+    row info cgroup "${_cg:-$(M недоступно unavailable)}"
+  elif [ -f "$HOME_PAUSED_FILE" ]; then
+    row info process "$(M "пауза: домашняя Wi-Fi «$(cat "$HOME_PAUSED_FILE")»" "paused: home Wi-Fi “$(cat "$HOME_PAUSED_FILE")”")"
   else
-    row info process "не запущен"
+    row info process "$(M 'не запущен' 'not running')"
   fi
   if grep -q "nfqws2-android" /sys/power/wake_lock 2>/dev/null; then
-    row ok wakelock "удерживается"
+    row ok wakelock "$(M удерживается held)"
   elif [ "$WAKELOCK" = "1" ]; then
-    row warn wakelock "включён в настройках, но не удерживается (нет /sys/power/wake_lock?)"
+    row warn wakelock "$(M 'включён в настройках, но не удерживается' 'enabled in settings, but not held')"
   else
-    row info wakelock "выключен (WAKELOCK=0)"
+    row info wakelock "$(M выключен off)"
   fi
   if [ -f "$WN_PIDFILE" ] && kill -0 "$(cat "$WN_PIDFILE" 2>/dev/null)" 2>/dev/null; then
-    row ok netwatch "работает (мгновенная реакция на смену сети через ip monitor)"
-  elif [ "$WATCHDOG" != "1" ]; then
-    row info netwatch "выключен вместе с WATCHDOG"
+    row ok netwatch "$(M 'работает: мгновенная реакция на смену сети' 'running: instant reaction to network changes')"
+  elif [ "$WATCHDOG" != "1" ] && [ "$HOME_WIFI" != "1" ]; then
+    row info netwatch "$(M 'выключен вместе с контролем работы' 'off together with the watchdog')"
   elif command -v ip >/dev/null 2>&1; then
-    row warn netwatch "не запущен — правила обновятся только по watchdog (раз в 20 сек)"
+    row warn netwatch "$(M 'не запущен — правила обновятся только по watchdog (раз в 20 сек)' 'not running — rules are refreshed by the watchdog only (every 20 s)')"
   else
-    row info netwatch "команда ip недоступна — на этой прошивке работает только опрос watchdog"
+    row info netwatch "$(M 'команда ip недоступна — работает только опрос watchdog' 'ip command unavailable — watchdog polling only')"
   fi
   if is_running; then
     local qn
@@ -232,17 +259,16 @@ cmd_doctor() {
     if [ -n "$qn" ]; then
       set -- $qn
       if [ "${6:-0}" -gt 0 ] || [ "${7:-0}" -gt 0 ]; then
-        row fail queue "переполнение очереди: сброшено ядром $6, ошибок доставки $7 — nfqws2 не успевает обрабатывать пакеты"
+        row fail queue "$(M "переполнение очереди: сброшено ядром $6, ошибок доставки $7 — nfqws2 не успевает" "queue overflow: $6 dropped by kernel, $7 delivery errors — nfqws2 can't keep up")"
       else
-        row ok queue "работает, переполнений нет"
+        row ok queue "$(M 'работает, переполнений нет' 'working, no overflows')"
       fi
     else
-      row fail queue "процесс запущен, но НЕ привязан к очереди $NFQUEUE_NUM"
+      row fail queue "$(M "процесс запущен, но НЕ привязан к очереди $NFQUEUE_NUM" "process is running but NOT bound to queue $NFQUEUE_NUM")"
     fi
-    firewall_ok && row ok rules "правила iptables на месте" || row fail rules "правила iptables отсутствуют"
+    firewall_ok && row ok rules "$(M 'правила iptables на месте' 'iptables rules in place')" || row fail rules "$(M 'правила iptables отсутствуют' 'iptables rules are missing')"
   fi
-  if [ "$LOG_LEVEL" = "1" ]; then row warn debug "включён подробный лог nfqws2 — работает заметно медленнее, выключите после диагностики"; fi
-  if [ -f "$LOG_DIR/rollback-diag.txt" ]; then row warn rollback "есть след последнего автоотката — см. Логи → export, файл rollback-diag.txt"; fi
+  if [ "$LOG_LEVEL" = "1" ]; then row warn debug "$(M 'включён подробный журнал — обработка заметно медленнее' 'verbose log is on — processing is noticeably slower')"; fi
 }
 
 cmd_apply_apps() {
@@ -294,14 +320,84 @@ cmd_import_add() { # $1 = имя, $2 = путь к файлу с содержи�
   echo "$(basename "$dst" .conf)"
 }
 
-cmd_get_logs() {
+# Строки, которые фильтр «Ошибки» в WebUI считает ошибками
+ERR_RE='ошибк|не удал|не запуст|упал|отсутству|отклон|error|fail|fatal|denied|refused|cannot|could not|unable'
+
+cmd_get_logs() { # <источник> <строк> [errors]
   local n="${2:-100}" f
   case "$n" in ''|*[!0-9]*) n=100 ;; esac
+  [ "$1" = "summary" ] && { cmd_log_summary; return; }
   case "$1" in
     nfqws) f="$NFQWS_LOG" ;; debug) f="$LOG_DIR/nfqws2-debug.log" ;; auto) f="$LOG_DIR/auto.log" ;;
     args) f="$ARGS_FILE" ;; *) f="$SERVICE_LOG" ;;
   esac
-  [ -s "$f" ] && tail -n "$n" "$f" || echo "(пусто)"
+  if [ ! -s "$f" ]; then echo "$(M '(пусто)' '(empty)')"; return 0; fi
+  if [ "$3" = "errors" ]; then
+    grep -iE "$ERR_RE" "$f" | tail -n "$n" | grep . || echo "$(M '(ошибок нет)' '(no errors)')"
+  else
+    tail -n "$n" "$f"
+  fi
+}
+
+# «Краткая статистика»: главное из service.log и auto.log одной таблицей.
+# Строка: вид (ok|warn|fail|info) <TAB> заголовок <TAB> подробность.
+cmd_log_summary() {
+  local svc="$SERVICE_LOG" auto="$LOG_DIR/auto.log"
+  local L="${NFQWS_LANG:-ru}"
+  if [ -s "$svc" ]; then
+    awk -v L="$L" '
+      function T(ru, en) { return L == "en" ? en : ru }
+      function ts(line,   e) { e = index(line, "]"); return (substr(line, 1, 1) == "[" && e) ? substr(line, 2, e - 2) : "" }
+      function msg(line,   e) { e = index(line, "] "); return (substr(line, 1, 1) == "[" && e) ? substr(line, e + 2) : line }
+      /nfqws2 запущен/        { last_start = ts($0); m = msg($0); pid = ""; if (match(m, /PID [0-9]+/)) pid = substr(m, RSTART, RLENGTH); last_ev = "start" }
+      /nfqws2 остановлен/     { last_stop = ts($0); last_ev = "stop" }
+      /обход приостановлен/   { last_pause = ts($0); last_ev = "pause"; pmsg = msg($0) }
+      /watchdog: nfqws2 упал/ { crash++; last_crash = ts($0) }
+      /netwatch: сеть изменилась/ { net++ }
+      /правила iptables сброшены системой/ { lost++ }
+      /Ошибка|не удался|Не удалось/ { err++; last_err = msg($0); last_err_ts = ts($0) }
+      END {
+        if (last_ev == "start") printf "ok\t%s\t%s\n", T("nfqws2 запущен", "nfqws2 started"), last_start (pid != "" ? " · " pid : "")
+        else if (last_ev == "stop") printf "info\t%s\t%s\n", T("nfqws2 остановлен", "nfqws2 stopped"), last_stop
+        else if (last_ev == "pause") printf "info\t%s\t%s\n", T("Пауза в домашней Wi-Fi", "Paused on home Wi-Fi"), last_pause
+        if (crash) printf "warn\t%s\t%s\n", T("Автоперезапусков: ", "Automatic restarts: ") crash, T("последний ", "last ") last_crash
+        if (net) printf "info\t%s\t%s\n", T("Пересборок правил при смене сети: ", "Rule rebuilds on network change: ") net, ""
+        if (lost) printf "info\t%s\t%s\n", T("Правила восстановлены после сброса системой: ", "Rules restored after a system reset: ") lost, ""
+        if (err) printf "fail\t%s\t%s\n", T("Ошибок в журнале: ", "Errors in the log: ") err, last_err_ts " · " last_err
+        else printf "ok\t%s\t%s\n", T("Ошибок в журнале службы нет", "No errors in the service log"), ""
+      }' "$svc"
+  else
+    printf 'info\t%s\t\n' "$(M 'Журнал службы пуст' 'Service log is empty')"
+  fi
+  if [ -s "$auto" ]; then
+    # Формат nfqws2: [дата : ]хост : profile N (имя) : client … : proto … : событие
+    awk -F ' : ' -v L="$L" '
+      function T(ru, en) { return L == "en" ? en : ru }
+      {
+        i = 1; when = ""
+        if ($1 ~ /^[0-9][0-9]\.[0-9][0-9]\.[0-9]+ [0-9:]+$/) { when = $1; i = 2 }
+        host = $i
+        if (host !~ /\./ || host ~ / /) next
+        ev = $NF
+        if (ev ~ /^fail counter [0-9]+\/[0-9]+/) { split(substr(ev, 14), c, " "); cnt[host] = c[1]; seen[host] = when }
+        else if (ev ~ /^adding to /) { n++; add_host[n] = host; add_when[n] = when; added[host] = 1 }
+        else if (ev ~ /website is working/) { ok++; delete cnt[host] }
+      }
+      END {
+        if (n) printf "info\t%s\t\n", T("Добавлено в auto.list: ", "Added to auto.list: ") n
+        shown = 0
+        for (k = n; k >= 1 && shown < 15; k--) {
+          h = add_host[k]; if (h in printed) continue; printed[h] = 1; shown++
+          printf "ok\t%s\t%s\n", h, T("добавлен в auto.list", "added to auto.list") (h in cnt ? " · " cnt[h] : "") (add_when[k] != "" ? " · " add_when[k] : "")
+        }
+        for (h in cnt) if (!(h in added)) printf "warn\t%s\t%s\n", h, T("неудачных попыток ", "failed attempts ") cnt[h] (seen[h] != "" ? " · " seen[h] : "")
+        if (ok) printf "info\t%s\t\n", T("Сайтов заработало после сбоев: ", "Sites recovered after failures: ") ok
+        nc = 0; for (h in cnt) nc++
+        if (!n && !ok && !nc) printf "info\t%s\t\n", T("Автообучение пока ничего не нашло", "Auto-learning has found nothing yet")
+      }' "$auto"
+  else
+    printf 'info\t%s\t\n' "$(M 'Журнал автообучения пуст' 'Auto-learning log is empty')"
+  fi
 }
 
 cmd_export_logs() {
@@ -316,6 +412,163 @@ cmd_export_logs() {
 
 cmd_list_apps() {
   pm list packages -3 2>/dev/null | sed 's/^package://' | sort
+}
+
+# ---------------------------------------------------------------- резервная копия
+# Архив в Download: конфиг, пользовательские списки (сервисные приходят с
+# релизом и в копию не входят), apps.list, домашние сети, правки стратегий,
+# импорты, активная стратегия и настройки WebUI (ui.json, их передаёт WebUI).
+BACKUP_DIR="${NFQWS_BACKUP_DIR:-/sdcard/Download}"
+BACKUP_LISTS="user exclude ipset ipset_exclude auto probe_hosts"
+tar_cmd() {
+  if command -v tar >/dev/null 2>&1; then tar "$@"; else busybox tar "$@"; fi
+}
+cmd_backup_create() { # [ui.json в base64]
+  local tmp="$STATE_DIR/backup.$$" name f
+  name="nfqws2-backup-$(date '+%Y%m%d-%H%M%S').tar"
+  mkdir -p "$BACKUP_DIR" 2>/dev/null || { echo "Нет доступа к $BACKUP_DIR" >&2; return 1; }
+  rm -rf "$tmp"; mkdir -p "$tmp/lists" "$tmp/strategies" "$tmp/imports" || return 1
+  printf 'nfqws2-backup 1\n%s\n' "$(sed -n 's/^version=//p' "$MODDIR/module.prop" | head -n1)" > "$tmp/BACKUP"
+  cp -f "$CONFFILE" "$tmp/nfqws2.conf" 2>/dev/null
+  for f in $BACKUP_LISTS; do cp -f "$LISTS_DIR/$f.list" "$tmp/lists/" 2>/dev/null; done
+  cp -f "$CONFDIR/apps.list" "$tmp/" 2>/dev/null
+  cp -f "$HOME_FILE" "$tmp/" 2>/dev/null
+  cp -f "$ACTIVE_FILE" "$tmp/" 2>/dev/null
+  cp -f "$USER_STRATEGIES_DIR"/*.conf "$tmp/strategies/" 2>/dev/null
+  cp -f "$IMPORTS_DIR"/*.conf "$tmp/imports/" 2>/dev/null
+  [ -n "$1" ] && b64d "$1" > "$tmp/ui.json"
+  if ! (cd "$tmp" && tar_cmd -cf "$BACKUP_DIR/$name" .) 2>/dev/null; then
+    rm -rf "$tmp" "$BACKUP_DIR/$name"
+    echo "Не удалось создать архив" >&2
+    return 1
+  fi
+  rm -rf "$tmp"
+  echo "$BACKUP_DIR/$name"
+}
+cmd_backup_list() {
+  ls -1t "$BACKUP_DIR"/nfqws2-backup-*.tar 2>/dev/null | while IFS= read -r f; do
+    printf '%s\t%s\n' "${f##*/}" "$(wc -c < "$f" 2>/dev/null | tr -d ' ')"
+  done
+}
+cmd_backup_restore() { # <имя файла в Download>  -> stdout: ui.json в base64 (если был)
+  local name="$1" tmp="$STATE_DIR/restore.$$" f
+  case "$name" in nfqws2-backup-*.tar) ;; *) echo "Некорректное имя архива" >&2; return 1 ;; esac
+  case "$name" in */*) echo "Некорректное имя архива" >&2; return 1 ;; esac
+  [ -f "$BACKUP_DIR/$name" ] || { echo "Архив не найден" >&2; return 1; }
+  rm -rf "$tmp"; mkdir -p "$tmp" || return 1
+  if ! (cd "$tmp" && tar_cmd -xf "$BACKUP_DIR/$name") 2>/dev/null || ! grep -q '^nfqws2-backup ' "$tmp/BACKUP" 2>/dev/null; then
+    rm -rf "$tmp"; echo "Это не резервная копия nfqws2" >&2; return 1
+  fi
+  if [ -f "$tmp/nfqws2.conf" ]; then
+    if ! validate_conf "$tmp/nfqws2.conf" >/dev/null 2>&1; then
+      rm -rf "$tmp"; echo "Конфиг в архиве не прошёл проверку" >&2; return 1
+    fi
+    cp -f "$CONFFILE" "$CONFFILE.bak" 2>/dev/null
+    cp -f "$tmp/nfqws2.conf" "$CONFFILE" && chmod 0644 "$CONFFILE"
+  fi
+  for f in $BACKUP_LISTS; do
+    [ -f "$tmp/lists/$f.list" ] && cp -f "$tmp/lists/$f.list" "$LISTS_DIR/$f.list" && chmod 0644 "$LISTS_DIR/$f.list"
+  done
+  [ -f "$tmp/apps.list" ] && cp -f "$tmp/apps.list" "$CONFDIR/apps.list"
+  [ -f "$tmp/home_wifi.list" ] && cp -f "$tmp/home_wifi.list" "$HOME_FILE"
+  [ -f "$tmp/active_strategy" ] && cp -f "$tmp/active_strategy" "$ACTIVE_FILE"
+  for f in "$tmp"/strategies/*.conf; do [ -f "$f" ] && validate_conf "$f" >/dev/null 2>&1 && cp -f "$f" "$USER_STRATEGIES_DIR/"; done
+  for f in "$tmp"/imports/*.conf; do [ -f "$f" ] && validate_conf "$f" >/dev/null 2>&1 && cp -f "$f" "$IMPORTS_DIR/"; done
+  [ -s "$tmp/ui.json" ] && { command -v base64 >/dev/null 2>&1 && base64 < "$tmp/ui.json" || busybox base64 < "$tmp/ui.json"; } | tr -d '\n'
+  echo
+  rm -rf "$tmp"
+  load_conf >/dev/null 2>&1
+  app_mode_active && printf '%s\n' "$(resolve_app_uids)" > "$APP_UIDS_FILE"
+  if is_running; then sh "$SERVICE" restart >/dev/null 2>&1 || echo "Копия восстановлена, но служба не перезапустилась" >&2; fi
+  return 0
+}
+
+# ---------------------------------------------------------------- проверка доступности
+# Проверка идёт с устройства, а не из WebView: у WebView соединения живут в
+# общем пуле браузера, и повторная попытка (и «Проверить снова» после смены
+# стратегии) шла по уже открытому соединению — то есть не проверяла ничего.
+# Здесь каждая попытка — новый процесс и новое TLS-соединение.
+probe_tool() {
+  local b
+  if command -v curl >/dev/null 2>&1; then echo "curl $(command -v curl)"; return 0; fi
+  for b in /data/adb/ksu/bin/busybox /data/adb/ap/bin/busybox /data/adb/magisk/busybox "$(command -v busybox 2>/dev/null)"; do
+    [ -n "$b" ] && [ -x "$b" ] || continue
+    "$b" wget --help 2>&1 | grep -q 'no-check-certificate' && { echo "wget $b"; return 0; }
+  done
+  echo "none"
+  return 1
+}
+uptime_cs() { awk '{ printf "%d", $1 * 100 }' /proc/uptime 2>/dev/null; }
+probe_attempt() { # <вид> <путь к утилите> <host[/путь]>  -> "ok <мс>" | "fail <причина>"
+  local kind="$1" bin="$2" url="https://$3" t0 t1 out rc to=""
+  command -v timeout >/dev/null 2>&1 && to="timeout 12"
+  t0=$(uptime_cs)
+  if [ "$kind" = "curl" ]; then
+    out=$($to "$bin" -s -k -o /dev/null -m 10 --connect-timeout 6 -A 'Mozilla/5.0' "$url" 2>&1); rc=$?
+  else
+    out=$($to "$bin" wget -q -T 6 -O /dev/null -U 'Mozilla/5.0' --no-check-certificate "$url" 2>&1); rc=$?
+  fi
+  t1=$(uptime_cs)
+  if [ "$rc" = 0 ]; then echo "ok $(( (t1 - t0) * 10 ))"; return; fi
+  case "$kind:$rc:$out" in
+    wget:*"server returned error"*|curl:22:*) echo "ok $(( (t1 - t0) * 10 ))" ;;
+    curl:6:*|*"bad address"*|*"resolve"*|*"unknown host"*) echo "fail dns" ;;
+    curl:7:*|*"refused"*) echo "fail refused" ;;
+    curl:28:*|*:124:*|*:143:*|*"timed out"*|*"timeout"*) echo "fail timeout" ;;
+    curl:35:*|*"TLS"*|*"tls"*|*"SSL"*|*"ssl"*) echo "fail tls" ;;
+    curl:52:*|curl:56:*|*"reset"*|*"short read"*|*"error getting response"*|*"EOF"*) echo "fail reset" ;;
+    *) echo "fail other" ;;
+  esac
+}
+# Все адреса из probe_hosts.list параллельно, по 3 попытки на адрес. Вывод
+# построчный, его можно читать по мере готовности:
+#   tool <TAB> curl|wget|none        H <TAB> № <TAB> адрес
+#   R <TAB> № <TAB> попытка <TAB> ok мс | fail причина      done
+cmd_probe_all() {
+  local tool kind bin i=0 h app_rule=""
+  tool=$(probe_tool); kind="${tool%% *}"; bin="${tool#* }"
+  printf 'tool\t%s\n' "$kind"
+  [ "$kind" = "none" ] && { echo done; return 0; }
+  grep -v -e '^[[:space:]]*#' -e '^[[:space:]]*$' "$LISTS_DIR/probe_hosts.list" 2>/dev/null | tr -d '\r' | head -n 40 > "$STATE_DIR/probe.hosts"
+  while IFS= read -r h; do printf 'H\t%s\t%s\n' "$i" "$h"; i=$((i + 1)); done < "$STATE_DIR/probe.hosts"
+  # Фильтр «только выбранные приложения» не пропустил бы проверку от root через
+  # обход. На время проверки root-трафик помечается так же, как трафик
+  # выбранных приложений; правило снимается в конце (и при любой пересборке).
+  if is_running && [ "$APP_MODE" = "include" ] && iptables -w -t mangle -L $IPT_GROUP_APP -n >/dev/null 2>&1; then
+    app_rule="-m owner --uid-owner 0 -j CONNMARK --set-xmark $MARK_INCLUDE"
+    iptables -w -t mangle -I $IPT_GROUP_APP 1 $app_rule 2>/dev/null
+    [ "$IPV6_ENABLED" != "0" ] && ip6tables -w -t mangle -I $IPT_GROUP_APP 1 $app_rule 2>/dev/null
+    trap 'iptables -w -t mangle -D $IPT_GROUP_APP $app_rule 2>/dev/null; ip6tables -w -t mangle -D $IPT_GROUP_APP $app_rule 2>/dev/null' EXIT INT TERM
+  fi
+  i=0
+  while IFS= read -r h; do
+    (
+      k=1
+      while [ "$k" -le 3 ]; do
+        printf 'R\t%s\t%s\t%s\n' "$i" "$k" "$(probe_attempt "$kind" "$bin" "$h")"
+        k=$((k + 1))
+      done
+    ) &
+    i=$((i + 1))
+  done < "$STATE_DIR/probe.hosts"
+  wait
+  rm -f "$STATE_DIR/probe.hosts"
+  echo done
+}
+
+# ---------------------------------------------------------------- обновления списков
+# Установщик кладёт новую версию списка в .pending, если пользователь правил
+# свой; здесь её можно принять.
+cmd_list_update() { # <имя списка>
+  local f p
+  f=$(list_file "$1") || { echo "Неизвестный список" >&2; return 1; }
+  p="$LISTS_PENDING_DIR/${f##*/}"
+  [ -f "$p" ] || { echo "Обновления для ${f##*/} нет" >&2; return 1; }
+  cp -f "$p" "$f" || { echo "Не удалось обновить ${f##*/}" >&2; return 1; }
+  chmod 0644 "$f"
+  rm -f "$p"
+  reload_after_change
+  echo OK
 }
 
 # Список записан на диск, но служба его ещё не перечитала. Провал перезагрузки
@@ -344,12 +597,40 @@ case "$1" in
     if err=$(validate_conf "$t" 2>&1); then
       cp -f "$CONFFILE" "$CONFFILE.bak" 2>/dev/null; mv -f "$t" "$CONFFILE"; chmod 0644 "$CONFFILE"; echo OK; need_restart_note
     else echo "Конфиг отклонён: $err" >&2; rm -f "$t"; exit 1; fi ;;
+  # Сброс — к исходнику текущей стратегии, а не к стандартному конфигу: так
+  # «Сбросить» отменяет ручные правки, не меняя выбранную стратегию.
   reset-conf)
-    cp -f "$CONFFILE" "$CONFFILE.bak" 2>/dev/null; cp -f "$MODDIR/defaults/nfqws2.conf" "$CONFFILE"; echo "default" > "$STATE_DIR/active_strategy"; echo OK ;;
+    cur=$(get_current_strategy)
+    if [ "$cur" != "default" ] && ! strategy_file "$cur" >/dev/null; then cur=default; fi
+    set_strategy "$cur" >/dev/null && echo OK ;;
+  conf-modified) conf_modified ;;
 
   list-strategies) list_strategies ;;
   get-strategy) get_current_strategy ;;
   set-strategy) set_strategy "$2" ;;
+  strategy-get-b64)
+    case "$2" in default) f="$MODDIR/defaults/nfqws2.conf" ;; *) f=$(strategy_file "$2") ;; esac
+    [ -n "$f" ] && [ -f "$f" ] || { echo "Стратегия не найдена" >&2; exit 1; }
+    { command -v base64 >/dev/null 2>&1 && base64 < "$f" || busybox base64 < "$f"; } ;;
+  strategy-save-b64)
+    n="$2"; t="$STATE_DIR/strat_save.tmp"
+    case "$n" in default|'') echo "Стандартную стратегию редактируйте во вкладке «Конфиг»" >&2; exit 1 ;; esac
+    strategy_name_ok "${n#imp:}" || { echo "Некорректное имя" >&2; exit 1; }
+    strategy_file "$n" >/dev/null || { echo "Стратегия не найдена" >&2; exit 1; }
+    b64d "$3" | tr -d '\r' > "$t"
+    [ -s "$t" ] || { echo "Пустая стратегия" >&2; rm -f "$t"; exit 1; }
+    if ! err=$(validate_conf "$t" 2>&1); then echo "Стратегия отклонена: $err" >&2; rm -f "$t"; exit 1; fi
+    case "$n" in
+      imp:*) dst="$IMPORTS_DIR/${n#imp:}.conf" ;;
+      *) dst="$USER_STRATEGIES_DIR/$n.conf"
+         b=$(strategy_builtin_file "$n")
+         # Текст совпал с исходником — правки нет, копия не нужна.
+         if [ -n "$b" ] && cmp -s "$t" "$b"; then rm -f "$t" "$dst"; echo OK; exit 0; fi ;;
+    esac
+    mv -f "$t" "$dst" && chmod 0644 "$dst" && echo OK ;;
+  strategy-reset)
+    strategy_name_ok "$2" && strategy_builtin_file "$2" >/dev/null || { echo "Это не встроенная стратегия" >&2; exit 1; }
+    rm -f "$USER_STRATEGIES_DIR/$2.conf"; echo OK ;;
 
   import-add-b64)
     t="$STATE_DIR/imp.in"; b64d "$3" > "$t"
@@ -362,7 +643,11 @@ case "$1" in
     render_import_merged "$f" | { command -v base64 >/dev/null 2>&1 && base64 || busybox base64; } ;;
   delete-import)
     case "$2" in ''|*/*|*'`'*|*'$'*|*'"'*|*\'*|*'\\'*) echo "Некорректное имя" >&2; exit 1 ;; esac
-    rm -f "$IMPORTS_DIR/$2.conf"; echo OK ;;
+    rm -f "$IMPORTS_DIR/$2.conf"
+    # Удалённый импорт был активной стратегией: конфиг остаётся, но вернуть его
+    # «к исходнику» больше не к чему — дальше он считается стандартным.
+    [ "$(get_current_strategy)" = "imp:$2" ] && echo default > "$ACTIVE_FILE"
+    echo OK ;;
   rename-import)
     case "$2" in ''|*/*|*'`'*|*'$'*|*'"'*|*\'*|*'\\'*) echo "Некорректное текущее имя" >&2; exit 1 ;; esac
     src="$IMPORTS_DIR/$2.conf"
@@ -373,6 +658,7 @@ case "$1" in
     if [ "$src" != "$dst" ]; then
       [ -f "$dst" ] && { echo "Такое имя уже есть" >&2; exit 1; }
       mv -f "$src" "$dst"
+      [ "$(get_current_strategy)" = "imp:$2" ] && echo "imp:$newname" > "$ACTIVE_FILE"
     fi
     echo "$newname" ;;
 
@@ -386,8 +672,12 @@ case "$1" in
     { b64d "$3" | tr -d '\r' > "$f.tmp"; } && mv -f "$f.tmp" "$f" ||
       { rm -f "$f.tmp"; echo "Не удалось сохранить ${f##*/}" >&2; exit 1; }
     chmod 0644 "$f"
+    # Пользователь сам привёл список к новой версии — предлагать её больше незачем.
+    cmp -s "$f" "$LISTS_PENDING_DIR/${f##*/}" 2>/dev/null && rm -f "$LISTS_PENDING_DIR/${f##*/}"
     if [ "$2" = "apps" ]; then cmd_apply_apps; exit $?; fi
+    if [ "$2" = "home" ]; then sh "$SERVICE" home_check >/dev/null 2>&1; echo OK; exit 0; fi
     reload_after_change; echo OK ;;
+  list-update) cmd_list_update "$2" ;;
   add-domain)
     d=$(printf '%s' "$2" | tr 'A-Z' 'a-z' | sed 's#^[a-z]*://##; s#/.*##; s/^www\.//')
     case "$d" in ''|*[!a-z0-9.-]*) echo "Некорректный домен" >&2; exit 1 ;; esac
@@ -410,29 +700,43 @@ case "$1" in
     for f in user exclude ipset ipset_exclude probe_hosts; do
       cp -f "$MODDIR/defaults/lists/$f.list" "$LISTS_DIR/$f.list" ||
         { echo "Не удалось восстановить $f.list" >&2; exit 1; }
+      rm -f "$LISTS_PENDING_DIR/$f.list"
     done
     reload_after_change; echo OK ;;
 
   set)
     case "$2" in
-      BLOCK_QUIC|AUTOSTART|WATCHDOG|IPV6_ENABLED|NAT_FIX|LOG_LEVEL|WAKELOCK) case "$3" in 0|1) ;; *) echo "Допустимо 0 или 1" >&2; exit 1 ;; esac ;;
+      BLOCK_QUIC|AUTOSTART|WATCHDOG|IPV6_ENABLED|NAT_FIX|LOG_LEVEL|WAKELOCK|HOME_WIFI) case "$3" in 0|1) ;; *) echo "Допустимо 0 или 1" >&2; exit 1 ;; esac ;;
       PKT_LIMIT_OUT|PKT_LIMIT_IN) case "$3" in [1-9]|1[0-5]) ;; *) echo "Допустимо 1..15" >&2; exit 1 ;; esac ;;
       APP_MODE) case "$3" in off|include|exclude) ;; *) echo "off|include|exclude" >&2; exit 1 ;; esac ;;
       *) echo "Параметр $2 нельзя менять этой командой" >&2; exit 1 ;;
     esac
     set_conf_param "$2" "$3"; echo OK
-    if [ "$2" = "APP_MODE" ]; then load_conf >/dev/null 2>&1; cmd_apply_apps; else need_restart_note; fi ;;
+    case "$2" in
+      APP_MODE) load_conf >/dev/null 2>&1; cmd_apply_apps ;;
+      # Пауза в домашней сети и наблюдатели не требуют перезапуска службы
+      HOME_WIFI|WATCHDOG) sh "$SERVICE" home_check >/dev/null 2>&1 ;;
+      AUTOSTART) ;;
+      *) need_restart_note ;;
+    esac ;;
   set-mode)
     case "$2" in list|auto|all) set_conf_param NFQWS_EXTRA_ARGS "\$MODE_$(printf '%s' "$2" | tr a-z A-Z)"; echo OK; need_restart_note ;;
       *) echo "list|auto|all" >&2; exit 1 ;; esac ;;
   list-apps) cmd_list_apps ;;
   apply-apps) cmd_apply_apps ;;
-  get-logs) cmd_get_logs "$2" "$3" ;;
+  get-logs) cmd_get_logs "$2" "$3" "$4" ;;
   export-logs) cmd_export_logs ;;
+  wifi-ssid) current_ssid || exit 1 ;;
+  backup-create) cmd_backup_create "$2" ;;
+  backup-list) cmd_backup_list ;;
+  backup-restore) cmd_backup_restore "$2" ;;
+  probe-all) cmd_probe_all ;;
   clear-logs) : > "$SERVICE_LOG"; : > "$NFQWS_LOG"; rm -f "$LOG_DIR/nfqws2-debug.log" "$LOG_DIR/auto.log"; echo OK ;;
   *)
-    echo "Команды: status json-status is-running start stop restart reload doctor get-conf save-conf-b64 reset-conf" >&2
-    echo "         list-strategies get-strategy set-strategy import-add-b64 list-imports get-import-merged-b64 rename-import delete-import" >&2
-    echo "         get-list save-list-b64 add-domain clear-auto reset-lists set set-mode list-apps apply-apps get-logs export-logs clear-logs" >&2
+    echo "Команды: status json-status is-running start stop restart reload doctor get-conf save-conf-b64 reset-conf conf-modified" >&2
+    echo "         list-strategies get-strategy set-strategy strategy-get-b64 strategy-save-b64 strategy-reset" >&2
+    echo "         import-add-b64 list-imports get-import-merged-b64 rename-import delete-import" >&2
+    echo "         get-list save-list-b64 list-update add-domain clear-auto reset-lists set set-mode list-apps apply-apps" >&2
+    echo "         get-logs export-logs clear-logs wifi-ssid backup-create backup-list backup-restore probe-all" >&2
     exit 1 ;;
 esac
