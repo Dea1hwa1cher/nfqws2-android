@@ -224,6 +224,7 @@ function renderStatus(){
   $('sub').textContent = paused
     ? t('Домашняя Wi‑Fi «{0}». Обход возобновится, когда телефон уйдёт из этой сети.', j.paused)
     : (j.running && j.pid ? 'PID ' + j.pid + ' · ' : '') + t('Режим') + ' ' + (j.mode || '—') +
+      (j.strategy ? ' · ' + t('стратегия') + ' ' + strategyName(j.strategy) : '') +
       (j.running && lim ? ', ' + lim : '');
   $('queue-num').textContent = j.running ? (j.queue || '—') : '—';
   const qd = $('qdrop-num');

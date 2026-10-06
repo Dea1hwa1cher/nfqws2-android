@@ -241,7 +241,7 @@ function drawThemeUI(){
     // вторичная и третичная снизу; в любой теме он читается одинаково.
     const r = roles(p[1], true, false), on = p[1].toLowerCase() === currentSeed;
     return '<button class="swatch-dot state' + (on ? ' on' : '') + '" aria-pressed="' + on + '" title="' + esc(t(p[0])) + '"' +
-      ' aria-label="' + esc(t(p[0])) + '" onclick="applyMonet(' + jsArg(p[1]) + ', true)"' +
+      ' aria-label="' + esc(t(p[0])) + '" onclick="applyMonet(' + jsArg(p[1]) + ')"' +
       ' style="--sw-a:' + r.primary + ';--sw-b:' + r.secondary + ';--sw-c:' + r.tertiary + '">' +
       '<span class="sw-check">' + icon('check', 's20') + '</span></button>';
   }).join(''), false);
@@ -359,6 +359,6 @@ async function detectSystemMonet(showToastNotice){
     }
   }
   if(!hex) hex = systemSeed();
-  applyMonet(hex, true);
+  applyMonet(hex);
   if(showToastNotice) toast(t('Акцент с обоев: {0}', hex.toUpperCase()));
 }

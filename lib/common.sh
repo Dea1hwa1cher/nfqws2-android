@@ -759,7 +759,6 @@ normalize_import() { # <файл импорта> -> stdout
           print ((k in imp) ? imp[k] : k "=\"\"")
         } else {
           print tblk[k]
-          if (k == "IFACE_EXCLUDE" && !("ISP_INTERFACE" in intpl)) print "ISP_INTERFACE=\"\""
         }
       }
       exit
@@ -791,7 +790,7 @@ current_mode() {
 }
 update_description() { # running | stopped | paused <ssid>
   local prop="$MODDIR/module.prop" d strat mode tmp
-  [ -f "$prop" ] && [ -w "$prop" ] || return 0
+  if [ ! -f "$prop" ] || [ ! -w "$prop" ]; then return 0; fi
   case "$1" in
     running)
       strat=$(cat "$ACTIVE_FILE" 2>/dev/null); strat="${strat#imp:}"
@@ -875,7 +874,15 @@ merge_user_keys() { # <сгенерированный конфиг> <конфи�
       }
       print
     }
-    END { for (k in keep) if (!(k in done)) print keep[k] }' "$1"
+    END {
+      hdr = 0
+      for (k in keep) {
+        if (!(k in done)) {
+          if (!hdr) { print ""; print "# ---- Настройки Android"; hdr = 1 }
+          print keep[k]
+        }
+      }
+    }' "$1"
 }
 
 # ---------------------------------------------------------------- домашняя Wi-Fi
@@ -892,6 +899,6 @@ current_ssid() {
   printf '%s' "$s"
 }
 ssid_is_home() {
-  [ -n "$1" ] && [ -f "$HOME_FILE" ] || return 1
+  if [ -z "$1" ] || [ ! -f "$HOME_FILE" ]; then return 1; fi
   grep -v -e '^[[:space:]]*#' -e '^[[:space:]]*$' "$HOME_FILE" 2>/dev/null | grep -Fxq -- "$1"
 }

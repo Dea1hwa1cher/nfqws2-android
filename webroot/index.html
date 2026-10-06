@@ -478,8 +478,8 @@
       <label for="d-input" id="d-label"></label>
     </div>
     <div class="d-actions">
-      <button class="btn text state" id="d-cancel" onclick="dialogResolve(false)"></button>
-      <button class="btn text state" id="d-ok"></button>
+      <button class="btn text state" id="d-cancel" aria-label="Отмена" onclick="dialogResolve(false)"></button>
+      <button class="btn text state" id="d-ok" aria-label="ОК"></button>
     </div>
   </div>
 </div>
@@ -491,7 +491,7 @@
 <!-- ═══ Snackbar: над Navigation bar ═══════════════════════════════════════ -->
 <div class="snackbar" id="prompt-container" role="status" aria-live="polite">
   <span class="snack-msg" id="prompt-msg"></span>
-  <button class="btn text sm state" id="prompt-action" hidden></button>
+  <button class="btn text sm state" id="prompt-action" aria-label="Действие" hidden></button>
 </div>
 <script src="js/core.js"></script>
 <script src="js/status.js"></script>
