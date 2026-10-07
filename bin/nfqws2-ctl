@@ -12,7 +12,7 @@ SERVICE="$MODDIR/service.sh"
 # a состояние — она же через load_conf/sync_lists_and_blobs. Раньше всё это
 # повторялось здесь с теми же путями; оставляем только то, чего в common.sh
 # действительно нет — imports/.
-mkdir -p "$IMPORTS_DIR" 2>/dev/null
+[ -d "$IMPORTS_DIR" ] || mkdir -p "$IMPORTS_DIR" 2>/dev/null
 
 b64d() {
   if command -v base64 >/dev/null 2>&1; then printf '%s' "$1" | base64 -d 2>/dev/null
@@ -47,7 +47,7 @@ set_conf_param() {   # только однострочные значения
   chmod 0644 "$CONFFILE"
 }
 
-json_str() { printf '%s' "$1" | tr -d '"\\' | tr -d '\000-\037'; }
+json_str() { printf '%s' "$1" | tr -d '"\\\000-\037'; }
 
 # Код возврата этой функции — последний в ветках save-conf-b64/set/set-mode, поэтому if, а не &&:
 # иначе сохранение успешного конфига выходило бы с 1, когда служба остановлена, и WebUI считал его ошибкой.
@@ -149,21 +149,22 @@ cmd_json_status() {
   # обоим наборам аргументов на КАЖДЫЙ вызов, — плюс всегда пустой preset.
   # Ни одно из этих полей интерфейс не читал. Если диагностика по стратегиям
   # понадобится, её стоит отдавать отдельной командой, а не в статусе.
-  local ver cur_strat paused pending
-  ver=$(sed -n 's/^version=//p' "$MODDIR/module.prop" | head -n1)
+  local ver cur_strat paused pending f
+  ver=$(sed -n '/^version=/{s/^version=//p;q;}' "$MODDIR/module.prop")
   paused=$(cat "$HOME_PAUSED_FILE" 2>/dev/null)
-  pending=$(ls "$LISTS_PENDING_DIR" 2>/dev/null | sed -n 's/\.list$//p' | tr '\n' ',' | sed 's/,$//')
+  pending=""
+  for f in "$LISTS_PENDING_DIR"/*.list; do
+    [ -e "$f" ] || continue
+    f="${f##*/}"; pending="$pending${pending:+,}${f%.list}"
+  done
   cur_strat=$(get_current_strategy)
   local qdrop
   qdrop=$(awk -v q="$NFQUEUE_NUM" '$1 == q { print $6 + $7; f = 1 } END { if (!f) print 0 }' /proc/net/netfilter/nfnetlink_queue 2>/dev/null)
   local appn cnt_user cnt_auto cnt_excl cnt_ipset cnt_ipset_excl cnt_apps v
   appn=$(app_uid_count 2>/dev/null)
-  cnt_user=$(list_count "$LISTS_DIR/user.list" 2>/dev/null)
-  cnt_auto=$(list_count "$LISTS_DIR/auto.list" 2>/dev/null)
-  cnt_excl=$(list_count "$LISTS_DIR/exclude.list" 2>/dev/null)
-  cnt_ipset=$(list_count "$LISTS_DIR/ipset.list" 2>/dev/null)
-  cnt_ipset_excl=$(list_count "$LISTS_DIR/ipset_exclude.list" 2>/dev/null)
-  cnt_apps=$(list_count "$CONFDIR/apps.list" 2>/dev/null)
+  set -- $(list_counts "$LISTS_DIR/user.list" "$LISTS_DIR/auto.list" "$LISTS_DIR/exclude.list" \
+                      "$LISTS_DIR/ipset.list" "$LISTS_DIR/ipset_exclude.list" "$CONFDIR/apps.list")
+  cnt_user="$1" cnt_auto="$2" cnt_excl="$3" cnt_ipset="$4" cnt_ipset_excl="$5" cnt_apps="$6"
   # нечисловое значение обваливает весь JSON и убивает WebUI, поэтому проверяем каждое поле
   for v in appn cnt_user cnt_auto cnt_excl cnt_ipset cnt_ipset_excl cnt_apps uptime qdrop \
            PKT_LIMIT_OUT PKT_LIMIT_IN BLOCK_QUIC AUTOSTART WATCHDOG IPV6_ENABLED LOG_LEVEL NFQUEUE_NUM WAKELOCK HOME_WIFI; do

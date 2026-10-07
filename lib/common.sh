@@ -52,7 +52,10 @@ CNT_OUT_STEP=16777216
 CNT_IN_MASK=0x000f0000   # биты 16-19: отдельно от исходящего счётчика (24-27) и MARK_* (28-30)
 CNT_IN_STEP=65536        # 1<<16
 
-mkdir -p "$LISTS_DIR" "$STATE_DIR" "$LOG_DIR" "$USER_STRATEGIES_DIR" 2>/dev/null
+# Каталоги обычно уже есть: встроенная `[` дешевле отдельного процесса mkdir,
+# а common.sh подключает каждый вызов nfqws2-ctl (WebUI опрашивает его раз в 5 с).
+[ -d "$LISTS_DIR" ] && [ -d "$STATE_DIR" ] && [ -d "$LOG_DIR" ] && [ -d "$USER_STRATEGIES_DIR" ] ||
+  mkdir -p "$LISTS_DIR" "$STATE_DIR" "$LOG_DIR" "$USER_STRATEGIES_DIR" 2>/dev/null
 
 set_defaults() {
   : "${ISP_INTERFACE:=}"
@@ -174,6 +177,28 @@ list_count() {
   local c
   c=$(grep -cv -e '^[[:space:]]*$' -e '^[[:space:]]*#' "$1" 2>/dev/null)
   printf '%s' "${c:-0}"
+}
+
+# То же, что list_count, но для нескольких файлов одним grep вместо пары процессов
+# на каждый: числа через пробел в порядке аргументов, 0 для отсутствующих.
+# Именно grep, а не awk: на больших ipset-списках awk из toybox вчетверо медленнее.
+list_counts() {
+  local f out="" c r="" have=""
+  for f; do [ -f "$f" ] && have="$have${have:+
+}$f"; done
+  # /dev/null в конце — чтобы grep и для одного файла писал «имя:число»
+  [ -n "$have" ] && out=$(IFS='
+'; set -f; grep -cv -e '^[[:space:]]*$' -e '^[[:space:]]*#' $have /dev/null 2>/dev/null)
+  out="
+$out"
+  for f; do
+    c=0
+    case "$out" in *"
+$f:"*) c="${out#*"
+$f:"}"; c="${c%%[!0-9]*}" ;; esac
+    r="$r${r:+ }${c:-0}"
+  done
+  printf '%s' "$r"
 }
 
 # Перезапись keenetic-путей на каталоги этого модуля. Раньше это правило
@@ -736,7 +761,7 @@ M() { if [ "$NFQWS_LANG" = "en" ]; then printf '%s' "$2"; else printf '%s' "$1";
 # а не mv: так у module.prop остаются прежние владелец и права.
 DESC_BASE="Обход DPI на базе nfqws2."
 current_mode() {
-  grep -m1 '^NFQWS_EXTRA_ARGS=' "$CONFFILE" 2>/dev/null | grep -o 'MODE_[A-Z]*' | head -n1 | sed 's/MODE_//' | tr 'A-Z' 'a-z'
+  awk '/^NFQWS_EXTRA_ARGS=/ { if (match($0, /MODE_[A-Z]*/)) print tolower(substr($0, RSTART + 5, RLENGTH - 5)); exit }' "$CONFFILE" 2>/dev/null
 }
 update_description() { # running | stopped | paused <ssid>
   local prop="$MODDIR/module.prop" d strat mode tmp

@@ -57,6 +57,35 @@ assert_eq "0" "$(list_count "$LISTS_DIR/does-not-exist.list")" "missing file cou
 : > "$LISTS_DIR/user.list"
 assert_eq "0" "$(list_count "$LISTS_DIR/user.list")" "empty file counts as 0"
 
+section "list_counts agrees with list_count"
+
+# json-status counts all its lists with one grep; the numbers must stay exactly
+# what list_count gives file by file, including for missing and edge-case files.
+printf 'a.com\r\n\r\n# c\r\nb.com' > "$LISTS_DIR/user.list"
+printf 'x\n\t\n  # y\nz\n' > "$LISTS_DIR/exclude.list"
+printf 'one\n' > "$LISTS_DIR/user.list.bak"
+: > "$LISTS_DIR/auto.list"
+mkdir -p "$LISTS_DIR/dir.list"
+want=""
+for f in user exclude auto user.list.bak dir does-not-exist user; do
+  case "$f" in *.bak) p="$LISTS_DIR/$f" ;; *) p="$LISTS_DIR/$f.list" ;; esac
+  set -- "$@" "$p"
+  want="$want${want:+ }$(list_count "$p")"
+done
+assert_eq "$want" "$(list_counts "$@")" "one number per file, in argument order"
+assert_eq "2" "$(list_counts "$LISTS_DIR/exclude.list")" "a single file works too"
+rmdir "$LISTS_DIR/dir.list"; rm -f "$LISTS_DIR/user.list.bak"
+set --
+
+section "current_mode"
+
+cp "$CONFFILE" "$CONFFILE.keep"
+printf 'A=1\nNFQWS_EXTRA_ARGS="$MODE_LIST"\nNFQWS_EXTRA_ARGS="$MODE_ALL"\n' > "$CONFFILE"
+assert_eq "list" "$(current_mode)" "the first NFQWS_EXTRA_ARGS line wins"
+printf 'NFQWS_EXTRA_ARGS="--x"\n' > "$CONFFILE"
+assert_eq "" "$(current_mode)" "no mode, no output"
+mv -f "$CONFFILE.keep" "$CONFFILE"
+
 # ── port_list_without ─────────────────────────────────────────────────────────
 section "port_list_without"
 
