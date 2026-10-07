@@ -463,6 +463,64 @@ const VIEWPORTS = [
     await ctx.close();
   }
 
+  // ── repeated reachability check ─────────────────────────────────────────
+  // The second run must start from an empty screen: rows of the first run used
+  // to stay, the new ones were appended below them with the same ids, and the
+  // results landed in the old rows.
+  {
+    sect('reachability check run twice');
+    const RUNS = [
+      ['tool\tcurl', 'H\t0\ta.example', 'H\t1\tb.example', 'H\t2\tc.example',
+       'R\t0\t1\tok 10', 'R\t1\t1\tfail drop', 'R\t2\t1\tok 30',
+       'T16\t0\tHetzner\t1.1.1.1\t443\tclean\t20ms', 'T16\t1\tOVH\t2.2.2.2\t443\tdetected\t16KB',
+       'DNS\t0\tGoogle\t8.8.8.8\tok\tok\tno\tOK',
+       'TG\t0\tDC1\t149.154.175.53\tok\t50ms', 'TG_MEDIA\tok\t1.00 MB/s', 'done'],
+      ['tool\tcurl', 'H\t0\tz.example', 'H\t1\ty.example',
+       'R\t1\t1\tok 5', 'R\t0\t1\tok 7',
+       'T16\t0\tCloudflare\t3.3.3.3\t443\tclean\t9ms',
+       'DNS\t0\tQuad9\t9.9.9.9\tfail\tnone\tno\tOK', 'DNS\t1\tYandex\t77.88.8.8\tok\tnone\tno\tOK',
+       'TG\t0\tDC2\t149.154.167.51\tfail\ttimeout', 'TG_MEDIA\tok\t2.00 MB/s', 'done'],
+    ];
+    const ctx = await browser.newContext({ viewport: { width: 400, height: 900 } });
+    await ctx.addInitScript(STUB);
+    await ctx.addInitScript(`(function(){
+      var runs = ${JSON.stringify(RUNS)}, n = 0, base = window.ksu.exec;
+      window.ksu.exec = function(cmd, opts, cb){
+        if (cmd.indexOf('probe-dpi') < 0) return base.apply(this, arguments);
+        var id = typeof cb === 'string' ? cb : opts;
+        var out = runs[Math.min(n++, runs.length - 1)].join('\\n');
+        setTimeout(function(){ if (window[id]) window[id](0, out, ''); }, 0);
+        return 'job';
+      };
+    })();`);
+    const page = await ctx.newPage();
+    const pageErrors = [];
+    page.on('pageerror', e => pageErrors.push(e.message));
+    await page.goto(INDEX, { waitUntil: 'load' });
+    await page.waitForTimeout(500);
+    const snap = () => page.evaluate(() => {
+      const rows = sel => [...document.querySelectorAll(sel + ' > .list-item')].map(r => r.querySelector('.li-primary').textContent.trim());
+      return {
+        web: rows('#tr'), tcp: rows('#test-tcp16-list'), dns: rows('#test-dns-list'), tg: rows('#test-tg-list'),
+        webTrail: [...document.querySelectorAll('#tr .li-trail')].map(e => e.textContent),
+        report: Object.keys(webResults).length + '/' + Object.keys(dnsResults).length,
+      };
+    });
+    await page.evaluate(() => runTest());
+    const first = await snap();
+    eq('a.example,b.example,c.example', first.web.join(','), 'the first run lists its hosts');
+    await page.evaluate(() => runTest());
+    const second = await snap();
+    eq('z.example,y.example', second.web.join(','), 'the second run shows only its own hosts, in order');
+    eq('1/1,1/1', second.webTrail.join(','), 'the results land in the new rows');
+    eq('Cloudflare (3.3.3.3)', second.tcp.join(','), 'TCP 16-20KB rows are replaced');
+    eq('Quad9 (9.9.9.9),Yandex (77.88.8.8)', second.dns.join(','), 'DNS rows are replaced');
+    eq('DC2 (149.154.167.51),Скорость медиа', second.tg.join(','), 'Telegram rows are replaced, media speed stays last');
+    eq('2/2', second.report, 'the report holds only the second run');
+    eq(0, pageErrors.length, 'no page errors' + (pageErrors.length ? ': ' + pageErrors.join('; ') : ''));
+    await ctx.close();
+  }
+
   await browser.close();
 
   process.stdout.write('\n----------------------------------------\n');

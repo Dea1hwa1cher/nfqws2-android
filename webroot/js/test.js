@@ -175,6 +175,18 @@ function renderTgRow(i, name, ip, status, ms){
   '</div>';
 }
 
+/* Повторная проверка начинается с чистого листа: все списки и результаты всех
+   вкладок обнуляются. Через setHTML(id, '') очистить нельзя — строки сюда
+   дописываются insertAdjacentHTML мимо его памяти (el._html остаётся ''),
+   и очистка молча пропускалась: новые строки вставали под старые с теми же id. */
+function resetTestResults(){
+  ['tr', 'test-tcp16-list', 'test-dns-list', 'test-tg-list'].forEach(id => {
+    const el = $(id);
+    if(el){ el.innerHTML = ''; el._html = ''; }
+  });
+  webResults = {}; tcp16Results = {}; dnsResults = {}; tgResults = {}; tgMediaSpeed = '';
+}
+
 async function runTest(){
   if(testRunning) return;
   testRunning = true;
@@ -182,23 +194,7 @@ async function runTest(){
   $('tb').innerHTML = '<span class="spinner"></span><span>' + esc(t('Проверка идёт')) + '</span>';
   $('test-empty').hidden = true;
 
-  if(currentTestTab === 'all' || currentTestTab === 'web'){
-    setHTML('tr', '', false);
-    webResults = {};
-  }
-  if(currentTestTab === 'all' || currentTestTab === 'tcp16'){
-    setHTML('test-tcp16-list', '', false);
-    tcp16Results = {};
-  }
-  if(currentTestTab === 'all' || currentTestTab === 'dns'){
-    setHTML('test-dns-list', '', false);
-    dnsResults = {};
-  }
-  if(currentTestTab === 'all' || currentTestTab === 'tg'){
-    setHTML('test-tg-list', '', false);
-    tgResults = {};
-    tgMediaSpeed = '';
-  }
+  resetTestResults();
 
   await stat(true);
   renderTestWarn();
