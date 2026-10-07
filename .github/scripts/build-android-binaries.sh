@@ -277,7 +277,7 @@ build_single_abi() {
     CC="$CC" AR="$AR" RANLIB="$RANLIB" STRIP="$STRIP" \
     CFLAGS="-I$deps_dir/include $cpu $MINSIZE -Wno-implicit-function-declaration" \
     LDFLAGS="-L$deps_dir/lib $LDMINSIZE $pagesize" \
-    make LUA_JIT=1 \
+    make LUA_JIT=1 OPTIMIZE=-Oz \
          LUA_CFLAGS="-I$deps_dir/include/luajit-$LUAJIT_VER" \
          LUA_LIB="-L$deps_dir/lib -lluajit-$LUAJIT_LUAVER" \
          -j"$(nproc)" android
