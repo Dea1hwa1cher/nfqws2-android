@@ -26,37 +26,7 @@ permissions:
 
 jobs:
   build-binaries:
-    name: Build nfqws2 (${{ matrix.abi }})
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        abi:
-          - android-arm
-          - android-arm64
-          - android-x86
-          - android-x86_64
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Установка сборочных утилит хоста
-        run: |
-          sudo dpkg --add-architecture i386
-          sudo apt-get update -qq
-          sudo apt-get install -y gcc-multilib libcap-dev
-
-      - name: Сборка nfqws2 для ${{ matrix.abi }}
-        run: |
-          bash .github/scripts/build-android-binaries.sh "${{ matrix.abi }}"
-
-      - name: Сохранить бинарник ${{ matrix.abi }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: nfqws2-${{ matrix.abi }}
-          path: binaries/${{ matrix.abi }}/nfqws2
-          if-no-files-found: error
+    uses: ./.github/workflows/build-binaries.yml
 
   release:
     needs: [build-binaries]
