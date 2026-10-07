@@ -315,17 +315,17 @@ assert_eq "" "$(printf '%s' "$malformed" | sed 's/^ *//')" "every list entry is 
 # ── installer ─────────────────────────────────────────────────────────────────
 section "installer covers the shipped binaries"
 
-for d in "$REPO_DIR"/binaries/*/; do
-  b="${d%/}"; b="${b##*/}"
+# binaries/ is built by CI, not committed; the files themselves are checked
+# when present, the customize.sh ABI mapping always.
+for b in android-arm android-arm64 android-x86 android-x86_64; do
   case "$b" in
     android-arm64)  pat='arm64\*|aarch64\*' ;;
     android-arm)    pat='armeabi\*|arm\*' ;;
     android-x86_64) pat='x86_64\*' ;;
     android-x86)    pat='x86\*' ;;
-    *) pat="__none__" ;;
   esac
   assert_match "$(cat "$REPO_DIR/customize.sh")" "$pat" "customize.sh maps ABI $b"
-  assert_file "$d/nfqws2" "binaries/$b/nfqws2 exists"
+  [ -d "$REPO_DIR/binaries" ] && assert_file "$REPO_DIR/binaries/$b/nfqws2" "binaries/$b/nfqws2 exists"
 done
 
 section "installer wires up the runtime"
