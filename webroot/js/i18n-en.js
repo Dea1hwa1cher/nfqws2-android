@@ -378,5 +378,10 @@ EN = {
  "Каждый адрес из probe_hosts.list открывается с устройства три раза. Анализируются активные сбросы (TLS RST), инжекции TLS Alert, тихий дроп и подмена сертификатов.": "Each address from probe_hosts.list is opened from the device 3 times. Active resets (TLS RST), TLS Alert injections, silent drops, and certificate spoofing are analyzed.",
  "Тестирование соединений к зарубежным CDN и хостингам (Cloudflare, Hetzner, DO, OVH) с нарастающим объёмом данных до 32 КБ для выявления фильтра TCP 16-20KB.": "Testing connections to foreign CDNs and hostings (Cloudflare, Hetzner, DO, OVH) with increasing payload up to 32 KB to detect the TCP 16-20KB filter.",
  "Проверка резолверов по UDP:53 и DoH для обнаружения перехвата портов провайдером и подмены IP адресов на заглушки РКН.": "Checking resolvers over UDP:53 and DoH to detect ISP port interception and IP address substitution.",
- "Проверка прямой связности с датацентрами Telegram (DC1-DC5) и замер скорости загрузки тестового медиа.": "Checking direct connectivity to Telegram data centers (DC1-DC5) and measuring media download speed."
+ "Проверка прямой связности с датацентрами Telegram (DC1-DC5) и замер скорости загрузки тестового медиа.": "Checking direct connectivity to Telegram data centers (DC1-DC5) and measuring media download speed.",
+  "Ярлык на рабочий стол": "Home screen shortcut",
+  "Добавить на главный экран телефона": "Add to phone home screen",
+  "Ярлык добавлен на рабочий стол": "Shortcut added to home screen",
+  "В браузере (Chrome, Kiwi) нажмите меню ⋮ ➔ «Добавить на главный экран» или «Установить».\nВ MMRL и KsuWebUI используйте кнопку «Создать ярлык» в верхнем меню модуля.": "In your browser (Chrome, Kiwi), tap ⋮ ➔ “Add to Home screen” or “Install”.\nIn MMRL and KsuWebUI, use the “Create shortcut” button in the module menu.",
+  "Понятно": "Got it"
 };

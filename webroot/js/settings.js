@@ -31,6 +31,7 @@ function renderSettings(){
     ]],
     ['Оформление', [
       {icon: 'palette', title: 'Тема оформления', sub: t('Светлая, тёмная, AMOLED и цвет акцента'), on: 'openMonetModal()'},
+      {icon: 'apps', title: 'Ярлык на рабочий стол', sub: t('Добавить на главный экран телефона'), on: 'addDesktopShortcut()'},
       {icon: 'translate', title: 'Язык', sub: LANG === 'en' ? 'English' : 'Русский', on: 'pickLanguage(this)', menu: true}
     ]],
     ['О модуле', [
@@ -57,6 +58,35 @@ function renderSettings(){
     devHtml, false);
 }
 const GITHUB_URL = 'https://github.com/Dea1hwa1cher/nfqws2-android';
+
+let deferredInstallPrompt = null;
+if(typeof window !== 'undefined'){
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+  });
+}
+
+function addDesktopShortcut(){
+  if(deferredInstallPrompt){
+    deferredInstallPrompt.prompt();
+    deferredInstallPrompt.userChoice.then(choiceResult => {
+      if(choiceResult && choiceResult.outcome === 'accepted'){
+        toast(t('Ярлык добавлен на рабочий стол'));
+      }
+      deferredInstallPrompt = null;
+    });
+    return;
+  }
+  mdDialog({
+    title: t('Ярлык на рабочий стол'),
+    text: t('В браузере (Chrome, Kiwi) нажмите меню ⋮ ➔ «Добавить на главный экран» или «Установить».\nВ MMRL и KsuWebUI используйте кнопку «Создать ярлык» в верхнем меню модуля.'),
+    iconName: 'apps',
+    ok: t('Понятно'),
+    cancel: false
+  });
+}
+
 /* Ссылку открывает система (браузер по умолчанию): внутри WebView менеджера
    переход увёл бы со страницы модуля без пути назад. */
 async function openUrl(url){
