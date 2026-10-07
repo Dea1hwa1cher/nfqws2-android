@@ -124,6 +124,47 @@ echo "==> Applying nfqws2-keenetic 001-tls-reasm-fastpath.patch..."
 patch --batch --fuzz=0 -p1 -d "$SRC_CACHE/zapret2" < "$PATCHES_DIR/001-tls-reasm-fastpath.patch"
 
 # ── 4. Architecture build function ───────────────────────────────────────────
+READELF="$TOOLCHAIN/bin/llvm-readelf"
+[ -x "$READELF" ] || READELF=$(command -v readelf)
+[ -n "$READELF" ] || { echo "::error::readelf not found" >&2; exit 1; }
+
+verify_binary() { # <abi> <file>
+  local abi="$1" f="$2" machine want
+  # LC_ALL=C: readelf localizes section names, which breaks these matches
+  machine=$(LC_ALL=C "$READELF" -h "$f" | sed -n 's/^ *Machine: *//p')
+  case "$abi" in
+    android-arm) want="ARM" ;;
+    android-arm64) want="AArch64" ;;
+    android-x86) want="Intel 80386" ;;
+    android-x86_64) want="Advanced Micro Devices X86-64" ;;
+  esac
+  [ "${machine#"$want"}" != "$machine" ] || {
+    echo "::error::[$abi] wrong architecture: $machine" >&2; exit 1; }
+
+  case "$abi" in
+    android-arm64|android-x86_64)
+      local align bad=0
+      while read -r align; do
+        [ "$((align))" -ge 16384 ] || bad=1
+      done < <(LC_ALL=C "$READELF" -lW "$f" | awk '/^ *LOAD/ { print $NF }')
+      [ "$bad" = 0 ] || { echo "::error::[$abi] LOAD alignment below 16 KB" >&2; exit 1; }
+      ;;
+  esac
+
+  local need extra=""
+  while read -r need; do
+    case "$need" in
+      libc.so|libm.so|libdl.so|liblog.so|libz.so) ;;
+      *) extra="$extra${extra:+, }$need" ;;
+    esac
+  done < <(LC_ALL=C "$READELF" -d "$f" | sed -n 's/^ *0x[0-9a-f]* *(NEEDED) *Shared library: \[\(.*\)\]$/\1/p')
+  [ -z "$extra" ] || { echo "::error::[$abi] unexpected NEEDED libraries: $extra" >&2; exit 1; }
+
+  LC_ALL=C grep -qa -- "fastpath-workaround" "$f" || {
+    echo "::error::[$abi] fastpath-workaround missing from the binary; the 001 patch did not land" >&2; exit 1; }
+  echo "--- [$abi] verification passed (arch, alignment, deps, patch)"
+}
+
 build_single_abi() {
   local abi="$1"
   local target=""
@@ -253,6 +294,9 @@ build_single_abi() {
     echo "--- [$abi] Running termux-elf-cleaner ---"
     "$ELF_CLEANER" --api-level "$API" "$built_bin" || true
   fi
+
+  # verify the exact file that will be shipped
+  verify_binary "$abi" "$built_bin"
 
   # E) Copy to destination
   local dest_dir="$OUTPUT_DIR/binaries/$abi"
