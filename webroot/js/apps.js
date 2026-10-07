@@ -62,6 +62,28 @@ async function loadPk(force){
    только локальный список пакетов. Кэш сбрасывается там, где список мог
    измениться помимо togglePkg(): после ручного редактирования в редакторе. */
 let appsCache = null;
+let appTypeFilter = 'all';
+
+function isAppSystem(item){
+  if(typeof item === 'object' && typeof item.system === 'boolean') return item.system;
+  if(typeof item === 'object' && item.system != null) return item.system === true || item.system === 1 || item.system === 'true';
+  const p = typeof item === 'string' ? item : (item.pkg || '');
+  return p.startsWith('com.android.') || p.startsWith('android') || p.startsWith('com.google.android.packageinstaller') || p.startsWith('com.google.android.gms');
+}
+
+function setAppTypeFilter(type){
+  appTypeFilter = type;
+  const wrap = $('pk-filter-chips');
+  if(wrap){
+    wrap.querySelectorAll('.chip').forEach(c => {
+      const on = c.getAttribute('data-type') === type;
+      c.classList.toggle('selected', on);
+      c.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+  }
+  drawPk(false);
+}
+
 async function getAppsList(){
   if(appsCache) return appsCache;
   const r = await ctlx(['get-list', 'apps']);
@@ -81,7 +103,14 @@ async function drawPk(animate){
   const shown = pkgs.filter(item => {
     const p = typeof item === 'string' ? item : (item.pkg || '');
     const n = typeof item === 'string' ? item : (item.name || item.pkg || '');
-    return !f || p.toLowerCase().includes(f) || n.toLowerCase().includes(f);
+    const matchSearch = !f || p.toLowerCase().includes(f) || n.toLowerCase().includes(f);
+    if(!matchSearch) return false;
+    if(appTypeFilter === 'all') return true;
+    if(appTypeFilter === 'selected') return s.has(p);
+    const isSys = isAppSystem(item);
+    if(appTypeFilter === 'system') return isSys;
+    if(appTypeFilter === 'user') return !isSys;
+    return true;
   });
   shown.sort((a, b) => {
     const pa = typeof a === 'string' ? a : a.pkg;
@@ -101,6 +130,8 @@ async function drawPk(animate){
     const p = typeof item === 'string' ? item : item.pkg;
     const name = typeof item === 'string' ? item : (item.name || item.pkg);
     const icon = typeof item === 'object' && item.icon ? item.icon : '';
+    const isSys = isAppSystem(item);
+    const badge = isSys ? ' · ' + esc(t('Системное')) : '';
     const sel = s.has(p);
     let selCls = '';
     if(sel){
@@ -118,7 +149,7 @@ async function drawPk(animate){
       '<span class="li-icon plain app-ico-cell">' + iconHtml + '</span>' +
       '<span class="li-text">' +
         '<span class="li-primary">' + esc(name) + '</span>' +
-        '<span class="li-secondary li-mono">' + esc(p) + '</span>' +
+        '<span class="li-secondary li-mono">' + esc(p) + badge + '</span>' +
       '</span>' +
       '<span class="li-trail">' +
         '<input type="checkbox" class="checkbox" data-pkg="' + esc(p) + '"' + (sel ? ' checked' : '') + '>' +

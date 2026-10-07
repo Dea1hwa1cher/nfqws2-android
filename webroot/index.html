@@ -295,6 +295,24 @@
       <input type="search" id="pf" placeholder="Поиск приложений" data-ta="placeholder,aria-label" autocapitalize="off" spellcheck="false"
              enterkeyhint="search" oninput="pkSearchInput()" aria-label="Поиск приложений" aria-describedby="pk-count">
     </div>
+    <div class="chips" id="pk-filter-chips" role="group" aria-label="Фильтр приложений" data-ta="aria-label">
+      <button type="button" class="chip filter selected state" data-type="all" aria-pressed="true" onclick="setAppTypeFilter('all')">
+        <span class="chip-check"><svg class="icon s18" aria-hidden="true"><use href="#i-check"/></svg></span>
+        <span data-t>Все</span>
+      </button>
+      <button type="button" class="chip filter state" data-type="user" aria-pressed="false" onclick="setAppTypeFilter('user')">
+        <span class="chip-check"><svg class="icon s18" aria-hidden="true"><use href="#i-check"/></svg></span>
+        <span data-t="Пользовательские приложения">Пользовательские</span>
+      </button>
+      <button type="button" class="chip filter state" data-type="system" aria-pressed="false" onclick="setAppTypeFilter('system')">
+        <span class="chip-check"><svg class="icon s18" aria-hidden="true"><use href="#i-check"/></svg></span>
+        <span data-t>Системные</span>
+      </button>
+      <button type="button" class="chip filter state" data-type="selected" aria-pressed="false" onclick="setAppTypeFilter('selected')">
+        <span class="chip-check"><svg class="icon s18" aria-hidden="true"><use href="#i-check"/></svg></span>
+        <span data-t>Выбранные</span>
+      </button>
+    </div>
     <div class="helper" id="pk-count"></div>
     <div class="list" id="pk"></div>
     <div class="row">

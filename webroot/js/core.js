@@ -45,7 +45,8 @@ function translateStatic(){
   document.documentElement.lang = LANG;
   document.querySelectorAll('[data-t]').forEach(el => {
     if(el.dataset.ru == null) el.dataset.ru = el.textContent.trim();
-    el.textContent = t(el.dataset.ru);
+    const key = el.getAttribute('data-t') || el.dataset.ru;
+    el.textContent = (LANG === 'en' && EN[key] != null) ? EN[key] : el.dataset.ru;
   });
   document.querySelectorAll('[data-ta]').forEach(el => el.dataset.ta.split(',').forEach(a => {
     const k = 'ru_' + a.replace(/-/g, '_');
