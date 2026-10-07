@@ -443,7 +443,42 @@ cmd_export_logs() {
 }
 
 cmd_list_apps() {
-  pm list packages -3 2>/dev/null | sed 's/^package://' | sort
+  local cache="$STATE_DIR/apps_cache.json"
+  local refresh=0
+  case "${1:-}" in refresh|--refresh|-f) refresh=1 ;; esac
+  [ -f "$cache" ] || refresh=1
+
+  # Быстрый возврат из кэша (0-2 мс)
+  if [ "$refresh" = "0" ] && [ -s "$cache" ]; then
+    cat "$cache"
+    return 0
+  fi
+
+  local target="$MODDIR/bin/pkglist.jar"
+  [ -f "$target" ] || target="$MODDIR/bin/pkglist.dex"
+  [ -f "$target" ] || target="$BIN_DIR/pkglist.jar"
+  [ -f "$target" ] || target="$BIN_DIR/pkglist.dex"
+
+  if [ -f "$target" ] && command -v app_process >/dev/null 2>&1; then
+    mkdir -p "$STATE_DIR" 2>/dev/null
+    local out
+    out=$(CLASSPATH="$target" app_process /system/bin com.deathwatcher.PkgList --out "$cache" --apps-list "$CONFDIR/apps.list" 2>/dev/null)
+    if [ -s "$cache" ]; then
+      cat "$cache"
+      return 0
+    elif [ -n "$out" ] && [ "${out#\[}" != "$out" ]; then
+      printf '%s\n' "$out"
+      printf '%s\n' "$out" > "$cache" 2>/dev/null
+      return 0
+    fi
+  fi
+
+  # Резервный вариант через pm (без названий и иконок)
+  local PM=pm
+  command -v pm >/dev/null 2>&1 || PM=/system/bin/pm
+  if command -v "$PM" >/dev/null 2>&1; then
+    "$PM" list packages -3 2>/dev/null | sed 's/^package://' | sort
+  fi
 }
 
 # ---------------------------------------------------------------- резервная копия
@@ -1010,8 +1045,7 @@ case "$1" in
     esac ;;
   set-mode)
     case "$2" in list|auto|all) set_conf_param NFQWS_EXTRA_ARGS "\$MODE_$(printf '%s' "$2" | tr a-z A-Z)"; echo OK; need_restart_note ;;
-      *) echo "list|auto|all" >&2; exit 1 ;; esac ;;
-  list-apps) cmd_list_apps ;;
+  list-apps) cmd_list_apps "$2" ;;
   get-logs) cmd_get_logs "$2" "$3" "$4" ;;
   export-logs) cmd_export_logs ;;
   wifi-ssid) current_ssid || exit 1 ;;

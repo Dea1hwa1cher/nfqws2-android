@@ -82,6 +82,7 @@ sandbox_init() {
            "$MODDIR/lists" "$MODDIR/blobs" "$MODDIR/lua" "$CONFDIR" "$MOCKBIN" "$MOCK_DIR"
 
   cp "$REPO_DIR/bin/nfqws2-ctl"        "$MODDIR/bin/nfqws2-ctl"
+  cp "$REPO_DIR/bin"/pkglist.*         "$MODDIR/bin/" 2>/dev/null || true
   cp "$REPO_DIR/lib/common.sh"         "$MODDIR/lib/common.sh"
   cp "$REPO_DIR/service.sh"            "$MODDIR/service.sh"
   cp "$REPO_DIR/module.prop"           "$MODDIR/module.prop"

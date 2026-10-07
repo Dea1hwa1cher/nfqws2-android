@@ -171,3 +171,12 @@ html[data-amoled="true"] .nav-bar { box-shadow: inset 0 1px 0 color-mix(in srgb,
 #cd-lum { --track: linear-gradient(90deg, #000, var(--md-sys-color-primary), #fff); }
 @media (max-width: 380px) { .picker { flex-direction: column; } .picker-side { width: 100%; } }
 
+/* ── Иконки приложений на экране фильтра ─────────────────────────────── */
+.app-ico-cell { width: 40px; height: 40px; }
+.app-ico { width: 40px; height: 40px; border-radius: var(--shape-small); object-fit: contain; display: block; flex: none; }
+.app-ico-fallback {
+  width: 40px; height: 40px; border-radius: var(--shape-small); flex: none;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--md-sys-color-surface-container-high); color: var(--md-sys-color-primary);
+}
+

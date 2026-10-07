@@ -245,19 +245,24 @@ app_mode_active() {
 
 # apps.list (имена пакетов) -> список UID из pm
 resolve_app_uids() {
-  local f="$CONFDIR/apps.list" pkgs PM=pm
+  local f="$CONFDIR/apps.list" PM=pm
   [ -f "$f" ] || return 0
   # WebUI/root-шелл не всегда имеет /system/bin в PATH
   command -v pm >/dev/null 2>&1 || PM=/system/bin/pm
   command -v "$PM" >/dev/null 2>&1 || return 0
-  pkgs=$(grep -hv -e '^[[:space:]]*$' -e '^[[:space:]]*#' "$f" 2>/dev/null | tr -d '\r\t ' | tr 'A-Z' 'a-z')
-  [ -n "$pkgs" ] || return 0
-  "$PM" list packages -U 2>/dev/null | awk -v want="$pkgs" '
-    BEGIN { n = split(want, a, "\n"); for (i = 1; i <= n; i++) if (a[i] != "") w[a[i]] = 1 }
+  [ -s "$f" ] || return 0
+  "$PM" list packages -U 2>/dev/null | awk '
+    NR == FNR {
+      sub(/\r$/, "")
+      sub(/^[ \t]+/, "")
+      sub(/[ \t]+$/, "")
+      if ($0 != "" && $0 !~ /^#/) w[tolower($0)] = 1
+      next
+    }
     $1 ~ /^package:/ {
-      p = substr($1, 9); u = $2; sub(/^uid:/, "", u)
+      p = tolower(substr($1, 9)); u = $2; sub(/^uid:/, "", u)
       if ((p in w) && u ~ /^[0-9]+$/) print u
-    }' | sort -n -u | awk '{ printf "%s%s", (NR > 1 ? "," : ""), $0 }'
+    }' "$f" - | sort -n -u | awk '{ printf "%s%s", (NR > 1 ? "," : ""), $0 }'
 }
 
 app_features_ok() {

@@ -33,14 +33,27 @@ async function setAppMode(v){
   await stat();
   renderAppModes();
 }
-async function loadPk(){
+async function loadPk(force){
   clearTimeout(pkTimer);   // отменяем отложенную перерисовку от старого ввода
   $('pk').innerHTML = '<div class="list-item"><span class="spinner"></span>' +
     '<span class="li-text"><span class="li-secondary">' + esc(t('Загрузка списка приложений…')) + '</span></span></div>';
   $('pk')._html = null;
-  const r = await ctlx(['list-apps'], 30000);
-  pkgs = r.code ? [] : r.out.split('\n').map(s => s.trim()).filter(Boolean);
-  if(r.code) toast(errText(r, 'Не удалось получить список приложений'));
+  const r = force ? await ctlx(['list-apps', 'refresh'], 30000) : await ctlx(['list-apps'], 30000);
+  if(r.code){
+    pkgs = [];
+    toast(errText(r, 'Не удалось получить список приложений'));
+  } else {
+    const raw = (r.out || '').trim();
+    if(raw.startsWith('[')){
+      try {
+        pkgs = JSON.parse(raw);
+      } catch(_){
+        pkgs = raw.split('\n').map(s => s.trim()).filter(Boolean);
+      }
+    } else {
+      pkgs = raw.split('\n').map(s => s.trim()).filter(Boolean);
+    }
+  }
   await drawPk(true);
 }
 /* Список выбранных приложений кэшируется. drawPk() — обработчик oninput у поля
@@ -63,16 +76,46 @@ function pkSearchInput(){
   pkTimer = setTimeout(() => drawPk(false), 180);
 }
 async function drawPk(animate){
-  const f = $('pf').value.toLowerCase();
+  const f = $('pf').value.trim().toLowerCase();
   const s = await getAppsList();
-  const shown = pkgs.filter(p => p.toLowerCase().includes(f));
+  const shown = pkgs.filter(item => {
+    const p = typeof item === 'string' ? item : (item.pkg || '');
+    const n = typeof item === 'string' ? item : (item.name || item.pkg || '');
+    return !f || p.toLowerCase().includes(f) || n.toLowerCase().includes(f);
+  });
+  if(!f){
+    shown.sort((a, b) => {
+      const pa = typeof a === 'string' ? a : a.pkg;
+      const pb = typeof b === 'string' ? b : b.pkg;
+      const sa = s.has(pa) ? 1 : 0;
+      const sb = s.has(pb) ? 1 : 0;
+      if(sa !== sb) return sb - sa;
+      const na = typeof a === 'string' ? a : (a.name || a.pkg || '');
+      const nb = typeof b === 'string' ? b : (b.name || b.pkg || '');
+      return na.localeCompare(nb, undefined, { sensitivity: 'base' });
+    });
+  }
   $('pk-count').textContent = t('Найдено {0} из {1}, выбрано {2}', shown.length, pkgs.length, s.size) +
     (shown.length > 120 ? '. ' + t('Показаны первые 120, уточните поиск') : '');
-  setHTML('pk', shown.slice(0, 120).map(p =>
-    '<label class="list-item clickable state' + (s.has(p) ? ' selected' : '') + '">' +
-      '<input type="checkbox" class="checkbox" data-pkg="' + esc(p) + '"' + (s.has(p) ? ' checked' : '') + '>' +
-      '<span class="li-text"><span class="li-primary li-mono">' + esc(p) + '</span></span>' +
-    '</label>').join('') ||
+  setHTML('pk', shown.slice(0, 120).map(item => {
+    const p = typeof item === 'string' ? item : item.pkg;
+    const name = typeof item === 'string' ? item : (item.name || item.pkg);
+    const icon = typeof item === 'object' && item.icon ? item.icon : '';
+    const sel = s.has(p);
+    const iconHtml = icon
+      ? '<img class="app-ico" src="' + esc(icon) + '" alt="" loading="lazy">'
+      : '<span class="app-ico-fallback"><svg class="icon s24" aria-hidden="true"><use href="#i-apps"/></svg></span>';
+    return '<label class="list-item two-line clickable state' + (sel ? ' selected' : '') + '">' +
+      '<span class="li-icon plain app-ico-cell">' + iconHtml + '</span>' +
+      '<span class="li-text">' +
+        '<span class="li-primary">' + esc(name) + '</span>' +
+        '<span class="li-secondary li-mono">' + esc(p) + '</span>' +
+      '</span>' +
+      '<span class="li-trail">' +
+        '<input type="checkbox" class="checkbox" data-pkg="' + esc(p) + '"' + (sel ? ' checked' : '') + '>' +
+      '</span>' +
+    '</label>';
+  }).join('') ||
     '<div class="list-item"><span class="li-text"><span class="li-secondary">' + esc(t('Ничего не найдено')) + '</span></span></div>', !!animate);
   $('pk').querySelectorAll('input[data-pkg]').forEach(cb => {
     cb.onchange = () => togglePkg(cb.getAttribute('data-pkg'), cb.checked);
