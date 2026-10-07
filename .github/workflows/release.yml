@@ -28,6 +28,8 @@ jobs:
   build-binaries:
     name: Build nfqws2 (${{ matrix.abi }})
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
