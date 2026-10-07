@@ -51,13 +51,17 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # Релиз уже создан вручную через сайт (это тоже пуш тега) — не мешаем ему:
-          # только докладываем zip, если его там нет.
+          # Релиз уже создан вручную через сайт (это тоже пуш тега): только
+          # докладываем zip, если его там нет. При ручном повторном запуске
+          # заодно обновляем текст релиза из changelog.md.
           if gh release view "$TAG" >/dev/null 2>&1; then
             if gh release view "$TAG" --json assets -q '.assets[].name' | grep -q '\.zip$'; then
-              echo "Релиз и zip уже есть — ничего не делаю"
+              echo "zip уже приложен"
             else
               gh release upload "$TAG" "$ZIP"
+            fi
+            if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+              gh release edit "$TAG" --notes-file changelog.md
             fi
           else
             # По тегу — тег уже есть; при ручном запуске gh создаст его на этом коммите

@@ -123,7 +123,6 @@ async function openStrategySheet(){
 }
 async function applySelectedStrategy(){
   const val = pendingStrategy;
-  if(!S.running) haptic('click');   // при работающей службе отдачу даст перезапуск в act()
   closeSheet();
   await applyStrategy(val);
 }
@@ -298,7 +297,6 @@ async function editLimit(key, title, cur){
   if(n !== cur) setp(key, n);
 }
 async function act(a){
-  haptic('click');
   svcBusy = a;
   if(a === 'stop') stopUptTimer();
   renderHeroActions();

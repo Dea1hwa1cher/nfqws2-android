@@ -18,5 +18,4 @@ renderParams({});
   await detectSpawn();
   await stat();
   initStrategySelector();
-  detectHaptics();
 })();
