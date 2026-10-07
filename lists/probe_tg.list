@@ -1,0 +1,7 @@
+# probe_tg.list — датацентры Telegram для проверки доступности (DPI Detector, пункт 5)
+# Формат: name|ip|port
+DC1_Miami|149.154.175.53|443
+DC2_Amsterdam|149.154.167.51|443
+DC3_Miami|149.154.175.100|443
+DC4_Amsterdam|149.154.167.91|443
+DC5_Singapore|91.108.56.130|443

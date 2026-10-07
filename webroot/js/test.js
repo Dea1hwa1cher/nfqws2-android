@@ -136,7 +136,7 @@ function renderTcp16Row(i, provider, ip, port, status, detail){
   return '<div class="list-item two-line" id="tcprow' + i + '">' +
     '<span class="status ' + stClass + '">' + icon(icName, 's16') + '</span>' +
     '<span class="li-text">' +
-      '<span class="li-primary truncate">' + esc(provider) + ' <span class="muted li-mono">(' + esc(ip) + ')</span></span>' +
+      '<span class="li-primary truncate">' + esc(provider.replace(/_/g, ' ')) + ' <span class="muted li-mono">(' + esc(ip) + ')</span></span>' +
       '<span class="li-secondary">' + (isClean ? t('Чисто, передача данных стабильна') : (isDetected ? t('Обрыв сессии ТСПУ после {0}', detail) : t('Хост недоступен'))) + '</span>' +
     '</span>' +
     '<span class="li-trail ' + (isDetected ? 't-label-medium bad' : 'li-value') + '">' + esc(trailText) + '</span>' +
@@ -155,7 +155,7 @@ function renderDnsRow(i, name, ip, udp, doh, hijacked, detail){
   return '<div class="list-item two-line" id="dnsrow' + i + '">' +
     '<span class="status ' + stClass + '">' + icon(icName, 's16') + '</span>' +
     '<span class="li-text">' +
-      '<span class="li-primary truncate">' + esc(name) + ' <span class="muted li-mono">(' + esc(ip) + ')</span></span>' +
+      '<span class="li-primary truncate">' + esc(name.replace(/_/g, ' ')) + ' <span class="muted li-mono">(' + esc(ip) + ')</span></span>' +
       '<span class="li-secondary">' + esc(sub) + '</span>' +
     '</span>' +
     '<span class="li-trail ' + (isHijacked ? 't-label-medium bad' : 'li-value') + '">' + esc(trail) + '</span>' +
@@ -169,7 +169,7 @@ function renderTgRow(i, name, ip, status, ms){
   return '<div class="list-item" id="tgrow' + i + '">' +
     '<span class="status ' + stClass + '">' + icon(icName, 's16') + '</span>' +
     '<span class="li-text">' +
-      '<span class="li-primary truncate">' + esc(name) + ' <span class="muted li-mono">(' + esc(ip) + ')</span></span>' +
+      '<span class="li-primary truncate">' + esc(name.replace(/_/g, ' ')) + ' <span class="muted li-mono">(' + esc(ip) + ')</span></span>' +
     '</span>' +
     '<span class="li-trail li-value">' + esc(isOk ? ms : t('Недоступен')) + '</span>' +
   '</div>';

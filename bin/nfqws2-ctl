@@ -31,6 +31,10 @@ list_file() {
     ipset_exclude|ipset_exclude.list) echo "$LISTS_DIR/ipset_exclude.list" ;;
     auto|auto.list) echo "$LISTS_DIR/auto.list" ;;
     probe_hosts|probe_hosts.list) echo "$LISTS_DIR/probe_hosts.list" ;;
+    tcp16|tcp16.list) echo "$LISTS_DIR/tcp16.list" ;;
+    probe_dns|probe_dns.list) echo "$LISTS_DIR/probe_dns.list" ;;
+    probe_tg|probe_tg.list) echo "$LISTS_DIR/probe_tg.list" ;;
+    whitelist_sni|whitelist_sni.list) echo "$LISTS_DIR/whitelist_sni.list" ;;
     apps|apps.list) echo "$CONFDIR/apps.list" ;;
     home|home_wifi.list) echo "$HOME_FILE" ;;
     *) return 1 ;;
@@ -493,7 +497,7 @@ cmd_list_apps() {
 # релизом и в копию не входят), apps.list, домашние сети, правки стратегий,
 # импорты, активная стратегия и настройки WebUI (ui.json, их передаёт WebUI).
 BACKUP_DIR="${NFQWS_BACKUP_DIR:-/sdcard/Download}"
-BACKUP_LISTS="user exclude ipset ipset_exclude auto probe_hosts"
+BACKUP_LISTS="user exclude ipset ipset_exclude auto probe_hosts tcp16 probe_dns probe_tg whitelist_sni"
 tar_cmd() {
   if command -v tar >/dev/null 2>&1; then tar "$@"; else busybox tar "$@"; fi
 }
@@ -669,7 +673,7 @@ cmd_net_info() {
 
 cmd_probe_all_inner() {
   local kind="$1" bin="$2" i=0 h
-  grep -v -e '^[[:space:]]*#' -e '^[[:space:]]*$' "$LISTS_DIR/probe_hosts.list" 2>/dev/null | tr -d '\r' | head -n 40 > "$STATE_DIR/probe.hosts"
+  grep -v -e '^[[:space:]]*#' -e '^[[:space:]]*$' "$LISTS_DIR/probe_hosts.list" 2>/dev/null | tr -d '\r' > "$STATE_DIR/probe.hosts"
   while IFS= read -r h; do printf 'H\t%s\t%s\n' "$i" "$h"; i=$((i + 1)); done < "$STATE_DIR/probe.hosts"
   i=0
   while IFS= read -r h; do
@@ -692,19 +696,23 @@ cmd_probe_tcp16() {
   [ "$kind" = "none" ] && return 0
   command -v timeout >/dev/null 2>&1 && to="timeout 8"
 
-  local targets="Hetzner|91.98.156.82|443|
-Hetzner Cloud|5.161.249.234|443|
-Cloudflare 1|172.67.70.222|443|
-Cloudflare 2|104.18.63.125|443|
-DigitalOcean 1|134.209.80.1|443|
-DigitalOcean 2|159.89.120.1|443|
-OVH 1|51.254.100.1|443|
-OVH 2|149.202.160.1|443|
-Akamai|23.222.76.4|443|
-AWS Cloud|3.165.188.250|443|
-Fastly|151.101.66.245|443|www.jetblue.com
-Fastly GitHub|185.199.108.133|443|release-assets.githubusercontent.com"
-  [ -f "$LISTS_DIR/tcp16.list" ] && targets=$(grep -v '^[[:space:]]*#' "$LISTS_DIR/tcp16.list" 2>/dev/null)
+  local targets=""
+  if [ -f "$LISTS_DIR/tcp16.list" ]; then
+    targets=$(grep -v -e '^[[:space:]]*#' -e '^[[:space:]]*$' "$LISTS_DIR/tcp16.list" 2>/dev/null | tr -d '\r')
+  fi
+  [ -z "$targets" ] && targets="Hetzner_HE-01|91.98.156.82|443|
+Hetzner_Cloud_2_HE-03|5.161.249.234|443|
+Cloudflare_CF-01|172.67.70.222|443|
+Cloudflare_CF-03|104.18.63.125|443|
+CDN77_#1_CDN-02|195.181.167.155|443|
+Akamai_1_AK-01|23.222.76.4|443|
+AWS_1_AWS-02|3.165.188.250|443|
+Contabo_1_CNT-01|173.249.28.198|443|
+Fastly_FST-01|151.101.66.245|443|www.jetblue.com
+Fastly_GitHub_108_FST-03|185.199.108.133|443|release-assets.githubusercontent.com
+Google_Cloud_GC-01|147.189.239.240|443|
+Oracle_Cloud_OR-01|153.72.114.110|443|
+OVH_OVH-01|5.196.63.68|443|"
 
   local pad16 pad24 pad32
   pad16=$(printf '%*s' 16384 '' | tr ' ' 'a')
@@ -776,12 +784,15 @@ cmd_probe_dns() {
   [ "$kind" = "none" ] && return 0
   command -v timeout >/dev/null 2>&1 && to="timeout 6"
 
-  local servers="Google|8.8.8.8|https://dns.google/dns-query
-Cloudflare|1.1.1.1|https://cloudflare-dns.com/dns-query
+  local servers=""
+  if [ -f "$LISTS_DIR/probe_dns.list" ]; then
+    servers=$(grep -v -e '^[[:space:]]*#' -e '^[[:space:]]*$' "$LISTS_DIR/probe_dns.list" 2>/dev/null | tr -d '\r')
+  fi
+  [ -z "$servers" ] && servers="Google|8.8.8.8|https://dns.google/dns-query
+Cloudflare_IP|1.1.1.1|https://1.1.1.1/dns-query
 Quad9|9.9.9.9|https://dns.quad9.net/dns-query
-AdGuard|94.140.14.14|https://dns.adguard.com/dns-query
-Yandex|77.88.8.8|"
-  [ -f "$LISTS_DIR/probe_dns.list" ] && servers=$(grep -v '^[[:space:]]*#' "$LISTS_DIR/probe_dns.list" 2>/dev/null)
+AdGuard|94.140.14.14|https://dns.adguard-dns.com/dns-query
+Yandex|77.88.8.8|https://common.dot.dns.yandex.net/dns-query"
 
   local idx=0
   printf '%s\n' "$servers" | while IFS='|' read -r name ip doh; do
@@ -827,12 +838,15 @@ cmd_probe_tg() {
   [ "$kind" = "none" ] && return 0
   command -v timeout >/dev/null 2>&1 && to="timeout 6"
 
-  local dcs="DC1 (Miami)|149.154.175.53|443
-DC2 (Amsterdam)|149.154.167.51|443
-DC3 (Miami)|149.154.175.100|443
-DC4 (Amsterdam)|149.154.167.91|443
-DC5 (Singapore)|91.108.56.130|443"
-  [ -f "$LISTS_DIR/probe_tg.list" ] && dcs=$(grep -v '^[[:space:]]*#' "$LISTS_DIR/probe_tg.list" 2>/dev/null)
+  local dcs=""
+  if [ -f "$LISTS_DIR/probe_tg.list" ]; then
+    dcs=$(grep -v -e '^[[:space:]]*#' -e '^[[:space:]]*$' "$LISTS_DIR/probe_tg.list" 2>/dev/null | tr -d '\r')
+  fi
+  [ -z "$dcs" ] && dcs="DC1_Miami|149.154.175.53|443
+DC2_Amsterdam|149.154.167.51|443
+DC3_Miami|149.154.175.100|443
+DC4_Amsterdam|149.154.167.91|443
+DC5_Singapore|91.108.56.130|443"
 
   local idx=0
   printf '%s\n' "$dcs" | while IFS='|' read -r name ip port; do
