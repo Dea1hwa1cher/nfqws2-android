@@ -42,6 +42,8 @@ IPT_GROUP_NAT="nfqws_nat"
 IPT_GROUP_QOUT="nfqws_qout"
 IPT_GROUP_QIN="nfqws_qin" # like QOUT, for incoming when connbytes is missing
 IPT_GROUP_APP="nfqws_app"
+IPT_GROUP_FWD="nfqws_fwd"
+NET_STRATEGIES_DIR="$CONFDIR/net_strategies"
 
 # xt_owner allows max 128 ranges per rule
 APP_UID_MAX=128
@@ -52,8 +54,9 @@ CNT_IN_MASK=0x000f0000   # bits 16-19, apart from out counter (24-27) and MARK_*
 CNT_IN_STEP=65536        # 1<<16
 
 # dirs usually exist; builtin test avoids forking mkdir (sourced on every nfqws2-ctl call)
-[ -d "$LISTS_DIR" ] && [ -d "$STATE_DIR" ] && [ -d "$LOG_DIR" ] && [ -d "$USER_STRATEGIES_DIR" ] ||
-  mkdir -p "$LISTS_DIR" "$STATE_DIR" "$LOG_DIR" "$USER_STRATEGIES_DIR" 2>/dev/null
+if [ ! -d "$LISTS_DIR" ] || [ ! -d "$STATE_DIR" ] || [ ! -d "$LOG_DIR" ] || [ ! -d "$USER_STRATEGIES_DIR" ] || [ ! -d "$NET_STRATEGIES_DIR" ]; then
+  mkdir -p "$LISTS_DIR" "$STATE_DIR" "$LOG_DIR" "$USER_STRATEGIES_DIR" "$NET_STRATEGIES_DIR" 2>/dev/null
+fi
 
 set_defaults() {
   : "${ISP_INTERFACE:=}"
@@ -74,6 +77,8 @@ set_defaults() {
   : "${PKT_LIMIT_IN:=15}"
   : "${WAKELOCK:=0}"
   : "${HOME_WIFI:=0}"
+  : "${ENABLE_HOTSPOT:=1}"
+  : "${NET_STRATEGY:=0}"
 }
 
 log_msg() {
@@ -537,14 +542,49 @@ _firewall_start() {
   if [ "$CMD" = "iptables" ] && [ "$NAT_FIX" = "1" ]; then
     $CMD -w -t nat -I POSTROUTING 1 -j $IPT_GROUP_NAT
   fi
+
+  if [ "$ENABLE_HOTSPOT" = "1" ]; then
+    $CMD -w -t mangle -N $IPT_GROUP_FWD 2>/dev/null
+    $CMD -w -t mangle -F $IPT_GROUP_FWD
+    while $CMD -w -t mangle -D FORWARD -j $IPT_GROUP_FWD 2>/dev/null; do :; done
+
+    $CMD -w -t mangle -A $IPT_GROUP_FWD -m mark --mark $MARK_PROCESSED -j RETURN
+
+    if [ "$BLOCK_QUIC" = "1" ]; then
+      $CMD -w -t mangle -A $IPT_GROUP_FWD -p udp --dport 443 -j DROP
+    fi
+
+    local JNFQ="-j NFQUEUE --queue-num $NFQUEUE_NUM --queue-bypass"
+    local UP="$IPT_UDP_EFF" TP="$IPT_TCP_PORTS"
+    local TARGET_OUT TARGET_IN
+    case "$LIMITER" in
+      connbytes)
+        TARGET_OUT="-m connbytes --connbytes-dir=original --connbytes-mode=packets --connbytes 1:$PKT_LIMIT_OUT $JNFQ"
+        TARGET_IN="-m connbytes --connbytes-dir=reply --connbytes-mode=packets --connbytes 1:$PKT_LIMIT_IN $JNFQ"
+        ;;
+      connmark_out)
+        TARGET_OUT="-j $IPT_GROUP_QOUT"
+        TARGET_IN="-j $IPT_GROUP_QIN"
+        ;;
+    esac
+
+    [ -n "$UP" ] && _fw_add_rule "$CMD" $IPT_GROUP_FWD "" udp dports "$UP" "" "$TARGET_OUT"
+    [ -n "$TP" ] && _fw_add_rule "$CMD" $IPT_GROUP_FWD "" tcp dports "$TP" "" "$TARGET_OUT"
+    [ -n "$UP" ] && _fw_add_rule "$CMD" $IPT_GROUP_FWD "" udp sports "$UP" "" "$TARGET_IN"
+    [ -n "$TP" ] && _fw_add_rule "$CMD" $IPT_GROUP_FWD "" tcp sports "$TP" "" "$TARGET_IN"
+
+    $CMD -w -t mangle -I FORWARD 1 -j $IPT_GROUP_FWD
+  fi
 }
 
 _firewall_stop() {
   local CMD="$1"
   while $CMD -w -t mangle -D POSTROUTING -j $IPT_GROUP_POST 2>/dev/null; do :; done
   while $CMD -w -t mangle -D PREROUTING -j $IPT_GROUP_PRE 2>/dev/null; do :; done
+  while $CMD -w -t mangle -D FORWARD -j $IPT_GROUP_FWD 2>/dev/null; do :; done
   $CMD -w -t mangle -F $IPT_GROUP_POST 2>/dev/null; $CMD -w -t mangle -X $IPT_GROUP_POST 2>/dev/null
   $CMD -w -t mangle -F $IPT_GROUP_PRE 2>/dev/null;  $CMD -w -t mangle -X $IPT_GROUP_PRE 2>/dev/null
+  $CMD -w -t mangle -F $IPT_GROUP_FWD 2>/dev/null;  $CMD -w -t mangle -X $IPT_GROUP_FWD 2>/dev/null
   $CMD -w -t mangle -F $IPT_GROUP_QOUT 2>/dev/null; $CMD -w -t mangle -X $IPT_GROUP_QOUT 2>/dev/null
   $CMD -w -t mangle -F $IPT_GROUP_QIN 2>/dev/null;  $CMD -w -t mangle -X $IPT_GROUP_QIN 2>/dev/null
   $CMD -w -t mangle -F $IPT_GROUP_APP 2>/dev/null; $CMD -w -t mangle -X $IPT_GROUP_APP 2>/dev/null
@@ -605,6 +645,9 @@ release_wakelock() {
 system_config() {
   sysctl -w net.netfilter.nf_conntrack_checksum=0 >/dev/null 2>&1
   sysctl -w net.netfilter.nf_conntrack_tcp_be_liberal=1 >/dev/null 2>&1
+  sysctl -w net.ipv4.tcp_timestamps=1 >/dev/null 2>&1 || {
+    [ -w /proc/sys/net/ipv4/tcp_timestamps ] && echo 1 > /proc/sys/net/ipv4/tcp_timestamps 2>/dev/null
+  }
   sysctl -w net.core.rmem_max=8388608 >/dev/null 2>&1
   sysctl -w net.core.wmem_max=8388608 >/dev/null 2>&1
   sysctl -w net.core.rmem_default=2097152 >/dev/null 2>&1
@@ -832,7 +875,7 @@ render_strategy() {
 
 # Module settings (same across strategies) are carried over whole from the live
 # config on strategy change/reset. NFQWS_EXTRA_ARGS only for standard $MODE_* refs.
-USER_KEYS="IPV6_ENABLED TCP_PORTS UDP_PORTS NFQUEUE_NUM PKT_LIMIT_OUT PKT_LIMIT_IN BLOCK_QUIC NAT_FIX APP_MODE AUTOSTART WATCHDOG NFQWS_USER LOG_LEVEL LOG_MAX_KB WAKELOCK HOME_WIFI NFQWS_EXTRA_ARGS"
+USER_KEYS="IPV6_ENABLED TCP_PORTS UDP_PORTS NFQUEUE_NUM PKT_LIMIT_OUT PKT_LIMIT_IN BLOCK_QUIC NAT_FIX APP_MODE AUTOSTART WATCHDOG NFQWS_USER LOG_LEVEL LOG_MAX_KB WAKELOCK HOME_WIFI ENABLE_HOTSPOT NET_STRATEGY NFQWS_EXTRA_ARGS"
 merge_user_keys() { # <generated config> <settings source config>  -> stdout
   awk -v keys=" $USER_KEYS " -v src="$2" '
     function quotes(str,   t) { t = str; return gsub(/"/, "", t) }
@@ -882,3 +925,76 @@ ssid_is_home() {
   if [ -z "$1" ] || [ ! -f "$HOME_FILE" ]; then return 1; fi
   grep -v -e '^[[:space:]]*#' -e '^[[:space:]]*$' "$HOME_FILE" 2>/dev/null | grep -Fxq -- "$1"
 }
+
+# ---------------------------------------------------------------- network strategy caching
+current_network_key() {
+  local ssid op
+  if ssid=$(current_ssid 2>/dev/null) && [ -n "$ssid" ]; then
+    printf 'wifi_%s' "$(printf '%s' "$ssid" | tr -c 'a-zA-Z0-9._-' '_')"
+    return 0
+  fi
+  op=$(getprop gsm.operator.alpha 2>/dev/null | cut -d',' -f1 | tr -d '\r\n')
+  [ -z "$op" ] && op=$(getprop gsm.sim.operator.alpha 2>/dev/null | cut -d',' -f1 | tr -d '\r\n')
+  if [ -n "$op" ]; then
+    printf 'cell_%s' "$(printf '%s' "$op" | tr -c 'a-zA-Z0-9._-' '_')"
+  else
+    printf 'cellular'
+  fi
+  return 0
+}
+
+current_network_title() {
+  local ssid op
+  if ssid=$(current_ssid 2>/dev/null) && [ -n "$ssid" ]; then
+    printf 'Wi-Fi «%s»' "$ssid"
+    return 0
+  fi
+  op=$(getprop gsm.operator.alpha 2>/dev/null | cut -d',' -f1 | tr -d '\r\n')
+  [ -z "$op" ] && op=$(getprop gsm.sim.operator.alpha 2>/dev/null | cut -d',' -f1 | tr -d '\r\n')
+  if [ -n "$op" ]; then
+    printf 'Мобильная сеть (%s)' "$op"
+  else
+    printf 'Мобильная сеть'
+  fi
+  return 0
+}
+
+save_net_strategy() { # <strategy_name> [net_key]
+  local strat="$1" key="${2:-$(current_network_key 2>/dev/null)}" title
+  if [ -z "$strat" ] || [ -z "$key" ]; then
+    return 1
+  fi
+  [ -d "$NET_STRATEGIES_DIR" ] || mkdir -p "$NET_STRATEGIES_DIR" 2>/dev/null
+  printf '%s\n' "$strat" > "$NET_STRATEGIES_DIR/$key"
+  title=$(current_network_title 2>/dev/null)
+  [ -n "$title" ] && printf '%s\n' "$title" > "$NET_STRATEGIES_DIR/$key.title"
+  return 0
+}
+
+load_net_strategy() { # [net_key] -> prints strategy name
+  local key="${1:-$(current_network_key 2>/dev/null)}"
+  [ -f "$NET_STRATEGIES_DIR/$key" ] || return 1
+  local s
+  s=$(head -n1 "$NET_STRATEGIES_DIR/$key" 2>/dev/null | tr -d '\r\n')
+  [ -n "$s" ] || return 1
+  printf '%s' "$s"
+}
+
+list_net_strategies() {
+  local f key strat title
+  for f in "$NET_STRATEGIES_DIR"/*; do
+    [ -f "$f" ] || continue
+    case "$f" in *.title) continue ;; esac
+    key="${f##*/}"
+    strat=$(head -n1 "$f" 2>/dev/null | tr -d '\r\n')
+    title=""
+    [ -f "$f.title" ] && title=$(head -n1 "$f.title" 2>/dev/null | tr -d '\r\n')
+    [ -n "$title" ] || title="$key"
+    printf '%s\t%s\t%s\n' "$key" "$strat" "$title"
+  done
+}
+
+clear_net_strategies() {
+  rm -rf "$NET_STRATEGIES_DIR"/* 2>/dev/null
+}
+

@@ -16,9 +16,13 @@ function settingsRow(o){
 }
 function renderSettings(){
   const homeN = S.home_wifi == 1 ? t('Включено') : t('Выключено');
+  const hotN = S.enable_hotspot == 1 ? t('Включено') : t('Выключено');
+  const netN = S.net_strategy == 1 ? t('Включено') : t('Выключено');
   const groups = [
     ['Работа', [
-      {icon: 'home', title: 'Домашняя Wi‑Fi', sub: t('Пауза обхода в домашних сетях') + ' · ' + homeN, on: "navigate('wifi')", chevron: true}
+      {icon: 'home', title: 'Домашняя Wi‑Fi', sub: t('Пауза обхода в домашних сетях') + ' · ' + homeN, on: "navigate('wifi')", chevron: true},
+      {icon: 'wifi', title: 'Раздача интернета', sub: t('Обход DPI для устройств точки доступа и USB'), on: 'toggleHotspot()', value: hotN},
+      {icon: 'refresh', title: 'Стратегии по сетям', sub: t('Запоминать стратегию отдельно для каждой сети'), on: 'toggleNetStrategy()', value: netN}
     ]],
     ['Инструменты', [
       {icon: 'apps', title: 'Фильтр приложений', sub: t('Обход только для выбранных приложений или для всех, кроме них'), on: "navigate('apps')", chevron: true},
@@ -276,3 +280,18 @@ async function restoreBackup(name){
   applyRestoredUi(r.out);
   toast(t('Копия восстановлена'));
 }
+
+async function toggleHotspot(){
+  const on = S.enable_hotspot != 1;
+  const r = await withBusy(['set', 'ENABLE_HOTSPOT', on ? '1' : '0'], 40000);
+  if(r.code) toast(errText(r, 'Не удалось переключить раздачу интернета'));
+  else { S.enable_hotspot = on ? 1 : 0; renderSettings(); stat(); }
+}
+
+async function toggleNetStrategy(){
+  const on = S.net_strategy != 1;
+  const r = await withBusy(['set', 'NET_STRATEGY', on ? '1' : '0'], 40000);
+  if(r.code) toast(errText(r, 'Не удалось переключить привязку стратегий'));
+  else { S.net_strategy = on ? 1 : 0; renderSettings(); stat(); }
+}
+

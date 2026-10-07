@@ -17,9 +17,9 @@ start_failed() { # <причина>
   update_description stopped
 }
 
-# Наблюдатели (watchdog и netwatch) нужны и для автоперезапуска, и для паузы в
-# домашней Wi-Fi: живут, пока включено хотя бы одно из двух.
-watchers_wanted() { [ "$WATCHDOG" = "1" ] || [ "$HOME_WIFI" = "1" ]; }
+# Наблюдатели (watchdog и netwatch) нужны для автоперезапуска, паузы в
+# домашней Wi-Fi и автопереключения стратегий по сетям.
+watchers_wanted() { [ "$WATCHDOG" = "1" ] || [ "$HOME_WIFI" = "1" ] || [ "$NET_STRATEGY" = "1" ]; }
 
 start() {
   if is_running; then
@@ -215,6 +215,7 @@ netwatch() {
           firewall_start
         fi
         home_check
+        network_strategy_check
         acted="$sz"
       fi
       [ "$sz" -gt 262144 ] && { kill -TERM "$mon" 2>/dev/null; : > "$EVFILE"; prev=""; acted=""; }
@@ -235,10 +236,9 @@ watchdog() {
     load_conf >/dev/null 2>&1
     watchers_wanted || break
     tick=$((tick + 1))
-    # Домашняя сеть проверяется и здесь — на прошивках, где ip monitor не
-    # работает, это единственный способ её заметить. Раз в минуту, а не каждый
-    # тик: `cmd wifi` заметно дороже остальной проверки.
+    # Домашняя сеть и стратегия сети проверяются раз в минуту (`cmd wifi` дороже остального)
     [ "$HOME_WIFI" = "1" ] && [ $((tick % 3)) -eq 0 ] && home_check
+    [ "$NET_STRATEGY" = "1" ] && [ $((tick % 3)) -eq 0 ] && network_strategy_check
     [ "$WATCHDOG" = "1" ] || continue
     [ -f "$DESIRED_FILE" ] || continue
 
@@ -297,6 +297,34 @@ home_check() {
   return 0
 }
 
+# ---------------------------------------------------------------- авто-стратегии по сетям
+# При смене сети (Wi-Fi <-> 4G или между разными Wi-Fi) переключает стратегию на ту,
+# которая была сохранена для этой сети.
+network_strategy_check() {
+  [ "$NET_STRATEGY" = "1" ] || return 0
+  is_running || return 0
+  [ -f "$HOME_PAUSED_FILE" ] && return 0 # во время домашней паузы стратегию не меняем
+
+  local cur_net last_net saved cur_strat
+  cur_net=$(current_network_key 2>/dev/null)
+  [ -n "$cur_net" ] || return 0
+  last_net=$(cat "$STATE_DIR/last_network" 2>/dev/null)
+
+  if [ "$cur_net" != "$last_net" ]; then
+    printf '%s' "$cur_net" > "$STATE_DIR/last_network"
+    saved=$(load_net_strategy "$cur_net" 2>/dev/null)
+    cur_strat=$(get_current_strategy 2>/dev/null)
+    if [ -n "$saved" ] && [ "$saved" != "$cur_strat" ]; then
+      log_msg "Смена сети на $(current_network_title 2>/dev/null || echo "$cur_net") — переключение на сохранённую стратегию «$saved»"
+      if sh "$MODDIR/bin/nfqws2-ctl" set-strategy "$saved" >/dev/null 2>&1; then
+        stop >/dev/null 2>&1
+        start >/dev/null 2>&1
+      fi
+    fi
+  fi
+  return 0
+}
+
 # Ручной запуск: снимает паузу и, если телефон сейчас в домашней сети,
 # запоминает, что в ней пользователь хочет работать с обходом.
 manual_start() {
@@ -320,6 +348,7 @@ case "$1" in
   start)              manual_start ;;
   stop)               rm -f "$HOME_PAUSED_FILE" "$HOME_OVERRIDE_FILE"; stop ;;
   home_check)         home_check; ensure_watchdog ;;
+  net_check)          network_strategy_check ;;
   restart)            stop; start ;;
   reload)             reload_lists ;;
   status)             status_service ;;
