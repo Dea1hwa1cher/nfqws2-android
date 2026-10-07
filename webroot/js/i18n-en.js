@@ -382,6 +382,6 @@ EN = {
   "Ярлык на рабочий стол": "Home screen shortcut",
   "Добавить на главный экран телефона": "Add to phone home screen",
   "Ярлык добавлен на рабочий стол": "Shortcut added to home screen",
-  "В браузере (Chrome, Kiwi) нажмите меню ⋮ ➔ «Добавить на главный экран» или «Установить».\nВ MMRL и KsuWebUI используйте кнопку «Создать ярлык» в верхнем меню модуля.": "In your browser (Chrome, Kiwi), tap ⋮ ➔ “Add to Home screen” or “Install”.\nIn MMRL and KsuWebUI, use the “Create shortcut” button in the module menu.",
+  "KernelSU: в списке модулей удерживайте кнопку WebUI на карточке nfqws2 и выберите «Создать ярлык».\nMMRL и KsuWebUI: «Создать ярлык» в меню модуля.\nИконка ярлыка подставится из модуля сама.": "KernelSU: in the module list, long-press the WebUI button on the nfqws2 card and choose “Create shortcut”.\nMMRL and KsuWebUI: “Create shortcut” in the module menu.\nThe shortcut icon is taken from the module automatically.",
   "Понятно": "Got it"
 };

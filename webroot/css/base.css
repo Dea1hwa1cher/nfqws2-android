@@ -690,7 +690,8 @@ html[data-containers="true"] .sheet > .list-item {
 .dialog .d-icon { align-self: center; flex: none; display: grid; place-items: center; color: var(--md-sys-color-secondary); }
 .dialog .d-icon.danger { color: var(--md-sys-color-error); }
 .dialog .d-title { font-size: var(--ts-headline-small); line-height: var(--lh-headline-small); font-weight: var(--w-emph); }
-.dialog .d-body { font-size: var(--ts-body-medium); line-height: var(--lh-body-medium); color: var(--md-sys-color-on-surface-variant); }
+.dialog .d-body { font-size: var(--ts-body-medium); line-height: var(--lh-body-medium); color: var(--md-sys-color-on-surface-variant);
+  white-space: pre-line; }
 .dialog .d-actions { display: flex; justify-content: flex-end; gap: 8px; }
 
 /* ── Snackbar ────────────────────────────────────────────────────────── */

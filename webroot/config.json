@@ -1,6 +1,6 @@
 {
     "title": "nfqws2",
-    "icon": "icon.svg",
+    "icon": "icon.png",
     "windowResize": false,
     "backInterceptor": "javascript",
     "contentSecurityPolicy": "default-src 'self' 'unsafe-inline' data: blob: https://mui.kernelsu.org; script-src * 'unsafe-inline' 'unsafe-eval'; style-src * 'unsafe-inline' https://mui.kernelsu.org; connect-src *; img-src * data:;"

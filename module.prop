@@ -5,3 +5,5 @@ versionCode=1062
 author=deathwatcher
 description=Обход DPI на базе nfqws2.
 updateJson=https://raw.githubusercontent.com/Dea1hwa1cher/nfqws2-android/main/update.json
+webuiIcon=webroot/icon.png
+actionIcon=webroot/icon.png

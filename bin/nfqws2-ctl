@@ -201,7 +201,8 @@ cmd_doctor() {
     && row ok NFQUEUE "$(M 'цель NFQUEUE доступна' 'NFQUEUE target available')" \
     || row fail NFQUEUE "$(M 'ядро без NFQUEUE — модуль работать НЕ БУДЕТ' 'kernel has no NFQUEUE — the module will NOT work')"
   has_ipt_feature iptables -p tcp -m multiport --dports 80,443 -j RETURN \
-    && row ok multiport "$(M есть present)" || row fail multiport "$(M 'нет xt_multiport' 'xt_multiport missing')"
+    && row ok multiport "$(M есть present)" \
+    || row warn multiport "$(M 'нет xt_multiport — правила ставятся по одному порту' 'no xt_multiport — rules are added per port')"
   local lim
   lim=$(detect_limiter iptables)
   case "$lim" in
@@ -270,7 +271,16 @@ cmd_doctor() {
     else
       row fail queue "$(M "процесс запущен, но НЕ привязан к очереди $NFQUEUE_NUM" "process is running but NOT bound to queue $NFQUEUE_NUM")"
     fi
-    firewall_ok && row ok rules "$(M 'правила iptables на месте' 'iptables rules in place')" || row fail rules "$(M 'правила iptables отсутствуют' 'iptables rules are missing')"
+    # Сам переход в nfqws_post ещё не значит, что пакеты попадут в очередь: на
+    # ядре без нужного match все правила перехвата могли не встать (так было на
+    # ядрах без xt_multiport). Считаем именно правила, ведущие в очередь.
+    local nq
+    nq=$(iptables -w -t mangle -S $IPT_GROUP_POST 2>/dev/null | grep -cE -- '-j (NFQUEUE|nfqws_qout)')
+    if firewall_ok; then
+      row ok rules "$(M "правила iptables на месте, в очередь ведут $nq" "iptables rules in place, $nq lead to the queue")"
+    else
+      row fail rules "$(M 'нет правил, отправляющих пакеты в очередь — nfqws2 их не увидит' 'no rules send packets to the queue — nfqws2 will see nothing')"
+    fi
   fi
   if [ "$LOG_LEVEL" = "1" ]; then row warn debug "$(M 'включён подробный журнал — обработка заметно медленнее' 'verbose log is on — processing is noticeably slower')"; fi
 }
@@ -418,6 +428,16 @@ cmd_export_logs() {
   cp -f "$ARGS_FILE" "$d/last.args" 2>/dev/null
   cmd_doctor > "$d/doctor.txt" 2>&1
   iptables-save -t mangle 2>/dev/null | grep -i nfqws > "$d/iptables-nfqws.txt"
+  # Счётчики пакетов по правилам и состояние очереди: по ним видно, доходит ли
+  # трафик до правил и до nfqws2, даже когда журнал самого nfqws2 молчит.
+  {
+    for c in $IPT_GROUP_POST $IPT_GROUP_PRE $IPT_GROUP_QOUT $IPT_GROUP_QIN; do
+      echo "== iptables -t mangle -L $c -v -n"; iptables -w -t mangle -L "$c" -v -n -x 2>&1
+    done
+    echo "== ip6tables -t mangle -L $IPT_GROUP_POST -v -n"; ip6tables -w -t mangle -L $IPT_GROUP_POST -v -n -x 2>&1
+    echo "== /proc/net/netfilter/nfnetlink_queue"; cat /proc/net/netfilter/nfnetlink_queue 2>&1
+    echo "== ip route"; ip route 2>&1; ip -6 route 2>&1 | head -n 20
+  } > "$d/counters.txt" 2>&1
   echo "Логи сохранены в $d"
 }
 
