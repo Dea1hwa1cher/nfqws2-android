@@ -1,0 +1,71 @@
+# Выпуск релиза по тегу: git tag v1.6.3 && git push origin v1.6.3
+#
+# Собирает установочный zip из файлов модуля (тот же состав, что и раньше
+# собирался вручную: без tests/, docs/, .github/ и прочего), публикует релиз с
+# текстом из changelog.md и сразу обновляет update.json в main, чтобы менеджер
+# предложил обновление. Отдельный workflow update-json здесь не сработает:
+# релиз, созданный токеном Actions, не запускает другие workflow.
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Версия в module.prop совпадает с тегом
+        run: |
+          ver=$(sed -n 's/^version=//p' module.prop | tr -d '\r')
+          [ "$ver" = "$GITHUB_REF_NAME" ] || { echo "::error::module.prop: version=$ver, а тег $GITHUB_REF_NAME"; exit 1; }
+
+      - name: Собрать zip
+        run: |
+          set -eu
+          out="nfqws2-android-$GITHUB_REF_NAME.zip"
+          zip -q -r -9 -X "$out" \
+            module.prop customize.sh service.sh action.sh uninstall.sh README.md LICENSE \
+            bin binaries blobs defaults lib lists lua strategies webroot
+          unzip -l "$out" | tail -n 1
+          echo "ZIP=$out" >> "$GITHUB_ENV"
+
+      - name: Опубликовать релиз
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Релиз уже создан вручную через сайт (это тоже пуш тега) — не мешаем ему:
+          # только докладываем zip, если его там нет.
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            if gh release view "$GITHUB_REF_NAME" --json assets -q '.assets[].name' | grep -q '\.zip$'; then
+              echo "Релиз и zip уже есть — ничего не делаю"
+            else
+              gh release upload "$GITHUB_REF_NAME" "$ZIP"
+            fi
+          else
+            gh release create "$GITHUB_REF_NAME" "$ZIP" --title "$GITHUB_REF_NAME" --notes-file changelog.md --verify-tag
+          fi
+
+      - name: Обновить update.json в main
+        run: |
+          set -eu
+          git fetch origin main
+          git checkout -B main origin/main
+          code=$(git show "$GITHUB_REF_NAME:module.prop" | sed -n 's/^versionCode=//p' | tr -d '\r')
+          jq -n --arg v "$GITHUB_REF_NAME" --argjson c "$code" \
+                --arg z "https://github.com/${GITHUB_REPOSITORY}/releases/download/$GITHUB_REF_NAME/$ZIP" \
+                --arg l "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/changelog.md" \
+                '{version: $v, versionCode: $c, zipUrl: $z, changelog: $l}' > update.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898333+github-actions[bot]@users.noreply.github.com"
+          git add update.json
+          git diff --cached --quiet && exit 0
+          git commit -m "update.json: $GITHUB_REF_NAME"
+          git push origin HEAD:main

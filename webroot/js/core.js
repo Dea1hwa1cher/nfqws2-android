@@ -230,6 +230,37 @@ async function detectSpawn(){
   const r = await spawnRun("printf 'nfq_a\\n\\nnfq_b\\n'; (exit 3)", 3000);
   spawnOK = r.code === 3 && r.out === 'nfq_a\n\nnfq_b';
 }
+/* ── Тактильный отклик ─────────────────────────────────────────────────
+   Как в обычных Android-приложениях: короткий «тик» на переключателях,
+   радиокнопках и сегментах, «клик» на основных действиях (запуск, остановка,
+   применение стратегии), «тяжёлый» — на долгом нажатии. WebView вибрирует
+   сам через navigator.vibrate, но только если у менеджера есть разрешение
+   VIBRATE; у официального KernelSU его нет, и тогда отдачу даёт системная
+   команда от root (ctl haptic). Шелл используется только с асинхронным
+   spawn: синхронный exec заморозил бы интерфейс на каждое касание.
+   Системная настройка «Вибрация при касании» соблюдается (режим off). */
+let hapticMode = 'web';
+const HAPTIC_MS = {tick: 8, click: 14, heavy: 30};
+function haptic(kind){
+  kind = HAPTIC_MS[kind] ? kind : 'click';
+  if(hapticMode === 'off') return;
+  if(hapticMode === 'shell'){ if(spawnOK) sh(ctlCmd(['haptic', kind]), 3000); return; }
+  if(navigator.vibrate) try { navigator.vibrate(HAPTIC_MS[kind]); } catch(e) {}
+}
+async function detectHaptics(){
+  const r = await ctlx(['haptic-probe'], 8000);
+  const m = r.code ? '' : r.out.trim();
+  if(m === 'web' || m === 'shell' || m === 'off') hapticMode = m;
+}
+document.addEventListener('change', e => {
+  const el = e.target;
+  if(el && el.matches && el.matches('input.switch, input.checkbox, input.radio')) haptic('tick');
+}, true);
+document.addEventListener('click', e => {
+  const el = e.target && e.target.closest && e.target.closest('.segmented .seg, .swatch-dot, .chip.filter');
+  if(el && !el.disabled) haptic('tick');
+}, true);
+
 const ctlCmd = a => (LANG === 'en' ? 'NFQWS_LANG=en ' : '') + 'sh ' + q(CTL) + ' ' + a.map(q).join(' ');
 async function ctl(a, ms){
   const r = await sh(ctlCmd(a), ms);
@@ -477,7 +508,7 @@ let devMode = store.get('nfq_dev') === '1';
       tm = 0; fired = true;
       devMode = !devMode;
       store.set('nfq_dev', devMode ? '1' : '0');
-      if(navigator.vibrate) try { navigator.vibrate(30); } catch(e) {}
+      haptic('heavy');
       renderParams(S);
       if(currentPage === 'settings') renderSettings();
       toast(devMode ? t('Режим разработчика включён') : t('Режим разработчика выключен'));
