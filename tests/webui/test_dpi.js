@@ -2,9 +2,9 @@
 /**
  * test_dpi.js — Unit tests for ported DPI Detector logic:
  * - Error classification (TLS RST, TLS Alert, Spoof, MITM, Drop, Timeout, ISP Redir)
- * - Protocol parsing: NET, H, R, T16, DNS, TG, TG_MEDIA
+ * - Row HTML renderers (TCP16, DNS)
+ * - Strategy auto-selection logic & heuristic decision engine
  * - Report generator formatting
- * - Tab switching
  */
 'use strict';
 
@@ -40,6 +40,8 @@ const sandbox = {
   ctlx: async () => ({ code: 0, out: '' }),
   toast: () => {},
   S: { running: true, paused: false },
+  currentStrategy: 'default',
+  strategyName: s => s,
   document: {
     querySelectorAll: () => [],
     createElement: () => ({ select: () => {}, appendChild: () => {} }),
@@ -79,10 +81,67 @@ truthy(dnsRow.includes('status ok') && dnsRow.includes('UDP: OK'), 'DNS clean ro
 const dnsHijacked = sandbox.renderDnsRow(1, 'ISP DNS', '192.168.1.1', 'ok', 'none', 'yes', 'Заглушка');
 truthy(dnsHijacked.includes('status bad') && dnsHijacked.includes('ПЕРЕХВАТ'), 'DNS hijacked row renders with status bad');
 
-const tgRow = sandbox.renderTgRow(0, 'DC2 (Amsterdam)', '149.154.167.51', 'ok', '35ms');
-truthy(tgRow.includes('status ok') && tgRow.includes('35ms'), 'TG row renders with status ok');
+// ── 3. Strategy auto-selection logic ───────────────────────────────────────
+sect('strategy auto-selection logic');
 
-// ── 3. Report generation ───────────────────────────────────────────────────
+// 3.1: Clean run -> retains default or current
+const recClean = sandbox.analyzeProbeResults(
+  { 0: { host: 'google.com', list: [{ ok: true, ms: 20 }, { ok: true, ms: 22 }, { ok: true, ms: 21 }] } },
+  { 0: { provider: 'Cloudflare', status: 'clean', detail: '32KB' } },
+  { 0: { name: 'Google', udp: 'ok', doh: 'ok', hijacked: 'no' } }
+);
+truthy(recClean.isClean === true, 'clean run sets isClean flag');
+eq('default', recClean.strategy, 'clean run recommends default strategy');
+
+// 3.2: TCP 16KB + SNI block -> recommends fake_tls_auto_alt2
+const recTcpAlert = sandbox.analyzeProbeResults(
+  { 0: { host: 'rutracker.org', list: [{ ok: false, reason: 'tls_alert' }] } },
+  { 0: { provider: 'Hetzner', status: 'detected', detail: '16KB' } },
+  { 0: { name: 'Cloudflare', udp: 'ok', doh: 'ok', hijacked: 'no' } }
+);
+eq('fake_tls_auto_alt2', recTcpAlert.strategy, 'TCP16 + TLS Alert recommends fake_tls_auto_alt2');
+
+// 3.3: Pure TCP 16KB -> recommends alt4_mod
+const recTcpOnly = sandbox.analyzeProbeResults(
+  { 0: { host: 'cdn.example.com', list: [{ ok: true, ms: 30 }] } },
+  { 0: { provider: 'Hetzner', status: 'detected', detail: '16KB' } },
+  {}
+);
+eq('alt4_mod', recTcpOnly.strategy, 'pure TCP16 filter recommends alt4_mod');
+
+// 3.4: Pure SNI block (TLS Alert) -> recommends fake_tls_auto
+const recSniOnly = sandbox.analyzeProbeResults(
+  { 0: { host: 'discord.com', list: [{ ok: false, reason: 'tls_alert' }] } },
+  {},
+  {}
+);
+eq('fake_tls_auto', recSniOnly.strategy, 'pure TLS Alert recommends fake_tls_auto');
+
+// 3.5: TLS RST active reset -> recommends fake_tls_auto
+const recRst = sandbox.analyzeProbeResults(
+  { 0: { host: 'youtube.com', list: [{ ok: false, reason: 'tls_rst' }] } },
+  {},
+  {}
+);
+eq('fake_tls_auto', recRst.strategy, 'TLS RST recommends fake_tls_auto');
+
+// 3.6: Silent drop / timeout -> recommends alt11
+const recDrop = sandbox.analyzeProbeResults(
+  { 0: { host: 'medium.com', list: [{ ok: false, reason: 'drop' }] } },
+  {},
+  {}
+);
+eq('alt11', recDrop.strategy, 'silent drop recommends alt11');
+
+// 3.7: DNS hijacking warning
+const recDnsHijack = sandbox.analyzeProbeResults(
+  { 0: { host: 'clean.site', list: [{ ok: true, ms: 10 }] } },
+  {},
+  { 0: { name: 'ISP', udp: 'ok', doh: 'none', hijacked: 'yes', detail: 'Заглушка' } }
+);
+truthy(recDnsHijack.dnsWarning.length > 0, 'hijacked DNS emits dnsWarning');
+
+// ── 4. Report generation ───────────────────────────────────────────────────
 sect('report formatting');
 vm.runInContext(`
 netInfoData = {
@@ -103,10 +162,6 @@ tcp16Results = {
 dnsResults = {
   0: { name: 'Cloudflare', ip: '1.1.1.1', udp: 'ok', doh: 'ok', hijacked: 'no', detail: 'OK' }
 };
-tgResults = {
-  0: { name: 'DC2', ip: '149.154.167.51', status: 'ok', ms: '35ms' }
-};
-tgMediaSpeed = '12.5 MB/s';
 `, sandbox);
 
 let copiedText = '';
@@ -119,9 +174,9 @@ truthy(copiedText.includes('### DPI Detector (nfqws2-android)'), 'report header 
 truthy(copiedText.includes('5.18.158.84') && copiedText.includes('Z-Telecom'), 'network info is present in report');
 truthy(copiedText.includes('youtube.com'), 'web test is present in report');
 truthy(copiedText.includes('DETECTED @ 16KB'), 'TCP16 test is present in report');
-truthy(copiedText.includes('12.5 MB/s'), 'TG media speed is present in report');
+truthy(copiedText.includes('Рекомендованная стратегия'), 'strategy recommendation is present in report');
 
-// ── 4. Summary ─────────────────────────────────────────────────────────────
+// ── 5. Summary ─────────────────────────────────────────────────────────────
 console.log(`\n----------------------------------------\nPASS  ${pass} checks`);
 if (failures.length) {
   console.error(`FAIL  ${failures.length} check(s) failed`);

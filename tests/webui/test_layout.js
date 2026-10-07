@@ -473,13 +473,11 @@ const VIEWPORTS = [
       ['tool\tcurl', 'H\t0\ta.example', 'H\t1\tb.example', 'H\t2\tc.example',
        'R\t0\t1\tok 10', 'R\t1\t1\tfail drop', 'R\t2\t1\tok 30',
        'T16\t0\tHetzner\t1.1.1.1\t443\tclean\t20ms', 'T16\t1\tOVH\t2.2.2.2\t443\tdetected\t16KB',
-       'DNS\t0\tGoogle\t8.8.8.8\tok\tok\tno\tOK',
-       'TG\t0\tDC1\t149.154.175.53\tok\t50ms', 'TG_MEDIA\tok\t1.00 MB/s', 'done'],
+       'DNS\t0\tGoogle\t8.8.8.8\tok\tok\tno\tOK', 'done'],
       ['tool\tcurl', 'H\t0\tz.example', 'H\t1\ty.example',
        'R\t1\t1\tok 5', 'R\t0\t1\tok 7',
        'T16\t0\tCloudflare\t3.3.3.3\t443\tclean\t9ms',
-       'DNS\t0\tQuad9\t9.9.9.9\tfail\tnone\tno\tOK', 'DNS\t1\tYandex\t77.88.8.8\tok\tnone\tno\tOK',
-       'TG\t0\tDC2\t149.154.167.51\tfail\ttimeout', 'TG_MEDIA\tok\t2.00 MB/s', 'done'],
+       'DNS\t0\tQuad9\t9.9.9.9\tfail\tnone\tno\tOK', 'DNS\t1\tYandex\t77.88.8.8\tok\tnone\tno\tOK', 'done'],
     ];
     const ctx = await browser.newContext({ viewport: { width: 400, height: 900 } });
     await ctx.addInitScript(STUB);
@@ -501,7 +499,8 @@ const VIEWPORTS = [
     const snap = () => page.evaluate(() => {
       const rows = sel => [...document.querySelectorAll(sel + ' > .list-item')].map(r => r.querySelector('.li-primary').textContent.trim());
       return {
-        web: rows('#tr'), tcp: rows('#test-tcp16-list'), dns: rows('#test-dns-list'), tg: rows('#test-tg-list'),
+        web: rows('#tr'), tcp: rows('#test-tcp16-list'), dns: rows('#test-dns-list'),
+        rec: document.querySelector('#test-recommendation')?.hidden ? '' : document.querySelector('#test-recommendation .badge')?.textContent.trim(),
         webTrail: [...document.querySelectorAll('#tr .li-trail')].map(e => e.textContent),
         report: Object.keys(webResults).length + '/' + Object.keys(dnsResults).length,
       };
@@ -515,7 +514,7 @@ const VIEWPORTS = [
     eq('1/1,1/1', second.webTrail.join(','), 'the results land in the new rows');
     eq('Cloudflare (3.3.3.3)', second.tcp.join(','), 'TCP 16-20KB rows are replaced');
     eq('Quad9 (9.9.9.9),Yandex (77.88.8.8)', second.dns.join(','), 'DNS rows are replaced');
-    eq('DC2 (149.154.167.51),Скорость медиа', second.tg.join(','), 'Telegram rows are replaced, media speed stays last');
+    truthy(second.rec && second.rec.length > 0, 'strategy recommendation badge is displayed on completion');
     eq('2/2', second.report, 'the report holds only the second run');
     eq(0, pageErrors.length, 'no page errors' + (pageErrors.length ? ': ' + pageErrors.join('; ') : ''));
     await ctx.close();

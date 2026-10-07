@@ -832,46 +832,18 @@ Yandex|77.88.8.8|https://common.dot.dns.yandex.net/dns-query"
   done
 }
 
-cmd_probe_tg() {
-  local tool kind bin to=""
-  tool=$(probe_tool); kind="${tool%% *}"; bin="${tool#* }"
-  [ "$kind" = "none" ] && return 0
-  command -v timeout >/dev/null 2>&1 && to="timeout 6"
-
-  local dcs=""
-  if [ -f "$LISTS_DIR/probe_tg.list" ]; then
-    dcs=$(grep -v -e '^[[:space:]]*#' -e '^[[:space:]]*$' "$LISTS_DIR/probe_tg.list" 2>/dev/null | tr -d '\r')
-  fi
-  [ -z "$dcs" ] && dcs="DC1_Miami|149.154.175.53|443
-DC2_Amsterdam|149.154.167.51|443
-DC3_Miami|149.154.175.100|443
-DC4_Amsterdam|149.154.167.91|443
-DC5_Singapore|91.108.56.130|443"
-
-  local idx=0
-  printf '%s\n' "$dcs" | while IFS='|' read -r name ip port; do
-    [ -z "$name" ] || [ -z "$ip" ] && continue
-    [ -z "$port" ] && port=443
-
-    local out rc t_ms="0"
-    out=$($to "$bin" -s -k -m 5 --connect-timeout 3 -o /dev/null -w "%{time_connect}" "https://$ip:$port/" 2>&1); rc=$?
-    if [ "$rc" = 0 ] || [ "$rc" = 52 ] || [ "$rc" = 56 ] || [ "$rc" = 22 ]; then
-      t_ms=$(awk -v t="${out:-0}" 'BEGIN { printf "%d", t * 1000 }' 2>/dev/null || echo 0)
-      printf 'TG\t%s\t%s\t%s\tok\t%sms\n' "$idx" "$name" "$ip" "$t_ms"
-    else
-      printf 'TG\t%s\t%s\t%s\tfail\ttimeout\n' "$idx" "$name" "$ip"
+cmd_probe_cancel() {
+  if [ -f "$STATE_DIR/probe.pid" ]; then
+    local p
+    p=$(cat "$STATE_DIR/probe.pid" 2>/dev/null)
+    if [ -n "$p" ]; then
+      pkill -TERM -P "$p" 2>/dev/null
+      kill -TERM "$p" 2>/dev/null
     fi
-    idx=$((idx + 1))
-  done
-
-  if [ "$kind" = "curl" ]; then
-    local spd media_spd
-    spd=$($to "$bin" -s -k -m 8 -o /dev/null -r 0-262144 -w "%{speed_download}" "https://telegram.org/img/Telegram200million.png" 2>/dev/null)
-    media_spd=$(awk -v s="${spd:-0}" 'BEGIN { printf "%.2f", s / 1048576 }' 2>/dev/null || echo 0)
-    printf 'TG_MEDIA\tok\t%s MB/s\n' "$media_spd"
-  else
-    printf 'TG_MEDIA\tskip\tN/A\n'
+    rm -f "$STATE_DIR/probe.pid"
   fi
+  cleanup_probe_app_rule
+  echo OK
 }
 
 cmd_probe_dpi() {
@@ -879,23 +851,24 @@ cmd_probe_dpi() {
   tool=$(probe_tool); kind="${tool%% *}"; bin="${tool#* }"
   printf 'tool\t%s\n' "$kind"
   [ "$kind" = "none" ] && { echo done; return 0; }
+  mkdir -p "$STATE_DIR"
+  echo "$$" > "$STATE_DIR/probe.pid"
   setup_probe_app_rule
-  trap 'cleanup_probe_app_rule' EXIT INT TERM
+  trap 'rm -f "$STATE_DIR/probe.pid"; cleanup_probe_app_rule' EXIT INT TERM
 
   case "$mode" in
     web) cmd_probe_all_inner "$kind" "$bin" ;;
     tcp16) cmd_probe_tcp16 ;;
     dns) cmd_probe_dns ;;
-    tg) cmd_probe_tg ;;
     all|*)
       cmd_net_info
       cmd_probe_all_inner "$kind" "$bin"
       cmd_probe_tcp16
       cmd_probe_dns
-      cmd_probe_tg
       ;;
   esac
 
+  rm -f "$STATE_DIR/probe.pid"
   cleanup_probe_app_rule
   echo done
 }
@@ -1076,12 +1049,13 @@ case "$1" in
   backup-restore) cmd_backup_restore "$2" ;;
   net-info) cmd_net_info ;;
   probe-dpi) cmd_probe_dpi "${2:-all}" ;;
+  probe-cancel) cmd_probe_cancel ;;
   clear-logs) : > "$SERVICE_LOG"; : > "$NFQWS_LOG"; rm -f "$LOG_DIR/nfqws2-debug.log" "$LOG_DIR/auto.log"; echo OK ;;
   *)
     echo "Команды: status json-status is-running start stop restart reload doctor get-conf save-conf-b64 reset-conf conf-modified" >&2
     echo "         list-strategies get-strategy set-strategy strategy-get-b64 strategy-save-b64 strategy-reset" >&2
     echo "         import-add-b64 list-imports get-import-merged-b64 rename-import delete-import" >&2
     echo "         get-list save-list-b64 list-update add-domain clear-auto reset-lists set set-mode list-apps" >&2
-    echo "         get-logs export-logs clear-logs wifi-ssid backup-create backup-list backup-restore probe-dpi net-info" >&2
+    echo "         get-logs export-logs clear-logs wifi-ssid backup-create backup-list backup-restore probe-dpi probe-cancel net-info" >&2
     exit 1 ;;
 esac

@@ -17,13 +17,14 @@ const PROBE_REASON = {
 };
 
 let testRunning = false;
+let testCancelled = false;
+let webViewAbortCtrl = null;
 let currentTestTab = 'all';
 let netInfoData = null;
 let webResults = {};
 let tcp16Results = {};
 let dnsResults = {};
-let tgResults = {};
-let tgMediaSpeed = '';
+let lastRecommendation = null;
 
 function testInit(){
   updateTestDesc();
@@ -41,10 +42,8 @@ function updateTestDesc(){
     d.textContent = t('Тестирование соединений к зарубежным CDN и хостингам (Cloudflare, Hetzner, DO, OVH) с нарастающим объёмом данных до 32 КБ для выявления фильтра TCP 16-20KB.');
   } else if(currentTestTab === 'dns'){
     d.textContent = t('Проверка резолверов по UDP:53 и DoH для обнаружения перехвата портов провайдером и подмены IP адресов на заглушки РКН.');
-  } else if(currentTestTab === 'tg'){
-    d.textContent = t('Проверка прямой связности с датацентрами Telegram (DC1-DC5) и замер скорости загрузки тестового медиа.');
   } else {
-    d.textContent = t('Комплексный анализ цензуры DPI: проверка доступности сайтов, детекция блокировок TCP 16-20KB, анализ перехвата DNS и связности с Telegram.');
+    d.textContent = t('Комплексный анализ цензуры DPI: проверка доступности сайтов, детекция блокировок TCP 16-20KB и анализ перехвата DNS.');
   }
 }
 
@@ -56,12 +55,10 @@ function selectTestTab(tab){
   const showWeb = tab === 'all' || tab === 'web';
   const showTcp = tab === 'all' || tab === 'tcp16';
   const showDns = tab === 'all' || tab === 'dns';
-  const showTg = tab === 'all' || tab === 'tg';
 
   if($('test-sec-web')) $('test-sec-web').hidden = !showWeb;
   if($('test-sec-tcp16')) $('test-sec-tcp16').hidden = !showTcp;
   if($('test-sec-dns')) $('test-sec-dns').hidden = !showDns;
-  if($('test-sec-tg')) $('test-sec-tg').hidden = !showTg;
 
   updateTestDesc();
 }
@@ -121,9 +118,11 @@ function finishTestRow(i, res){
   if(!badge) return;
   badge.className = 'status ' + (ok.length === n ? 'ok' : (ok.length ? 'warn' : 'bad'));
   badge.innerHTML = icon(ok.length === n ? 'check' : (ok.length ? 'warn' : 'close'), 's16');
-  $('tr' + i).textContent = ok.length + '/' + n;
+  const tr = $('tr' + i);
+  if(tr) tr.textContent = ok.length + '/' + n;
   const reasons = [...new Set(res.filter(x => !x.ok).map(x => t(PROBE_REASON[x.reason] || PROBE_REASON.other)))];
-  $('ts' + i).textContent = (ok.length ? t('{0} мс в среднем', Math.round(ok.reduce((a, x) => a + x.ms, 0) / ok.length)) : '') +
+  const ts = $('ts' + i);
+  if(ts) ts.textContent = (ok.length ? t('{0} мс в среднем', Math.round(ok.reduce((a, x) => a + x.ms, 0) / ok.length)) : '') +
     (ok.length && reasons.length ? ' · ' : '') + reasons.join(', ');
 }
 
@@ -162,37 +161,47 @@ function renderDnsRow(i, name, ip, udp, doh, hijacked, detail){
   '</div>';
 }
 
-function renderTgRow(i, name, ip, status, ms){
-  const isOk = status === 'ok';
-  const stClass = isOk ? 'ok' : 'bad';
-  const icName = isOk ? 'check' : 'close';
-  return '<div class="list-item" id="tgrow' + i + '">' +
-    '<span class="status ' + stClass + '">' + icon(icName, 's16') + '</span>' +
-    '<span class="li-text">' +
-      '<span class="li-primary truncate">' + esc(name.replace(/_/g, ' ')) + ' <span class="muted li-mono">(' + esc(ip) + ')</span></span>' +
-    '</span>' +
-    '<span class="li-trail li-value">' + esc(isOk ? ms : t('Недоступен')) + '</span>' +
-  '</div>';
-}
-
-/* Повторная проверка начинается с чистого листа: все списки и результаты всех
-   вкладок обнуляются. Через setHTML(id, '') очистить нельзя — строки сюда
-   дописываются insertAdjacentHTML мимо его памяти (el._html остаётся ''),
-   и очистка молча пропускалась: новые строки вставали под старые с теми же id. */
 function resetTestResults(){
-  ['tr', 'test-tcp16-list', 'test-dns-list', 'test-tg-list'].forEach(id => {
+  ['tr', 'test-tcp16-list', 'test-dns-list'].forEach(id => {
     const el = $(id);
     if(el){ el.innerHTML = ''; el._html = ''; }
   });
-  webResults = {}; tcp16Results = {}; dnsResults = {}; tgResults = {}; tgMediaSpeed = '';
+  webResults = {}; tcp16Results = {}; dnsResults = {}; lastRecommendation = null;
+  const recEl = $('test-recommendation');
+  if(recEl){ recEl.hidden = true; recEl.innerHTML = ''; }
+}
+
+async function stopTest(){
+  if(!testRunning) return;
+  testCancelled = true;
+  if(webViewAbortCtrl){
+    try { webViewAbortCtrl.abort(); } catch(_){}
+  }
+  const tb = $('tb');
+  if(tb){
+    tb.disabled = true;
+    tb.innerHTML = '<span class="spinner"></span><span>' + esc(t('Остановка…')) + '</span>';
+  }
+  await ctlx(['probe-cancel']);
+  toast(t('Проверка остановлена'));
 }
 
 async function runTest(){
-  if(testRunning) return;
+  if(testRunning){
+    await stopTest();
+    return;
+  }
   testRunning = true;
-  $('tb').disabled = true;
-  $('tb').innerHTML = '<span class="spinner"></span><span>' + esc(t('Проверка идёт')) + '</span>';
-  $('test-empty').hidden = true;
+  testCancelled = false;
+  webViewAbortCtrl = new AbortController();
+
+  const tb = $('tb');
+  if(tb){
+    tb.disabled = false;
+    tb.classList.add('danger');
+    tb.innerHTML = icon('stop', 's18') + '<span>' + esc(t('Остановить')) + '</span>';
+  }
+  if($('test-empty')) $('test-empty').hidden = true;
 
   resetTestResults();
 
@@ -204,6 +213,7 @@ async function runTest(){
   let tool = '';
 
   const onLine = l => {
+    if(testCancelled) return;
     const p = l.split('\t');
     if(p[0] === 'tool') {
       tool = p[1];
@@ -215,7 +225,8 @@ async function runTest(){
       const v = (p[3] || '').split(' ');
       const resItem = v[0] === 'ok' ? {ok: true, ms: +v[1] || 0} : {ok: false, reason: v[1] || 'other'};
       webResults[p[1]].list.push(resItem);
-      $('tr' + p[1]).textContent = webResults[p[1]].list.filter(x => x.ok).length + '/' + webResults[p[1]].list.length;
+      const rowEl = $('tr' + p[1]);
+      if(rowEl) rowEl.textContent = webResults[p[1]].list.filter(x => x.ok).length + '/' + webResults[p[1]].list.length;
       if(webResults[p[1]].list.length === 3) finishTestRow(p[1], webResults[p[1]].list);
     } else if(p[0] === 'T16') {
       const idx = p[1], provider = p[2], ip = p[3], port = p[4], st = p[5], detail = p[6];
@@ -223,58 +234,51 @@ async function runTest(){
       const existing = $('tcprow' + idx);
       const rowHtml = renderTcp16Row(idx, provider, ip, port, st, detail);
       if(existing) existing.outerHTML = rowHtml;
-      else $('test-tcp16-list').insertAdjacentHTML('beforeend', rowHtml);
+      else if($('test-tcp16-list')) $('test-tcp16-list').insertAdjacentHTML('beforeend', rowHtml);
     } else if(p[0] === 'DNS') {
       const idx = p[1], name = p[2], ip = p[3], udp = p[4], doh = p[5], hijacked = p[6], detail = p[7];
       dnsResults[idx] = {name, ip, udp, doh, hijacked, detail};
       const existing = $('dnsrow' + idx);
       const rowHtml = renderDnsRow(idx, name, ip, udp, doh, hijacked, detail);
       if(existing) existing.outerHTML = rowHtml;
-      else $('test-dns-list').insertAdjacentHTML('beforeend', rowHtml);
-    } else if(p[0] === 'TG') {
-      const idx = p[1], name = p[2], ip = p[3], st = p[4], ms = p[5];
-      tgResults[idx] = {name, ip, status: st, ms};
-      const existing = $('tgrow' + idx);
-      const rowHtml = renderTgRow(idx, name, ip, st, ms);
-      if(existing) existing.outerHTML = rowHtml;
-      else $('test-tg-list').insertAdjacentHTML('beforeend', rowHtml);
-    } else if(p[0] === 'TG_MEDIA') {
-      tgMediaSpeed = p[2] || '';
-      const existing = $('tgm0');
-      const mediaHtml = '<div class="list-item" id="tgm0">' +
-        '<span class="li-icon plain">' + icon('download', 's20') + '</span>' +
-        '<span class="li-text"><span class="li-primary">' + esc(t('Скорость медиа')) + '</span></span>' +
-        '<span class="li-trail li-value">' + esc(tgMediaSpeed) + '</span>' +
-      '</div>';
-      if(existing) existing.outerHTML = mediaHtml;
-      else $('test-tg-list').insertAdjacentHTML('beforeend', mediaHtml);
+      else if($('test-dns-list')) $('test-dns-list').insertAdjacentHTML('beforeend', rowHtml);
     }
   };
 
-  const r = await ctlx(['probe-dpi', currentTestTab], 180000, onLine);
-  if(tool === 'none' || (r.code && !hosts.length && currentTestTab === 'web')) {
-    await runTestWebView();
-  } else {
-    Object.keys(webResults).forEach(i => {
-      if(webResults[i].list.length < 3) {
-        finishTestRow(i, webResults[i].list.length ? webResults[i].list : [{ok: false, reason: 'timeout'}]);
+  try {
+    const r = await ctlx(['probe-dpi', currentTestTab], 180000, onLine);
+    if(!testCancelled){
+      if(tool === 'none' || (r.code && !hosts.length && currentTestTab === 'web')) {
+        await runTestWebView();
+      } else {
+        Object.keys(webResults).forEach(i => {
+          if(webResults[i].list.length < 3) {
+            finishTestRow(i, webResults[i].list.length ? webResults[i].list : [{ok: false, reason: 'timeout'}]);
+          }
+        });
       }
-    });
+    }
+  } finally {
+    testRunning = false;
+    if(tb){
+      tb.classList.remove('danger');
+      tb.disabled = false;
+      tb.innerHTML = icon('play', 's18') + '<span>' + esc(t('Проверить снова')) + '</span>';
+    }
+    renderRecommendation();
   }
-
-  testRunning = false;
-  $('tb').disabled = false;
-  $('tb').innerHTML = icon('play', 's18') + '<span>' + esc(t('Проверить снова')) + '</span>';
 }
 
 /* Запасной путь: fetch из WebView */
-async function probeFetch(u){
-  const t0 = performance.now(), c = new AbortController(), m = setTimeout(() => c.abort(), 6000);
+async function probeFetch(u, signal){
+  const t0 = performance.now();
   try {
     await fetch('https://' + u + (u.includes('?') ? '&' : '?') + '_=' + Date.now() + Math.random(),
-      {mode: 'no-cors', cache: 'no-store', credentials: 'omit', signal: c.signal});
+      {mode: 'no-cors', cache: 'no-store', credentials: 'omit', signal});
     return {ok: true, ms: performance.now() - t0};
-  } catch(e) { return {ok: false, reason: c.signal.aborted ? 'timeout' : 'reset'}; } finally { clearTimeout(m); }
+  } catch(e) {
+    return {ok: false, reason: signal && signal.aborted ? 'timeout' : 'reset'};
+  }
 }
 
 async function runTestWebView(){
@@ -283,12 +287,187 @@ async function runTestWebView(){
   const r = await ctlx(['get-list', 'probe_hosts']);
   const hosts = (r.code ? '' : r.out).split('\n').map(s => s.trim()).filter(s => s && s[0] !== '#');
   setHTML('tr', hosts.map((h, i) => testRow(i, h)).join(''), false);
-  if(!hosts.length){ $('test-empty').hidden = false; $('test-empty-title').textContent = t('probe_hosts.list пуст'); }
-  await Promise.all(hosts.map(async (h, i) => {
+  if(!hosts.length){
+    if($('test-empty')) $('test-empty').hidden = false;
+    if($('test-empty-title')) $('test-empty-title').textContent = t('probe_hosts.list пуст');
+    return;
+  }
+  for(let i = 0; i < hosts.length; i++){
+    if(testCancelled) break;
+    const h = hosts[i];
     const out = [];
-    for(let k = 0; k < 3; k++) out.push(await probeFetch(h));
+    for(let k = 0; k < 3; k++){
+      if(testCancelled) break;
+      const subCtrl = new AbortController();
+      const tm = setTimeout(() => subCtrl.abort(), 6000);
+      try {
+        out.push(await probeFetch(h, subCtrl.signal));
+      } finally { clearTimeout(tm); }
+    }
     finishTestRow(i, out);
-  }));
+  }
+}
+
+/* Анализ результатов и автоподбор стратегии */
+function analyzeProbeResults(webRes, tcp16Res, dnsRes){
+  const webKeys = Object.keys(webRes || {});
+  const tcpKeys = Object.keys(tcp16Res || {});
+  const dnsKeys = Object.keys(dnsRes || {});
+
+  if(!webKeys.length && !tcpKeys.length && !dnsKeys.length) return null;
+
+  let totalWeb = webKeys.length;
+  let okWeb = 0;
+  let rstCount = 0;
+  let alertCount = 0;
+  let dropCount = 0;
+  let otherFailWeb = 0;
+
+  webKeys.forEach(k => {
+    const list = webRes[k].list || [];
+    const oks = list.filter(x => x.ok);
+    if(oks.length >= 2 || (list.length > 0 && oks.length === list.length)) {
+      okWeb++;
+    } else {
+      const reasons = list.filter(x => !x.ok).map(x => x.reason);
+      if(reasons.some(r => r === 'tls_alert')) alertCount++;
+      else if(reasons.some(r => r === 'tls_rst' || r === 'reset')) rstCount++;
+      else if(reasons.some(r => r === 'drop' || r === 'timeout')) dropCount++;
+      else otherFailWeb++;
+    }
+  });
+
+  let tcp16Detected = 0;
+  let tcp16Clean = 0;
+  tcpKeys.forEach(k => {
+    const st = tcp16Res[k].status;
+    if(st === 'detected') tcp16Detected++;
+    else if(st === 'clean') tcp16Clean++;
+  });
+
+  let dnsHijacked = 0;
+  let dnsUdpBlocked = 0;
+  dnsKeys.forEach(k => {
+    if(dnsRes[k].hijacked === 'yes') dnsHijacked++;
+    if(dnsRes[k].udp === 'fail') dnsUdpBlocked++;
+  });
+
+  const failWeb = totalWeb - okWeb;
+  const isClean = (failWeb === 0 && tcp16Detected === 0);
+
+  let strategy = 'fake_tls_auto';
+  let altStrategies = ['alt4_mod', 'alt11'];
+  let summaryTitle = '';
+  let reason = '';
+
+  if(isClean){
+    const cur = (typeof currentStrategy !== 'undefined' && currentStrategy) ? currentStrategy : 'default';
+    strategy = cur;
+    altStrategies = cur === 'default' ? ['fake_tls_auto', 'alt4_mod'] : ['default', 'fake_tls_auto'];
+    summaryTitle = t('Блокировок не обнаружено');
+    reason = t('Все проверенные сайты и соединения к CDN работают стабильно без вмешательства DPI.');
+  } else if(tcp16Detected > 0){
+    if(alertCount > 0 || rstCount > 0){
+      strategy = 'fake_tls_auto_alt2';
+      altStrategies = ['fake_tls_auto_alt3', 'alt4_mod'];
+      summaryTitle = t('Обнаружены TCP 16-20KB и фильтрация TLS');
+      reason = t('DPI разрывает сессии после 16-20 КБ данных и блокирует ClientHello. Рекомендуется стратегия со сплитом пакетов и маскировкой перекрытиями (multisplit + seqovl).');
+    } else {
+      strategy = 'alt4_mod';
+      altStrategies = ['alt4', 'fake_tls_auto_alt2'];
+      summaryTitle = t('Обнаружен фильтр TCP 16-20KB');
+      reason = t('Соединения к зарубежным CDN (Cloudflare/Hetzner) обрываются после 16-20 КБ данных. Рекомендуется сегментация TCP пакетов.');
+    }
+  } else if(alertCount > 0){
+    strategy = 'fake_tls_auto';
+    altStrategies = ['fake_tls_auto_alt', 'simple_fake_alt2'];
+    summaryTitle = t('Обнаружена блокировка по SNI (TLS Alert)');
+    reason = t('DPI перехватывает имя хоста в ClientHello и посылает TLS Alert. Рекомендуется стратегия с поддельным SNI и рандомизацией.');
+  } else if(rstCount > 0){
+    strategy = 'fake_tls_auto';
+    altStrategies = ['simple_fake_alt2', 'alt8'];
+    summaryTitle = t('Обнаружен активный сброс (TLS RST)');
+    reason = t('DPI инжектирует пакеты TCP RST при попытке установить защищенное соединение. Рекомендуется отправка фейкового ClientHello со сдвигом окна.');
+  } else if(dropCount > 0){
+    strategy = 'alt11';
+    altStrategies = ['alt12', 'exp'];
+    summaryTitle = t('Обнаружен тихий сброс (Drop / Timeout)');
+    reason = t('DPI молча отбрасывает пакеты без ответа. Рекомендуется стратегия с повышенным числом повторов (repeats=8) и модификацией TCP Timestamps.');
+  } else {
+    strategy = 'eduncey';
+    altStrategies = ['hardcorp74', 'fake_tls_auto'];
+    summaryTitle = t('Смешанный профиль цензуры');
+    reason = t('Обнаружен нестандартный профиль блокировок. Рекомендуется адаптивная стратегия с циклическим самоподбором методов (circular).');
+  }
+
+  let dnsWarning = '';
+  if(dnsHijacked > 0 || dnsUdpBlocked > 0){
+    dnsWarning = t('Внимание: обнаружен перехват или подмена DNS провайдером. Рекомендуется включить «Частный DNS» (DoH) в настройках системы.');
+  }
+
+  return {
+    strategy,
+    altStrategies,
+    title: summaryTitle,
+    reason,
+    dnsWarning,
+    isClean,
+    stats: { totalWeb, okWeb, failWeb, tcp16Detected, tcp16Clean, dnsHijacked }
+  };
+}
+
+function renderRecommendation(){
+  const el = $('test-recommendation');
+  if(!el) return;
+  const rec = analyzeProbeResults(webResults, tcp16Results, dnsResults);
+  lastRecommendation = rec;
+  if(!rec){
+    el.hidden = true;
+    el.innerHTML = '';
+    return;
+  }
+  el.hidden = false;
+
+  const cur = (typeof currentStrategy !== 'undefined' && currentStrategy) ? currentStrategy : 'default';
+  const isCurrent = cur === rec.strategy;
+  const stratTitle = typeof strategyName === 'function' ? strategyName(rec.strategy) : rec.strategy;
+
+  let html = '<div class="subhead-row" style="margin-top:0;">' +
+    '<span class="subhead plain">' + esc(t('Автоподбор стратегии')) + '</span>' +
+    '<span class="badge ' + (rec.isClean ? 'ok' : 'primary') + '">' + esc(rec.title) + '</span>' +
+  '</div>' +
+  '<div class="t-body-medium">' + esc(rec.reason) + '</div>';
+
+  if(rec.dnsWarning){
+    html += '<div class="helper warn" style="margin-top:8px;">' + icon('warn', 's16') + ' ' + esc(rec.dnsWarning) + '</div>';
+  }
+
+  html += '<div class="row" style="margin-top:12px; flex-wrap:wrap; gap:8px;">' +
+    '<button class="btn with-icon state ' + (isCurrent ? 'tonal' : '') + '" onclick="applyRecommendedStrategy(\'' + esc(rec.strategy) + '\')"' + (isCurrent ? ' disabled' : '') + '>' +
+      icon(isCurrent ? 'check' : 'tune', 's18') +
+      '<span>' + (isCurrent ? esc(t('Стратегия «{0}» уже действует', stratTitle)) : esc(t('Применить «{0}»', stratTitle))) + '</span>' +
+    '</button>';
+
+  if(rec.altStrategies && rec.altStrategies.length > 0){
+    rec.altStrategies.forEach(altName => {
+      const isAltCur = cur === altName;
+      const altTitle = typeof strategyName === 'function' ? strategyName(altName) : altName;
+      html += '<button class="btn tonal sm state" onclick="applyRecommendedStrategy(\'' + esc(altName) + '\')"' + (isAltCur ? ' disabled' : '') + '>' +
+        '<span>' + esc(isAltCur ? altTitle + ' (' + t('действует') + ')' : altTitle) + '</span>' +
+      '</button>';
+    });
+  }
+
+  html += '</div>';
+
+  el.innerHTML = html;
+}
+
+async function applyRecommendedStrategy(name){
+  if(typeof applyStrategy === 'function'){
+    await applyStrategy(name);
+    renderRecommendation();
+  }
 }
 
 function copyTestReport(){
@@ -296,6 +475,15 @@ function copyTestReport(){
   if(netInfoData){
     rep += `**Сеть:** IP: ${netInfoData.ip || '—'} (${netInfoData.loc || '—'}), Провайдер: ${netInfoData.isp || '—'} (${netInfoData.asn || '—'})\n`;
     rep += `**Обход:** ${netInfoData.status === 'running' ? 'Активен' : 'Остановлен'}, Стратегия: ${netInfoData.strategy || '—'}, DNS: ${netInfoData.dns || '—'}\n\n`;
+  }
+  const rec = lastRecommendation || analyzeProbeResults(webResults, tcp16Results, dnsResults);
+  if(rec){
+    rep += `#### Анализ и автоподбор стратегии:\n`;
+    rep += `- Вердикт: ${rec.title}\n`;
+    rep += `- Рекомендованная стратегия: ${rec.strategy}\n`;
+    rep += `- Обоснование: ${rec.reason}\n`;
+    if(rec.dnsWarning) rep += `- DNS: ${rec.dnsWarning}\n`;
+    rep += '\n';
   }
   if(Object.keys(webResults).length > 0){
     rep += '#### Сайты и сервисы:\n';
@@ -321,15 +509,6 @@ function copyTestReport(){
       const it = dnsResults[k];
       rep += `- ${it.name} (${it.ip}): UDP=${it.udp}, DoH=${it.doh}, Перехват=${it.hijacked === 'yes' ? 'ДА (' + it.detail + ')' : 'НЕТ'}\n`;
     }
-    rep += '\n';
-  }
-  if(Object.keys(tgResults).length > 0){
-    rep += '#### Telegram:\n';
-    for(const k of Object.keys(tgResults)){
-      const it = tgResults[k];
-      rep += `- ${it.name} (${it.ip}): ${it.status === 'ok' ? it.ms : 'FAIL'}\n`;
-    }
-    if(tgMediaSpeed) rep += `- Скорость медиа: ${tgMediaSpeed}\n`;
     rep += '\n';
   }
 
