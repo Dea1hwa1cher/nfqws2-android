@@ -30,14 +30,22 @@ OUTPUT_DIR="${OUTPUT_DIR:-$REPO_DIR}"
 
 ZAPRET2_REPO="${ZAPRET2_REPO:-https://github.com/bol-van/zapret2.git}"
 ZAPRET2_TAG="${ZAPRET2_TAG:-v1.0.5.2}"
+ZAPRET2_SHA="${ZAPRET2_SHA:-6b6c63e3385fa73f8af3be4a69171e947f5a319d}" # v1.0.5.2
 
 LUAJIT_RELEASE="${LUAJIT_RELEASE:-2.1-20250826}"
 LUAJIT_VER="2.1"
 LUAJIT_LUAVER="5.1"
+LUAJIT_SHA256="5a49743ad6ce4b7f19aac71b55a08052c1feb62750f051982082c12bf62f39c0"
 
 LIBMNL_VER="1.0.5"
+LIBMNL_SHA256="274b9b919ef3152bfb3da3a13c950dd60d6e2bcd54230ffeca298d03b40d0525"
 LIBNFNETLINK_VER="1.0.2"
+LIBNFNETLINK_SHA256="b064c7c3d426efb4786e60a8e6859b82ee2f2c5e49ffeea640cfe4fe33cbc376"
 LIBNETFILTER_QUEUE_VER="1.0.5"
+LIBNETFILTER_QUEUE_SHA256="f9ff3c11305d6e03d81405957bdc11aea18e0d315c3e3f48da53a24ba251b9f5"
+
+ELF_CLEANER_VER="${ELF_CLEANER_VER:-v3.0.1}"
+ELF_CLEANER_SHA256="59645fb25b84d11f108436e83d9df5e874ba4eb76ab62948869a23a3ee692fa7"
 
 API="21"
 
@@ -77,17 +85,20 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
+fetch_verified() { # <url> <dest> <sha256>
+  curl -sSLf -o "$2" "$1"
+  printf '%s  %s\n' "$3" "$2" | sha256sum -c -
+}
+
 ELF_CLEANER="$WORK_DIR/elf-cleaner"
 if command -v termux-elf-cleaner >/dev/null 2>&1; then
   ELF_CLEANER=$(command -v termux-elf-cleaner)
 else
-  echo "==> Downloading termux-elf-cleaner..."
-  if ! curl -sSLf -o "$ELF_CLEANER" "https://github.com/termux/termux-elf-cleaner/releases/latest/download/termux-elf-cleaner"; then
-    echo "Warning: failed to download termux-elf-cleaner; will skip elf cleaning." >&2
-    ELF_CLEANER=""
-  else
-    chmod +x "$ELF_CLEANER"
-  fi
+  echo "==> Downloading termux-elf-cleaner $ELF_CLEANER_VER..."
+  fetch_verified \
+    "https://github.com/termux/termux-elf-cleaner/releases/download/${ELF_CLEANER_VER}/termux-elf-cleaner" \
+    "$ELF_CLEANER" "$ELF_CLEANER_SHA256"
+  chmod +x "$ELF_CLEANER"
 fi
 
 # ── 3. Source archives cache ──────────────────────────────────────────────────
@@ -95,19 +106,22 @@ SRC_CACHE="$WORK_DIR/sources"
 mkdir -p "$SRC_CACHE"
 
 echo "==> Fetching third-party dependency source tarballs..."
-curl -sSLf -o "$SRC_CACHE/luajit2.tar.gz" "https://github.com/openresty/luajit2/archive/refs/tags/v${LUAJIT_RELEASE}.tar.gz"
-curl -sSLf -o "$SRC_CACHE/libmnl.tar.bz2" "https://www.netfilter.org/pub/libmnl/libmnl-${LIBMNL_VER}.tar.bz2"
-curl -sSLf -o "$SRC_CACHE/libnfnetlink.tar.bz2" "https://www.netfilter.org/pub/libnfnetlink/libnfnetlink-${LIBNFNETLINK_VER}.tar.bz2"
-curl -sSLf -o "$SRC_CACHE/libnetfilter_queue.tar.bz2" "https://www.netfilter.org/pub/libnetfilter_queue/libnetfilter_queue-${LIBNETFILTER_QUEUE_VER}.tar.bz2"
+fetch_verified "https://github.com/openresty/luajit2/archive/refs/tags/v${LUAJIT_RELEASE}.tar.gz" \
+  "$SRC_CACHE/luajit2.tar.gz" "$LUAJIT_SHA256"
+fetch_verified "https://www.netfilter.org/pub/libmnl/libmnl-${LIBMNL_VER}.tar.bz2" \
+  "$SRC_CACHE/libmnl.tar.bz2" "$LIBMNL_SHA256"
+fetch_verified "https://www.netfilter.org/pub/libnfnetlink/libnfnetlink-${LIBNFNETLINK_VER}.tar.bz2" \
+  "$SRC_CACHE/libnfnetlink.tar.bz2" "$LIBNFNETLINK_SHA256"
+fetch_verified "https://www.netfilter.org/pub/libnetfilter_queue/libnetfilter_queue-${LIBNETFILTER_QUEUE_VER}.tar.bz2" \
+  "$SRC_CACHE/libnetfilter_queue.tar.bz2" "$LIBNETFILTER_QUEUE_SHA256"
 
-echo "==> Fetching zapret2 source ($ZAPRET2_TAG)..."
-git clone --depth 1 --branch "$ZAPRET2_TAG" "$ZAPRET2_REPO" "$SRC_CACHE/zapret2"
+echo "==> Fetching zapret2 $ZAPRET2_SHA (tag $ZAPRET2_TAG)..."
+git init -q "$SRC_CACHE/zapret2"
+git -C "$SRC_CACHE/zapret2" fetch -q --depth 1 "$ZAPRET2_REPO" "$ZAPRET2_SHA"
+git -C "$SRC_CACHE/zapret2" checkout -q FETCH_HEAD
 
-# Apply nfqws2-keenetic fastpath patch if available
-if [ -f "$PATCHES_DIR/001-tls-reasm-fastpath.patch" ]; then
-  echo "==> Applying nfqws2-keenetic 001-tls-reasm-fastpath.patch..."
-  patch --batch --fuzz=0 -p1 -d "$SRC_CACHE/zapret2" < "$PATCHES_DIR/001-tls-reasm-fastpath.patch"
-fi
+echo "==> Applying nfqws2-keenetic 001-tls-reasm-fastpath.patch..."
+patch --batch --fuzz=0 -p1 -d "$SRC_CACHE/zapret2" < "$PATCHES_DIR/001-tls-reasm-fastpath.patch"
 
 # ── 4. Architecture build function ───────────────────────────────────────────
 build_single_abi() {
