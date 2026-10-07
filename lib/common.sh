@@ -652,8 +652,8 @@ list_imports() {
 # all strategies and taken from the live config on switch (see USER_KEYS).
 STRATEGY_KEYS="NFQWS_BASE_ARGS NFQWS_ARGS NFQWS_ARGS_QUIC NFQWS_ARGS_UDP NFQWS_ARGS_IPSET NFQWS_ARGS_CUSTOM"
 
-# Options from other nfqws2 builds; on an unknown option nfqws2 prints help and exits.
-FOREIGN_OPTS="fastpath-workaround"
+# foreign options to strip
+FOREIGN_OPTS=""
 
 # Unsupported long options in a file, one per line. FOREIGN_OPTS plus a grep of
 # the binary (option names are strings in it); if the binary isn't nfqws2
