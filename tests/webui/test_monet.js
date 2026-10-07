@@ -47,6 +47,7 @@ const dom = {
   meta: { attrs: {}, setAttribute(k, v) { this.attrs[k] = v; } },
   docEl: { attrs: {}, setAttribute(k, v) { this.attrs[k] = v; }, getPropertyValue() { return ''; } },
   amoledToggle: { checked: false, disabled: false },
+  monochromeToggle: { checked: false, disabled: false },
   containersToggle: { checked: true, disabled: false },
   storage: {},
   shMockOutput: '',
@@ -80,6 +81,7 @@ const sandbox = {
   $: (id) => {
     if (id === 'theme-vars') return dom.themeVars;
     if (id === 'amoled-toggle') return dom.amoledToggle;
+    if (id === 'monochrome-toggle') return dom.monochromeToggle;
     if (id === 'containers-toggle') return dom.containersToggle;
     const mockEl = {
       checked: false, style: {}, setAttribute: () => {}, value: '',
@@ -157,6 +159,27 @@ eq('#000000', amoledRoles.surfaceContainerLowest.toLowerCase(), 'AMOLED surfaceC
 const amoledLowL = sandbox.rgbToLab(sandbox.hexToRgb(amoledRoles.surfaceContainerLow))[0];
 truthy(amoledLowL > 5 && amoledLowL < 20, 'AMOLED container surfaces have subtle visible luminance (>0)');
 
+// Monochrome roles verification
+const monoLightRoles = vm.runInContext('roles("#757575", false, false)', sandbox);
+const monoDarkRoles = vm.runInContext('roles("#757575", true, false)', sandbox);
+const monoAmoledRoles = vm.runInContext('roles("#757575", true, true)', sandbox);
+for (const k of Object.keys(roleVar)) {
+  truthy(typeof monoLightRoles[k] === 'string' && /^#[0-9a-fA-F]{6}$/.test(monoLightRoles[k]),
+    `mono light roles includes valid hex for ${k}`);
+  truthy(typeof monoDarkRoles[k] === 'string' && /^#[0-9a-fA-F]{6}$/.test(monoDarkRoles[k]),
+    `mono dark roles includes valid hex for ${k}`);
+  truthy(typeof monoAmoledRoles[k] === 'string' && /^#[0-9a-fA-F]{6}$/.test(monoAmoledRoles[k]),
+    `mono amoled roles includes valid hex for ${k}`);
+}
+eq('#000000', monoLightRoles.primary.toLowerCase(), 'monochrome light primary is pure black #000000');
+eq('#ffffff', monoLightRoles.onPrimary.toLowerCase(), 'monochrome light onPrimary is pure white #ffffff');
+eq('#ffffff', monoDarkRoles.primary.toLowerCase(), 'monochrome dark primary is pure white #ffffff');
+eq('#000000', monoDarkRoles.onPrimary.toLowerCase(), 'monochrome dark onPrimary is pure black #000000');
+eq('#000000', monoAmoledRoles.background.toLowerCase(), 'monochrome AMOLED background is pure black #000000');
+eq('#000000', monoAmoledRoles.surface.toLowerCase(), 'monochrome AMOLED surface is pure black #000000');
+eq('#000000', monoAmoledRoles.surfaceDim.toLowerCase(), 'monochrome AMOLED surfaceDim is pure black #000000');
+eq('#000000', monoAmoledRoles.surfaceContainerLowest.toLowerCase(), 'monochrome AMOLED surfaceContainerLowest is pure black #000000');
+
 // ── 3. Dynamic Android Monet color detection ────────────────────────────────
 sect('android monet detection');
 
@@ -217,6 +240,36 @@ sect('android monet detection');
   eq('false', dom.storage['m3_containers'], 'toggleContainers(false) stores setting');
   sandbox.toggleContainers(true);
   eq('true', dom.docEl.attrs['data-containers'], 'toggleContainers(true) sets data-containers="true"');
+
+  // ── 5. Monochrome theme toggle and preset ─────────────────────────────────
+  sect('monochrome theme toggle & preset');
+  const palettes = vm.runInContext('PALETTES', sandbox);
+  truthy(palettes.some(p => p[0] === 'Монохром' && p[1] === '#757575'), 'PALETTES includes Monochrome preset');
+
+  // Test toggleMonochrome(true)
+  sandbox.toggleMonochrome(true);
+  eq('true', dom.docEl.attrs['data-monochrome'], 'toggleMonochrome(true) sets data-monochrome="true"');
+  eq('true', dom.storage['m3_monochrome'], 'toggleMonochrome(true) stores m3_monochrome="true"');
+  eq('#757575', vm.runInContext('currentSeed', sandbox), 'toggleMonochrome(true) sets currentSeed to #757575');
+  truthy(vm.runInContext('isMonochrome()', sandbox), 'isMonochrome() is true');
+
+  // Test toggleMonochrome(false)
+  sandbox.toggleMonochrome(false);
+  eq('false', dom.docEl.attrs['data-monochrome'], 'toggleMonochrome(false) sets data-monochrome="false"');
+  eq('false', dom.storage['m3_monochrome'], 'toggleMonochrome(false) stores m3_monochrome="false"');
+  truthy(!vm.runInContext('isMonochrome()', sandbox), 'isMonochrome() is false');
+
+  // Test applyMonet('#757575') activates monochrome
+  sandbox.applyMonet('#757575');
+  eq('true', dom.docEl.attrs['data-monochrome'], 'applyMonet(#757575) activates data-monochrome="true"');
+  eq('true', dom.storage['m3_monochrome'], 'applyMonet(#757575) stores m3_monochrome="true"');
+  truthy(vm.runInContext('isMonochrome()', sandbox), 'isMonochrome() is true after applyMonet(#757575)');
+
+  // Test applyMonet('#deb0da') deactivates monochrome
+  sandbox.applyMonet('#deb0da');
+  eq('false', dom.docEl.attrs['data-monochrome'], 'applyMonet(#deb0da) resets data-monochrome="false"');
+  eq('false', dom.storage['m3_monochrome'], 'applyMonet(#deb0da) stores m3_monochrome="false"');
+  truthy(!vm.runInContext('isMonochrome()', sandbox), 'isMonochrome() is false after applying color');
 
   // Summary
   process.stdout.write('\n----------------------------------------\n');

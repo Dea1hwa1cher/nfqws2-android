@@ -81,7 +81,8 @@ function tone(lab, t, palette, hueShift){
 
 const PALETTES = [
   ['Сирень', '#deb0da'], ['Лаванда', '#d0bcff'], ['Pixel Blue', '#a8c7fa'], ['Сакура', '#f4b5d2'],
-  ['Циан', '#7bd0ff'], ['Изумруд', '#6dd58c'], ['Янтарь', '#f3c774'], ['Коралл', '#ffb4ab']
+  ['Циан', '#7bd0ff'], ['Изумруд', '#6dd58c'], ['Янтарь', '#f3c774'], ['Коралл', '#ffb4ab'],
+  ['Монохром', '#757575']
 ];
 const ERROR_LAB = rgbToLab(hexToRgb('#B3261E'));
 let currentSeed = '#6750a4', currentMode = 'auto';
@@ -103,7 +104,7 @@ function systemSeed(){
   const mm = /rgba?\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)/.exec(accent || '');
   if(!mm) return '#6750a4';
   const rgb = [+mm[1], +mm[2], +mm[3]], lab = rgbToLab(rgb);
-  if(rgb[0] === 0 && rgb[1] === 0 && rgb[2] === 0) return '#6750a4';
+  if(rgb[0] === 0 && rgb[0] === 0 && rgb[2] === 0) return '#6750a4';
   if(Math.hypot(lab[1], lab[2]) < 6) return '#6750a4';
   return rgbToHex(rgb[0], rgb[1], rgb[2]).toLowerCase();
 }
@@ -112,66 +113,127 @@ function isDark(){
   if(currentMode === 'dark') return true;
   return matchMedia('(prefers-color-scheme: dark)').matches;
 }
-function roles(seedHex, dark, amoled){
+function isMonochrome(){
+  return store.get('m3_monochrome') === 'true' || currentSeed === '#757575';
+}
+function roles(seedHex, dark, amoled, monochrome){
+  const isMono = monochrome !== undefined ? !!monochrome : (String(seedHex).toLowerCase() === '#757575');
   const lab = rgbToLab(hexToRgb(seedHex));
   const p = (t, pal, shift) => tone(lab, t, pal || 'primary', shift);
   const e = t => tone(ERROR_LAB, t, 'error');
   const R = {};
   if(dark){
-    R.primary = p(80); R.onPrimary = p(20);
-    R.primaryContainer = p(30); R.onPrimaryContainer = p(90);
-    R.secondary = p(80, 'secondary'); R.onSecondary = p(20, 'secondary');
-    R.secondaryContainer = p(30, 'secondary'); R.onSecondaryContainer = p(90, 'secondary');
-    R.tertiary = p(80, 'tertiary', TERTIARY_HUE); R.onTertiary = p(20, 'tertiary', TERTIARY_HUE);
-    R.tertiaryContainer = p(30, 'tertiary', TERTIARY_HUE); R.onTertiaryContainer = p(90, 'tertiary', TERTIARY_HUE);
-    R.error = e(80); R.onError = e(20); R.errorContainer = e(30); R.onErrorContainer = e(90);
-    R.background = amoled ? '#000000' : p(6, 'neutral'); R.onBackground = p(90, 'neutral');
-    R.surface = amoled ? '#000000' : p(6, 'neutral'); R.onSurface = p(90, 'neutral');
-    R.surfaceVariant = p(30, 'neutralVariant'); R.onSurfaceVariant = p(80, 'neutralVariant');
-    R.surfaceDim = amoled ? '#000000' : p(6, 'neutral'); R.surfaceBright = p(24, 'neutral');
-    R.surfaceContainerLowest = amoled ? '#000000' : p(4, 'neutral');
-    /* AMOLED: фон чёрный, а контейнеры светлее обычного тёмного — с лёгким
-       оттенком акцента, чтобы карточки читались на чёрном. */
-    R.surfaceContainerLow = amoled ? p(11, 'neutralVariant') : p(10, 'neutral');
-    R.surfaceContainer = amoled ? p(14, 'neutralVariant') : p(12, 'neutral');
-    R.surfaceContainerHigh = amoled ? p(18, 'neutralVariant') : p(17, 'neutral');
-    R.surfaceContainerHighest = amoled ? p(23, 'neutralVariant') : p(22, 'neutral');
-    R.outline = p(60, 'neutralVariant'); R.outlineVariant = p(30, 'neutralVariant');
-    R.inverseSurface = p(90, 'neutral'); R.inverseOnSurface = p(20, 'neutral');
-    R.inversePrimary = p(40);
-    R.statusOk = '#6dd58c'; R.statusWarn = '#f0c14b'; R.statusBad = '#ffb4ab';
+    if(isMono){
+      R.primary = '#ffffff'; R.onPrimary = '#000000';
+      R.primaryContainer = amoled ? '#262626' : '#393939'; R.onPrimaryContainer = '#e2e2e2';
+      R.secondary = '#c6c6c6'; R.onSecondary = '#1a1a1a';
+      R.secondaryContainer = amoled ? '#2e2e2e' : '#424242'; R.onSecondaryContainer = '#e2e2e2';
+      R.tertiary = '#d0d0d0'; R.onTertiary = '#1a1a1a';
+      R.tertiaryContainer = amoled ? '#282828' : '#3a3a3a'; R.onTertiaryContainer = '#e2e2e2';
+      R.error = e(80); R.onError = e(20); R.errorContainer = e(30); R.onErrorContainer = e(90);
+      R.background = amoled ? '#000000' : '#131313'; R.onBackground = '#e2e2e2';
+      R.surface = amoled ? '#000000' : '#131313'; R.onSurface = '#e2e2e2';
+      R.surfaceVariant = '#444444'; R.onSurfaceVariant = '#c6c6c6';
+      R.surfaceDim = amoled ? '#000000' : '#131313'; R.surfaceBright = '#383838';
+      R.surfaceContainerLowest = amoled ? '#000000' : '#0e0e0e';
+      R.surfaceContainerLow = amoled ? '#141414' : '#1a1a1a';
+      R.surfaceContainer = amoled ? '#1c1c1c' : '#202020';
+      R.surfaceContainerHigh = amoled ? '#262626' : '#282828';
+      R.surfaceContainerHighest = amoled ? '#303030' : '#333333';
+      R.outline = '#8e8e8e'; R.outlineVariant = '#444444';
+      R.inverseSurface = '#e2e2e2'; R.inverseOnSurface = '#1b1b1b';
+      R.inversePrimary = '#000000';
+      R.statusOk = '#6dd58c'; R.statusWarn = '#f0c14b'; R.statusBad = '#ffb4ab';
+    } else {
+      R.primary = p(80); R.onPrimary = p(20);
+      R.primaryContainer = p(30); R.onPrimaryContainer = p(90);
+      R.secondary = p(80, 'secondary'); R.onSecondary = p(20, 'secondary');
+      R.secondaryContainer = p(30, 'secondary'); R.onSecondaryContainer = p(90, 'secondary');
+      R.tertiary = p(80, 'tertiary', TERTIARY_HUE); R.onTertiary = p(20, 'tertiary', TERTIARY_HUE);
+      R.tertiaryContainer = p(30, 'tertiary', TERTIARY_HUE); R.onTertiaryContainer = p(90, 'tertiary', TERTIARY_HUE);
+      R.error = e(80); R.onError = e(20); R.errorContainer = e(30); R.onErrorContainer = e(90);
+      R.background = amoled ? '#000000' : p(6, 'neutral'); R.onBackground = p(90, 'neutral');
+      R.surface = amoled ? '#000000' : p(6, 'neutral'); R.onSurface = p(90, 'neutral');
+      R.surfaceVariant = p(30, 'neutralVariant'); R.onSurfaceVariant = p(80, 'neutralVariant');
+      R.surfaceDim = amoled ? '#000000' : p(6, 'neutral'); R.surfaceBright = p(24, 'neutral');
+      R.surfaceContainerLowest = amoled ? '#000000' : p(4, 'neutral');
+      /* AMOLED: фон чёрный, а контейнеры светлее обычного тёмного — с лёгким
+         оттенком акцента, чтобы карточки читались на чёрном. */
+      R.surfaceContainerLow = amoled ? p(11, 'neutralVariant') : p(10, 'neutral');
+      R.surfaceContainer = amoled ? p(14, 'neutralVariant') : p(12, 'neutral');
+      R.surfaceContainerHigh = amoled ? p(18, 'neutralVariant') : p(17, 'neutral');
+      R.surfaceContainerHighest = amoled ? p(23, 'neutralVariant') : p(22, 'neutral');
+      R.outline = p(60, 'neutralVariant'); R.outlineVariant = p(30, 'neutralVariant');
+      R.inverseSurface = p(90, 'neutral'); R.inverseOnSurface = p(20, 'neutral');
+      R.inversePrimary = p(40);
+      R.statusOk = '#6dd58c'; R.statusWarn = '#f0c14b'; R.statusBad = '#ffb4ab';
+    }
   } else {
-    R.primary = p(40); R.onPrimary = p(100);
-    R.primaryContainer = p(90); R.onPrimaryContainer = p(10);
-    R.secondary = p(40, 'secondary'); R.onSecondary = p(100, 'secondary');
-    R.secondaryContainer = p(90, 'secondary'); R.onSecondaryContainer = p(10, 'secondary');
-    R.tertiary = p(40, 'tertiary', TERTIARY_HUE); R.onTertiary = p(100, 'tertiary', TERTIARY_HUE);
-    R.tertiaryContainer = p(90, 'tertiary', TERTIARY_HUE); R.onTertiaryContainer = p(10, 'tertiary', TERTIARY_HUE);
-    R.error = e(40); R.onError = e(100); R.errorContainer = e(90); R.onErrorContainer = e(10);
-    R.background = p(98, 'neutral'); R.onBackground = p(10, 'neutral');
-    R.surface = p(98, 'neutral'); R.onSurface = p(10, 'neutral');
-    R.surfaceVariant = p(90, 'neutralVariant'); R.onSurfaceVariant = p(30, 'neutralVariant');
-    R.surfaceDim = p(87, 'neutral'); R.surfaceBright = p(98, 'neutral');
-    R.surfaceContainerLowest = p(100, 'neutral');
-    R.surfaceContainerLow = p(96, 'neutral');
-    R.surfaceContainer = p(94, 'neutral');
-    R.surfaceContainerHigh = p(92, 'neutral');
-    R.surfaceContainerHighest = p(90, 'neutral');
-    R.outline = p(50, 'neutralVariant'); R.outlineVariant = p(80, 'neutralVariant');
-    R.inverseSurface = p(20, 'neutral'); R.inverseOnSurface = p(95, 'neutral');
-    R.inversePrimary = p(80);
-    R.statusOk = '#166a33'; R.statusWarn = '#6b5000'; R.statusBad = '#a01811';
+    if(isMono){
+      R.primary = '#000000'; R.onPrimary = '#ffffff';
+      R.primaryContainer = '#e2e2e2'; R.onPrimaryContainer = '#1b1b1b';
+      R.secondary = '#5e5e5e'; R.onSecondary = '#ffffff';
+      R.secondaryContainer = '#e6e6e6'; R.onSecondaryContainer = '#1b1b1b';
+      R.tertiary = '#606060'; R.onTertiary = '#ffffff';
+      R.tertiaryContainer = '#e8e8e8'; R.onTertiaryContainer = '#1b1b1b';
+      R.error = e(40); R.onError = e(100); R.errorContainer = e(90); R.onErrorContainer = e(10);
+      R.background = '#f9f9f9'; R.onBackground = '#1a1a1a';
+      R.surface = '#f9f9f9'; R.onSurface = '#1a1a1a';
+      R.surfaceVariant = '#e0e0e0'; R.onSurfaceVariant = '#444444';
+      R.surfaceDim = '#dedede'; R.surfaceBright = '#f9f9f9';
+      R.surfaceContainerLowest = '#ffffff';
+      R.surfaceContainerLow = '#f3f3f3';
+      R.surfaceContainer = '#eeeeee';
+      R.surfaceContainerHigh = '#e8e8e8';
+      R.surfaceContainerHighest = '#e2e2e2';
+      R.outline = '#757575'; R.outlineVariant = '#c6c6c6';
+      R.inverseSurface = '#303030'; R.inverseOnSurface = '#f1f1f1';
+      R.inversePrimary = '#ffffff';
+      R.statusOk = '#166a33'; R.statusWarn = '#6b5000'; R.statusBad = '#a01811';
+    } else {
+      R.primary = p(40); R.onPrimary = p(100);
+      R.primaryContainer = p(90); R.onPrimaryContainer = p(10);
+      R.secondary = p(40, 'secondary'); R.onSecondary = p(100, 'secondary');
+      R.secondaryContainer = p(90, 'secondary'); R.onSecondaryContainer = p(10, 'secondary');
+      R.tertiary = p(40, 'tertiary', TERTIARY_HUE); R.onTertiary = p(100, 'tertiary', TERTIARY_HUE);
+      R.tertiaryContainer = p(90, 'tertiary', TERTIARY_HUE); R.onTertiaryContainer = p(10, 'tertiary', TERTIARY_HUE);
+      R.error = e(40); R.onError = e(100); R.errorContainer = e(90); R.onErrorContainer = e(10);
+      R.background = p(98, 'neutral'); R.onBackground = p(10, 'neutral');
+      R.surface = p(98, 'neutral'); R.onSurface = p(10, 'neutral');
+      R.surfaceVariant = p(90, 'neutralVariant'); R.onSurfaceVariant = p(30, 'neutralVariant');
+      R.surfaceDim = p(87, 'neutral'); R.surfaceBright = p(98, 'neutral');
+      R.surfaceContainerLowest = p(100, 'neutral');
+      R.surfaceContainerLow = p(96, 'neutral');
+      R.surfaceContainer = p(94, 'neutral');
+      R.surfaceContainerHigh = p(92, 'neutral');
+      R.surfaceContainerHighest = p(90, 'neutral');
+      R.outline = p(50, 'neutralVariant'); R.outlineVariant = p(80, 'neutralVariant');
+      R.inverseSurface = p(20, 'neutral'); R.inverseOnSurface = p(95, 'neutral');
+      R.inversePrimary = p(80);
+      R.statusOk = '#166a33'; R.statusWarn = '#6b5000'; R.statusBad = '#a01811';
+    }
   }
   /* fixed-роли не зависят от темы (для этого и называются fixed): tone 90/80/30/10.
      Без них схема не совпадает с Android Dynamic Color по набору ролей. */
-  R.primaryFixed = p(90); R.primaryFixedDim = p(80); R.primaryFixedVariant = p(30);
-  R.onPrimaryFixed = p(10); R.onPrimaryFixedVariant = p(30);
-  R.secondaryFixed = p(90, 'secondary'); R.secondaryFixedDim = p(80, 'secondary'); R.secondaryFixedVariant = p(30, 'secondary');
-  R.onSecondaryFixed = p(10, 'secondary'); R.onSecondaryFixedVariant = p(30, 'secondary');
-  R.tertiaryFixed = p(90, 'tertiary', TERTIARY_HUE); R.tertiaryFixedDim = p(80, 'tertiary', TERTIARY_HUE);
-  R.tertiaryFixedVariant = p(30, 'tertiary', TERTIARY_HUE); R.onTertiaryFixed = p(10, 'tertiary', TERTIARY_HUE);
-  R.onTertiaryFixedVariant = p(30, 'tertiary', TERTIARY_HUE);
-  R.surfaceTint = R.primary; R.shadow = '#000000';
+  if(isMono){
+    R.primaryFixed = '#e2e2e2'; R.primaryFixedDim = '#c6c6c6'; R.primaryFixedVariant = '#444444';
+    R.onPrimaryFixed = '#181818'; R.onPrimaryFixedVariant = '#444444';
+    R.secondaryFixed = '#e2e2e2'; R.secondaryFixedDim = '#c6c6c6'; R.secondaryFixedVariant = '#444444';
+    R.onSecondaryFixed = '#181818'; R.onSecondaryFixedVariant = '#444444';
+    R.tertiaryFixed = '#e2e2e2'; R.tertiaryFixedDim = '#c6c6c6';
+    R.tertiaryFixedVariant = '#444444'; R.onTertiaryFixed = '#181818';
+    R.onTertiaryFixedVariant = '#444444';
+    R.surfaceTint = dark ? '#ffffff' : '#000000'; R.shadow = '#000000';
+  } else {
+    R.primaryFixed = p(90); R.primaryFixedDim = p(80); R.primaryFixedVariant = p(30);
+    R.onPrimaryFixed = p(10); R.onPrimaryFixedVariant = p(30);
+    R.secondaryFixed = p(90, 'secondary'); R.secondaryFixedDim = p(80, 'secondary'); R.secondaryFixedVariant = p(30, 'secondary');
+    R.onSecondaryFixed = p(10, 'secondary'); R.onSecondaryFixedVariant = p(30, 'secondary');
+    R.tertiaryFixed = p(90, 'tertiary', TERTIARY_HUE); R.tertiaryFixedDim = p(80, 'tertiary', TERTIARY_HUE);
+    R.tertiaryFixedVariant = p(30, 'tertiary', TERTIARY_HUE); R.onTertiaryFixed = p(10, 'tertiary', TERTIARY_HUE);
+    R.onTertiaryFixedVariant = p(30, 'tertiary', TERTIARY_HUE);
+    R.surfaceTint = R.primary; R.shadow = '#000000';
+  }
   return R;
 }
 const ROLE_VAR = {
@@ -210,7 +272,8 @@ function applyTheme(skipUI){
   const dark = isDark();
   const amoled = store.get('m3_amoled') === 'true' && dark;
   const containers = store.get('m3_containers') !== 'false';
-  const R = roles(currentSeed, dark, amoled);
+  const monochrome = isMonochrome();
+  const R = roles(currentSeed, dark, amoled, monochrome);
   // Палитра уходит в <style id="theme-vars">, а не инлайном на documentElement.
   // Инлайн-стиль нельзя переопределить из CSS — ни правилом компонента, ни
   // медиазапросом, — поэтому он закрывает тему наглухо. Отдельный блок в <head>
@@ -222,6 +285,7 @@ function applyTheme(skipUI){
   document.documentElement.setAttribute('data-mode', dark ? 'dark' : 'light');
   document.documentElement.setAttribute('data-amoled', amoled ? 'true' : 'false');
   document.documentElement.setAttribute('data-containers', containers ? 'true' : 'false');
+  document.documentElement.setAttribute('data-monochrome', monochrome ? 'true' : 'false');
   const meta = document.querySelector('meta[name="theme-color"]');
   if(meta) meta.setAttribute('content', R.background);
   if(!skipUI) drawThemeUI();
@@ -238,10 +302,13 @@ function drawThemeUI(){
     '<button class="seg state' + (currentMode === m[0] ? ' on' : '') + '" aria-pressed="' + (currentMode === m[0]) +
     '" onclick="setThemeMode(' + jsArg(m[0]) + ')"><span class="check">' + icon('check', 's18') + '</span>' + esc(t(m[1])) + '</button>').join(''), false);
   const dark = isDark();
+  const mono = isMonochrome();
   setHTML('palette-grid', PALETTES.map(p => {
     // Образец — как в выборе обоев Pixel: тон 80 основной палитры сверху,
     // вторичная и третичная снизу; в любой теме он читается одинаково.
-    const r = roles(p[1], true, false), on = p[1].toLowerCase() === currentSeed;
+    const isThisMono = p[1].toLowerCase() === '#757575';
+    const r = roles(p[1], true, false, isThisMono);
+    const on = isThisMono ? mono : (!mono && p[1].toLowerCase() === currentSeed);
     return '<button class="swatch-dot state' + (on ? ' on' : '') + '" aria-pressed="' + on + '" title="' + esc(t(p[0])) + '"' +
       ' aria-label="' + esc(t(p[0])) + '" onclick="applyMonet(' + jsArg(p[1]) + ')"' +
       ' style="--sw-a:' + r.primary + ';--sw-b:' + r.secondary + ';--sw-c:' + r.tertiary + '">' +
@@ -251,6 +318,7 @@ function drawThemeUI(){
     '<span class="tp-role" style="background:var(--md-sys-color-' + v + ')"></span>').join(''), false);
   $('amoled-toggle').checked = store.get('m3_amoled') === 'true';
   $('amoled-toggle').disabled = !dark;
+  if($('monochrome-toggle')) $('monochrome-toggle').checked = mono;
   if($('containers-toggle')) $('containers-toggle').checked = store.get('m3_containers') !== 'false';
   syncPicker(true);
 }
@@ -275,7 +343,9 @@ function syncPicker(fromSeed){
 }
 const wheelHex = () => hslToHex(wheelH, wheelS, +$('cd-lum').value / 100);
 function wheelApply(final){
+  store.set('m3_monochrome', 'false');
   currentSeed = wheelHex().toLowerCase();
+  store.set('m3_last_color_seed', currentSeed);
   if(!wheelFrame) wheelFrame = requestAnimationFrame(() => { wheelFrame = 0; applyTheme(true); syncPicker(false); });
   if(final){ store.set('m3_seed', currentSeed); setTimeout(drawThemeUI, 30); }
 }
@@ -310,8 +380,29 @@ function setThemeMode(m){
 }
 function applyMonet(seedHex){
   if(!/^#[0-9a-fA-F]{6}$/.test(seedHex)) return;
-  currentSeed = seedHex.toLowerCase();
+  const hex = seedHex.toLowerCase();
+  if(hex === '#757575'){
+    if(currentSeed !== '#757575') store.set('m3_last_color_seed', currentSeed);
+    store.set('m3_monochrome', 'true');
+  } else {
+    store.set('m3_monochrome', 'false');
+    store.set('m3_last_color_seed', hex);
+  }
+  currentSeed = hex;
   store.set('m3_seed', currentSeed);
+  applyTheme();
+}
+function toggleMonochrome(on){
+  store.set('m3_monochrome', on ? 'true' : 'false');
+  if(on){
+    if(currentSeed !== '#757575') store.set('m3_last_color_seed', currentSeed);
+    currentSeed = '#757575';
+    store.set('m3_seed', currentSeed);
+  } else {
+    const last = store.get('m3_last_color_seed') || systemSeed();
+    currentSeed = (/^#[0-9a-fA-F]{6}$/.test(last) && last.toLowerCase() !== '#757575') ? last.toLowerCase() : '#a8c7fa';
+    store.set('m3_seed', currentSeed);
+  }
   applyTheme();
 }
 function toggleAmoled(on){
@@ -326,13 +417,20 @@ function onHexInput(val){
   const clean = val.replace(/[^0-9a-fA-F]/g, '').slice(0, 6);
   $('custom-hex-input').value = clean;
   if(clean.length !== 6) return;
-  currentSeed = '#' + clean.toLowerCase();
+  const hex = '#' + clean.toLowerCase();
+  if(hex === '#757575'){
+    store.set('m3_monochrome', 'true');
+  } else {
+    store.set('m3_monochrome', 'false');
+    store.set('m3_last_color_seed', hex);
+  }
+  currentSeed = hex;
   store.set('m3_seed', currentSeed);
   applyTheme(true);
   syncPicker(true);
 }
 function resetTheme(){
-  ['m3_seed', 'm3_mode', 'm3_amoled', 'm3_containers'].forEach(k => store.del(k));
+  ['m3_seed', 'm3_mode', 'm3_amoled', 'm3_containers', 'm3_monochrome', 'm3_last_color_seed'].forEach(k => store.del(k));
   currentMode = 'auto';
   currentSeed = systemSeed();
   applyTheme();

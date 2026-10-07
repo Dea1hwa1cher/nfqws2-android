@@ -197,7 +197,7 @@ async function setHomeWifi(on){
 }
 
 /* ══ РЕЗЕРВНАЯ КОПИЯ ═════════════════════════════════════════════════════ */
-const UI_KEYS = ['m3_seed', 'm3_mode', 'm3_amoled', 'nfq_lang', 'nfq_dev'];
+const UI_KEYS = ['m3_seed', 'm3_mode', 'm3_amoled', 'm3_containers', 'm3_monochrome', 'nfq_lang', 'nfq_dev'];
 async function createBackup(){
   const ui = {};
   UI_KEYS.forEach(k => { const v = store.get(k); if(v != null) ui[k] = v; });
