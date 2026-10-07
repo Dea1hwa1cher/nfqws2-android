@@ -53,6 +53,33 @@
   --dur-medium-long: 350ms;  /* duration-medium3 */
   --dur-long: 450ms;         /* duration-long1 */
 
+/* ── Отключение анимаций (m3_no_animations) ── */
+html[data-animations="false"] {
+  --dur-extra-short: 0ms !important;
+  --dur-short: 0ms !important;
+  --dur-medium: 0ms !important;
+  --dur-medium-long: 0ms !important;
+  --dur-long: 0ms !important;
+}
+html[data-animations="false"] *:not(.spinner),
+html[data-animations="false"] *:not(.spinner)::before,
+html[data-animations="false"] *:not(.spinner)::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+html[data-animations="false"] .ripple { display: none !important; }
+html[data-animations="false"] .sheet,
+html[data-animations="false"] .fs-dialog,
+html[data-animations="false"] .scrim { transition: none !important; }
+html[data-animations="false"] .list-item:active,
+html[data-animations="false"] .list > .list-item:active,
+html[data-animations="false"] #pk .list-item:active {
+  border-radius: inherit !important;
+  transform: none !important;
+}
+
   /* ── State layers ── */
   --state-hover: .08;
   --state-focus: .12;
@@ -618,7 +645,7 @@ html[data-containers="true"] .list > .list-item:active {
 .sheet.open { transform: none; }
 .sheet .handle { width: 32px; height: 4px; align-self: center; opacity: .4; flex: none;
   border-radius: var(--shape-full); background: var(--md-sys-color-on-surface-variant); }
-.sheet-title { font-size: var(--ts-title-large); line-height: var(--lh-title-large); font-weight: var(--w-emph); }
+.sheet-title { font-size: var(--ts-title-large); line-height: var(--lh-title-large); font-weight: var(--w-regular); }
 
 /* ── Full-screen dialog (редактор) ───────────────────────────────────── */
 .fs-dialog {
@@ -631,7 +658,7 @@ html[data-containers="true"] .list > .list-item:active {
   display: flex; align-items: center; gap: 8px; background: var(--md-sys-color-surface-container);
   color: var(--md-sys-color-on-surface); }
 .fs-bar .fs-title { flex: 1; min-width: 0;
-  font-size: var(--ts-title-large); line-height: var(--lh-title-large); font-weight: var(--w-emph); }
+  font-size: var(--ts-title-large); line-height: var(--lh-title-large); font-weight: var(--w-regular); }
 .fs-body { flex: 1; display: flex; flex-direction: column; gap: 8px;
   padding: 8px var(--screen-margin) calc(8px + var(--bottom-inset)); }
 
@@ -651,7 +678,7 @@ html[data-containers="true"] .list > .list-item:active {
 @keyframes dialogIn { from { opacity: 0; transform: scale(.86); } to { opacity: 1; transform: none; } }
 .dialog .d-icon { align-self: center; flex: none; display: grid; place-items: center; color: var(--md-sys-color-secondary); }
 .dialog .d-icon.danger { color: var(--md-sys-color-error); }
-.dialog .d-title { font-size: var(--ts-headline-small); line-height: var(--lh-headline-small); font-weight: var(--w-emph); }
+.dialog .d-title { font-size: var(--ts-headline-small); line-height: var(--lh-headline-small); font-weight: var(--w-regular); }
 .dialog .d-body { font-size: var(--ts-body-medium); line-height: var(--lh-body-medium); color: var(--md-sys-color-on-surface-variant);
   white-space: pre-line; }
 .dialog .d-actions { display: flex; justify-content: flex-end; gap: 8px; }

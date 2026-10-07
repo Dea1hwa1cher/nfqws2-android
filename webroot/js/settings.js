@@ -31,6 +31,7 @@ function renderSettings(){
     ]],
     ['Оформление', [
       {icon: 'palette', title: 'Тема оформления', sub: t('Светлая, тёмная, AMOLED и цвет акцента'), on: 'openMonetModal()'},
+      {icon: 'motion', title: 'Отключение анимаций', sub: t('Мгновенные переходы и отключение эффектов'), on: 'toggleAnimations(!isAnimationsDisabled()); renderSettings()', value: isAnimationsDisabled() ? t('Включено') : t('Выключено')},
       {icon: 'apps', title: 'Ярлык на рабочий стол', sub: t('Добавить на главный экран телефона'), on: 'addDesktopShortcut()'},
       {icon: 'translate', title: 'Язык', sub: LANG === 'en' ? 'English' : 'Русский', on: 'pickLanguage(this)', menu: true}
     ]],

@@ -8,6 +8,8 @@
 # test run (the pidfile PID has to stay alive for is_running() to accept it).
 #
 # The received argv is saved so tests can assert the assembled startup arguments.
+# Known options for unsupported_opts detection: lua-desync filter-tcp payload lua-init
+:
 
 [ -n "$MOCK_NFQWS_ARGS_FILE" ] && printf '%s\n' "$*" > "$MOCK_NFQWS_ARGS_FILE"
 

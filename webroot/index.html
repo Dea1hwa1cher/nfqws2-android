@@ -69,6 +69,7 @@
 <symbol id="i-translate" viewBox="0 -960 960 960"><path d="m476-80 182-480h84L924-80h-84l-43-122H603L560-80h-84ZM160-200l-56-56 202-202q-35-35-63.5-80T190-640h84q20 39 40 68t48 58q33-33 68.5-92.5T484-720H40v-80h280v-80h80v80h280v80H564q-21 72-63 148t-83 116l96 98-30 82-122-125-202 201Zm468-72h144l-72-204-72 204Z"/></symbol>
 <symbol id="i-contrast" viewBox="0 -960 960 960"><path d="M480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm40-83q119-15 199.5-104.5T800-480q0-123-80.5-212.5T520-797v634Z"/></symbol>
 <symbol id="i-home" viewBox="0 -960 960 960"><path d="M240-200h120v-240h240v240h120v-360L480-740 240-560v360Zm-80 80v-480l320-240 320 240v480H520v-240h-80v240H160Zm320-350Z"/></symbol>
+<symbol id="i-motion" viewBox="0 -960 960 960"><path d="M160-160v-480h480v480H160Zm80-80h320v-320H240v320Zm160-240v-80h320v320h-80v-240H400Zm160-160v-80h320v320h-80v-240H560Z"/></symbol>
 </defs></svg>
 
 <!-- ═══ Small top app bar: заголовок экрана, его действия и кнопка настроек ═══ -->
@@ -531,6 +532,18 @@
     <span class="li-trail">
       <input type="checkbox" class="switch" role="switch" id="containers-toggle" aria-label="Контейнеры пунктов" data-ta="aria-label"
              onchange="toggleContainers(this.checked)">
+    </span>
+  </label>
+
+  <label class="list-item clickable state animations-row">
+    <span class="li-icon plain"><svg aria-hidden="true" class="icon s24"><use href="#i-motion"/></svg></span>
+    <span class="li-text">
+      <span class="li-primary" data-t>Отключение анимаций</span>
+      <span class="li-secondary" data-t>Мгновенные переходы и отключение эффектов</span>
+    </span>
+    <span class="li-trail">
+      <input type="checkbox" class="switch" role="switch" id="animations-toggle" aria-label="Отключение анимаций" data-ta="aria-label"
+             onchange="toggleAnimations(this.checked)">
     </span>
   </label>
 

@@ -447,7 +447,7 @@ function renderAppBar(page, animate){
   $('settings-btn').hidden = !!m.child;
   const tEl = $('app-title');
   tEl.textContent = t(m.title);
-  if(animate !== false){ tEl.classList.remove('swap'); void tEl.offsetWidth; tEl.classList.add('swap'); }
+  if(animate !== false && !isAnimationsDisabled()){ tEl.classList.remove('swap'); void tEl.offsetWidth; tEl.classList.add('swap'); }
   const box = $('bar-actions');
   box.innerHTML = '';
   (m.actions || []).forEach(a => {
@@ -477,7 +477,7 @@ function showPage(page, mode){
   const from = document.querySelector('.page.active');
   const to = document.querySelector('.page[data-page="' + page + '"]');
   if(!to || from === to) return;
-  const animate = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const animate = !matchMedia('(prefers-reduced-motion: reduce)').matches && !isAnimationsDisabled();
   if(from){
     if(animate){
       const r = from.getBoundingClientRect();

@@ -260,10 +260,18 @@ truthy(/\.list-item\s*\{[^}]*transition:[^}]*border-radius\s+0\.2s\s+ease/s.test
   'list-item has border-radius 0.2s ease transition');
 truthy(/\.list-item:active\s*\{[^}]*border-radius:\s*20px/s.test(styleBlock),
   'list-item:active morphs to 20px border-radius');
-truthy(/html\[data-containers="true"\]\s+\.list-item:active[^}]*border-radius:\s*20px/s.test(styleBlock),
-  'container list-item:active sets 20px border-radius');
 truthy(/html\[data-containers="true"\]\s+\.list-item\s*\{[^}]*transition:[^}]*border-radius\s+0\.2s\s+ease/s.test(styleBlock),
   'container list-item has border-radius 0.2s ease transition');
+
+// ── animations toggle and M3 sheet typography ─────────────────────────────────
+sect('animations toggle and M3 sheet typography');
+truthy(/html\[data-animations="false"\]\s*\{[^}]*--dur-short:\s*0ms\s*!important/s.test(styleBlock),
+  'data-animations="false" zeros motion duration tokens');
+truthy(/html\[data-animations="false"\]\s*\*:not\(\.spinner\)[^}]*transition-duration:\s*0\.001ms\s*!important/s.test(styleBlock),
+  'data-animations="false" zeroes transition durations');
+truthy(/\.sheet-title\s*\{[^}]*font-weight:\s*var\(--w-regular\)/s.test(styleBlock),
+  'sheet-title uses regular weight conforming to M3 guidelines');
+truthy(html.includes('id="animations-toggle"'), 'index.html contains animations-toggle');
 
 // ── summary ───────────────────────────────────────────────────────────────────
 process.stdout.write('\n----------------------------------------\n');

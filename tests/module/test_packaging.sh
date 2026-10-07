@@ -40,7 +40,7 @@ SANDBOX=$(mktemp -d "${NFQWS_TEST_TMP:-/tmp}/nfqws2-pack.XXXXXX") || exit 1
 SANDBOX=$(cd "$SANDBOX" && pwd)
 
 MODULE_FILES="action.sh customize.sh service.sh uninstall.sh module.prop LICENSE README.md"
-MODULE_DIRS="bin binaries blobs defaults lib lists lua strategies webroot"
+MODULE_DIRS="bin $([ -d "$REPO_DIR/binaries" ] && echo binaries) blobs defaults lib lists lua strategies webroot"
 
 # ── builder ───────────────────────────────────────────────────────────────────
 section "tools/build.py produces a module-only archive"
@@ -72,16 +72,17 @@ PY
   assert_eq "" "$zips" "no nested archive is archived"
   assert_ge "$files" 140 "the archive carries the whole module ($files files)"
 
-  "$PY" - "$OUT" <<'PY' > "$SANDBOX/required.txt"
-import sys, zipfile
+  "$PY" - "$OUT" "$REPO_DIR" <<'PY' > "$SANDBOX/required.txt"
+import os, sys, zipfile
 names = set(zipfile.ZipFile(sys.argv[1]).namelist())
 for n in ('module.prop', 'customize.sh', 'service.sh', 'action.sh', 'uninstall.sh',
           'bin/nfqws2-ctl', 'lib/common.sh', 'defaults/nfqws2.conf',
           'webroot/index.html', 'webroot/config.json'):
     print(('OK  ' if n in names else 'MISSING ') + n)
-for abi in ('android-arm', 'android-arm64', 'android-x86', 'android-x86_64'):
-    n = 'binaries/%s/nfqws2' % abi
-    print(('OK  ' if n in names else 'MISSING ') + n)
+if os.path.isdir(os.path.join(sys.argv[2], 'binaries')):
+    for abi in ('android-arm', 'android-arm64', 'android-x86', 'android-x86_64'):
+        n = 'binaries/%s/nfqws2' % abi
+        print(('OK  ' if n in names else 'MISSING ') + n)
 PY
   missing=$(grep '^MISSING ' "$SANDBOX/required.txt" | sed 's/^MISSING //' | tr '\n' ' ')
   assert_eq "" "$missing" "every file the installer needs is present"
@@ -128,7 +129,8 @@ PY
   rm -rf "$MODPATH/tests" "$MODPATH/tools" "$MODPATH/.workbuddy-ai" \
          "$MODPATH/.git" "$MODPATH/.github" "$MODPATH/.gitattributes" \
          "$MODPATH/CONTRIBUTING.md" \
-         "$MODPATH/docs" "$MODPATH/update.json" "$MODPATH/changelog.md"
+         "$MODPATH/docs" "$MODPATH/update.json" "$MODPATH/changelog.md" \
+         "$MODPATH/.gitignore"
   rm -f "$MODPATH"/*.zip
 
   left=$(find "$MODPATH" -maxdepth 1 -mindepth 1 -exec basename {} \; | sort | tr '\n' ' ' | sed 's/ $//')

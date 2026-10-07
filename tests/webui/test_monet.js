@@ -49,6 +49,7 @@ const dom = {
   amoledToggle: { checked: false, disabled: false },
   monochromeToggle: { checked: false, disabled: false },
   containersToggle: { checked: true, disabled: false },
+  animationsToggle: { checked: false, disabled: false },
   storage: {},
   shMockOutput: '',
 };
@@ -83,6 +84,7 @@ const sandbox = {
     if (id === 'amoled-toggle') return dom.amoledToggle;
     if (id === 'monochrome-toggle') return dom.monochromeToggle;
     if (id === 'containers-toggle') return dom.containersToggle;
+    if (id === 'animations-toggle' || id === 'settings-anim-toggle') return dom.animationsToggle;
     const mockEl = {
       checked: false, style: {}, setAttribute: () => {}, value: '',
       addEventListener: () => {}, classList: { add: () => {}, remove: () => {} },
@@ -270,6 +272,25 @@ sect('android monet detection');
   eq('false', dom.docEl.attrs['data-monochrome'], 'applyMonet(#deb0da) resets data-monochrome="false"');
   eq('false', dom.storage['m3_monochrome'], 'applyMonet(#deb0da) stores m3_monochrome="false"');
   truthy(!vm.runInContext('isMonochrome()', sandbox), 'isMonochrome() is false after applying color');
+
+  // ── 6. Animations toggle ──────────────────────────────────────────────────
+  sect('animations toggle');
+  truthy(typeof sandbox.toggleAnimations === 'function', 'toggleAnimations is defined');
+  truthy(typeof sandbox.isAnimationsDisabled === 'function', 'isAnimationsDisabled is defined');
+  truthy(!sandbox.isAnimationsDisabled(), 'animations enabled by default');
+  eq('true', dom.docEl.attrs['data-animations'], 'data-animations="true" by default');
+
+  // Test toggleAnimations(true)
+  sandbox.toggleAnimations(true);
+  eq('false', dom.docEl.attrs['data-animations'], 'toggleAnimations(true) sets data-animations="false"');
+  eq('true', dom.storage['m3_no_animations'], 'toggleAnimations(true) stores m3_no_animations="true"');
+  truthy(sandbox.isAnimationsDisabled(), 'isAnimationsDisabled() is true after disabling');
+
+  // Test toggleAnimations(false)
+  sandbox.toggleAnimations(false);
+  eq('true', dom.docEl.attrs['data-animations'], 'toggleAnimations(false) sets data-animations="true"');
+  eq('false', dom.storage['m3_no_animations'], 'toggleAnimations(false) stores m3_no_animations="false"');
+  truthy(!sandbox.isAnimationsDisabled(), 'isAnimationsDisabled() is false after re-enabling');
 
   // Summary
   process.stdout.write('\n----------------------------------------\n');

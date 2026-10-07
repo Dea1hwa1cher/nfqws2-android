@@ -113,6 +113,9 @@ function isDark(){
   if(currentMode === 'dark') return true;
   return matchMedia('(prefers-color-scheme: dark)').matches;
 }
+function isAnimationsDisabled(){
+  return store.get('m3_no_animations') === 'true' || store.get('m3_animations') === 'false';
+}
 function isMonochrome(){
   return store.get('m3_monochrome') === 'true' || currentSeed === '#757575';
 }
@@ -286,6 +289,8 @@ function applyTheme(skipUI){
   document.documentElement.setAttribute('data-amoled', amoled ? 'true' : 'false');
   document.documentElement.setAttribute('data-containers', containers ? 'true' : 'false');
   document.documentElement.setAttribute('data-monochrome', monochrome ? 'true' : 'false');
+  const noAnim = isAnimationsDisabled();
+  document.documentElement.setAttribute('data-animations', noAnim ? 'false' : 'true');
   const meta = document.querySelector('meta[name="theme-color"]');
   if(meta) meta.setAttribute('content', R.background);
   if(!skipUI) drawThemeUI();
@@ -320,6 +325,7 @@ function drawThemeUI(){
   $('amoled-toggle').disabled = !dark;
   if($('monochrome-toggle')) $('monochrome-toggle').checked = mono;
   if($('containers-toggle')) $('containers-toggle').checked = store.get('m3_containers') !== 'false';
+  if($('animations-toggle')) $('animations-toggle').checked = isAnimationsDisabled();
   syncPicker(true);
 }
 /* Круг, ползунок и HEX отражают текущий seed. fromSeed=false — когда seed
@@ -413,6 +419,11 @@ function toggleContainers(on){
   store.set('m3_containers', on ? 'true' : 'false');
   applyTheme();
 }
+function toggleAnimations(disabled){
+  store.set('m3_no_animations', disabled ? 'true' : 'false');
+  store.set('m3_animations', disabled ? 'false' : 'true');
+  applyTheme();
+}
 function onHexInput(val){
   const clean = val.replace(/[^0-9a-fA-F]/g, '').slice(0, 6);
   $('custom-hex-input').value = clean;
@@ -430,7 +441,7 @@ function onHexInput(val){
   syncPicker(true);
 }
 function resetTheme(){
-  ['m3_seed', 'm3_mode', 'm3_amoled', 'm3_containers', 'm3_monochrome', 'm3_last_color_seed'].forEach(k => store.del(k));
+  ['m3_seed', 'm3_mode', 'm3_amoled', 'm3_containers', 'm3_monochrome', 'm3_last_color_seed', 'm3_no_animations', 'm3_animations'].forEach(k => store.del(k));
   currentMode = 'auto';
   currentSeed = systemSeed();
   applyTheme();
