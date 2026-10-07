@@ -443,58 +443,83 @@ _fw_counter_chain() {
   $CMD -w -t mangle -A "$CH" -j NFQUEUE --queue-num $NFQUEUE_NUM --queue-bypass
 }
 
+_fw_add_rule() {
+  # $1: CMD, $2: CHAIN, $3: IFSPEC (-o / -i), $4: proto (tcp/udp), $5: dir (dports/sports), $6: ports, $7: extra flags, $8: target
+  local CMD="$1" CH="$2" IFSPEC="$3" PROTO="$4" DIR="$5" PORTS="$6" EXTRA="$7" TARGET="$8"
+  [ -z "$PORTS" ] && return 0
+
+  local applied=0
+  if [ "$HAS_MULTIPORT" = "1" ]; then
+    if $CMD -w -t mangle -A "$CH" $IFSPEC -p "$PROTO" -m multiport "--$DIR" "$PORTS" $EXTRA $TARGET 2>/dev/null; then
+      applied=1
+    fi
+  fi
+
+  if [ "$applied" = "0" ]; then
+    local sdir p
+    if [ "$DIR" = "dports" ]; then
+      sdir="--dport"
+    else
+      sdir="--sport"
+    fi
+    for p in $(printf '%s' "$PORTS" | tr ',' ' '); do
+      $CMD -w -t mangle -A "$CH" $IFSPEC -p "$PROTO" $sdir "$p" $EXTRA $TARGET 2>/dev/null
+    done
+  fi
+}
+
 _fw_iface_rules() {
   local CMD="$1" OUT="$2" IN="$3"
   local JNFQ="-j NFQUEUE --queue-num $NFQUEUE_NUM --queue-bypass"
-  local CONN_CHECK="-m mark ! --mark $MARK_PROCESSED"
   local UP="$IPT_UDP_EFF" TP="$IPT_TCP_PORTS"
   local CB_OUT="" CB_IN="" LIM_OUT="" LIM_IN=""
+  local TARGET_OUT TARGET_IN
 
   case "$LIMITER" in
     connbytes)
       CB_OUT="-m connbytes --connbytes-dir=original --connbytes-mode=packets --connbytes 1:$PKT_LIMIT_OUT"
       CB_IN="-m connbytes --connbytes-dir=reply --connbytes-mode=packets --connbytes 1:$PKT_LIMIT_IN"
+      TARGET_OUT="$CB_OUT $JNFQ"
+      TARGET_IN="$CB_IN $JNFQ"
       ;;
     connmark_out)
       LIM_OUT="-j $IPT_GROUP_QOUT"
       LIM_IN="-j $IPT_GROUP_QIN"
+      TARGET_OUT="$LIM_OUT"
+      TARGET_IN="$LIM_IN"
       ;;
   esac
 
-  if [ -n "$LIM_OUT" ]; then
-    [ -n "$UP" ] && $CMD -w -t mangle -A $IPT_GROUP_POST $OUT $CONN_CHECK -p udp -m multiport --dports $UP $LIM_OUT
-    [ -n "$TP" ] && $CMD -w -t mangle -A $IPT_GROUP_POST $OUT $CONN_CHECK -p tcp -m multiport --dports $TP $LIM_OUT
-  else
-    [ -n "$UP" ] && $CMD -w -t mangle -A $IPT_GROUP_POST $OUT $CONN_CHECK -p udp -m multiport --dports $UP $CB_OUT $JNFQ
-    [ -n "$TP" ] && $CMD -w -t mangle -A $IPT_GROUP_POST $OUT $CONN_CHECK -p tcp -m multiport --dports $TP $CB_OUT $JNFQ
-  fi
-  if [ -n "$TP" ]; then
-    $CMD -w -t mangle -A $IPT_GROUP_POST $OUT $CONN_CHECK -p tcp -m multiport --dports $TP --tcp-flags fin fin $JNFQ
-    $CMD -w -t mangle -A $IPT_GROUP_POST $OUT $CONN_CHECK -p tcp -m multiport --dports $TP --tcp-flags rst rst $JNFQ
-  fi
-
-  if [ "$CMD" = "iptables" ] && [ "$NAT_FIX" = "1" ]; then
-    $CMD -w -t nat -A $IPT_GROUP_NAT $OUT -m mark --mark $MARK_PROCESSED -p udp -j MASQUERADE
-  fi
-
-  # Входящие правила нужны ВСЕГДА, а не только при connbytes: раньше без connbytes цепочка
-  # nfqws_pre оставалась пустой, и circular-стратегии не видели ни одного входящего пакета,
-  # то есть не могли заметить, что стратегия провалилась.
+  # Пакеты, уже обработанные nfqws2 (маркированные MARK_PROCESSED),
+  # не должны повторно отправляться в очередь ни на выходе, ни на входе
+  $CMD -w -t mangle -A $IPT_GROUP_POST $OUT -m mark --mark $MARK_PROCESSED -j RETURN
   $CMD -w -t mangle -A $IPT_GROUP_PRE $IN -m mark --mark $MARK_PROCESSED -j RETURN
+
+  # Исходящий трафик (POSTROUTING)
+  [ -n "$UP" ] && _fw_add_rule "$CMD" $IPT_GROUP_POST "$OUT" udp dports "$UP" "" "$TARGET_OUT"
+  [ -n "$TP" ] && _fw_add_rule "$CMD" $IPT_GROUP_POST "$OUT" tcp dports "$TP" "" "$TARGET_OUT"
+
+  # Завершение TCP-сессий (FIN/RST) отправляем в nfqws для корректного conntrack
   if [ -n "$TP" ]; then
-    $CMD -w -t mangle -A $IPT_GROUP_PRE $IN $CONN_CHECK -p tcp -m multiport --sports $TP --tcp-flags syn,ack syn,ack $JNFQ
-    $CMD -w -t mangle -A $IPT_GROUP_PRE $IN $CONN_CHECK -p tcp -m multiport --sports $TP --tcp-flags fin fin $JNFQ
-    $CMD -w -t mangle -A $IPT_GROUP_PRE $IN $CONN_CHECK -p tcp -m multiport --sports $TP --tcp-flags rst rst $JNFQ
+    _fw_add_rule "$CMD" $IPT_GROUP_POST "$OUT" tcp dports "$TP" "--tcp-flags fin fin" "$JNFQ"
+    _fw_add_rule "$CMD" $IPT_GROUP_POST "$OUT" tcp dports "$TP" "--tcp-flags rst rst" "$JNFQ"
   fi
-  # Поток с данными: при connbytes — честный счётчик ядра, без него — тот же приём, что и для
-  # исходящих (PKT_LIMIT_IN пакетов на соединение через CONNMARK-счётчик), а не весь поток.
-  if [ "$LIMITER" = "connbytes" ]; then
-    [ -n "$UP" ] && $CMD -w -t mangle -A $IPT_GROUP_PRE $IN $CONN_CHECK -p udp -m multiport --sports $UP $CB_IN $JNFQ
-    [ -n "$TP" ] && $CMD -w -t mangle -A $IPT_GROUP_PRE $IN $CONN_CHECK -p tcp -m multiport --sports $TP $CB_IN $JNFQ
-  elif [ -n "$LIM_IN" ]; then
-    [ -n "$UP" ] && $CMD -w -t mangle -A $IPT_GROUP_PRE $IN $CONN_CHECK -p udp -m multiport --sports $UP $LIM_IN
-    [ -n "$TP" ] && $CMD -w -t mangle -A $IPT_GROUP_PRE $IN $CONN_CHECK -p tcp -m multiport --sports $TP $LIM_IN
+
+  # NAT fix для UDP
+  if [ "$CMD" = "iptables" ] && [ "$NAT_FIX" = "1" ]; then
+    $CMD -w -t nat -A $IPT_GROUP_NAT $OUT -p udp -m mark --mark $MARK_PROCESSED -j MASQUERADE
   fi
+
+  # Входящий трафик (PREROUTING)
+  if [ -n "$TP" ]; then
+    _fw_add_rule "$CMD" $IPT_GROUP_PRE "$IN" tcp sports "$TP" "--tcp-flags syn,ack syn,ack" "$JNFQ"
+    _fw_add_rule "$CMD" $IPT_GROUP_PRE "$IN" tcp sports "$TP" "--tcp-flags fin fin" "$JNFQ"
+    _fw_add_rule "$CMD" $IPT_GROUP_PRE "$IN" tcp sports "$TP" "--tcp-flags rst rst" "$JNFQ"
+  fi
+
+  # Входящий поток данных (connbytes или connmark_in)
+  [ -n "$UP" ] && _fw_add_rule "$CMD" $IPT_GROUP_PRE "$IN" udp sports "$UP" "" "$TARGET_IN"
+  [ -n "$TP" ] && _fw_add_rule "$CMD" $IPT_GROUP_PRE "$IN" tcp sports "$TP" "" "$TARGET_IN"
 }
 
 _firewall_start() {
@@ -506,6 +531,9 @@ _firewall_start() {
 
   LIMITER=$(detect_limiter "$CMD")
   [ "$CMD" = "iptables" ] && echo "$LIMITER" > "$STATE_DIR/limiter" 2>/dev/null
+
+  HAS_MULTIPORT=0
+  has_ipt_feature $CMD -p tcp -m multiport --dports 80,443 -j RETURN && HAS_MULTIPORT=1
 
   $CMD -w -t mangle -N $IPT_GROUP_POST 2>/dev/null
   $CMD -w -t mangle -F $IPT_GROUP_POST
@@ -590,7 +618,8 @@ firewall_stop() {
 }
 
 firewall_ok() {
-  iptables -w -t mangle -C POSTROUTING -j $IPT_GROUP_POST 2>/dev/null
+  iptables -w -t mangle -C POSTROUTING -j $IPT_GROUP_POST 2>/dev/null || return 1
+  iptables -w -t mangle -S $IPT_GROUP_POST 2>/dev/null | grep -qE -- 'NFQUEUE|nfqws_qout'
 }
 
 # Бюджет PKT_LIMIT_OUT/IN тратится один раз за всю жизнь соединения и никогда не возвращается:
