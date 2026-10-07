@@ -3,11 +3,9 @@ MODDIR="${0%/*}"
 case "$MODDIR" in /*) ;; *) MODDIR="$(cd "$MODDIR" 2>/dev/null && pwd)" ;; esac
 # Снимаем partial wakelock: в ядре это именованный лок, не привязанный к процессу, поэтому он
 # переживает удаление модуля — без этой строки телефон после uninstall не заснёт до перезагрузки.
-# Снимаем оба имени: nfqws2-android — текущее (совпадает с id в module.prop), nfqws2-magisk —
-# прежнее, лок от него иначе остался бы висеть.
+# Имя лока совпадает с id в module.prop.
 if [ -w /sys/power/wake_unlock ] 2>/dev/null; then
   echo nfqws2-android > /sys/power/wake_unlock 2>/dev/null
-  echo nfqws2-magisk > /sys/power/wake_unlock 2>/dev/null
 fi
 [ -f "$MODDIR/service.sh" ] || MODDIR=/data/adb/modules/nfqws2-android
 # Без проверки на пустой pidfile получается `kill ""` — ошибка подавлена, но поведение неявное.

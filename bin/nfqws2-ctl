@@ -207,7 +207,7 @@ cmd_doctor() {
   lim=$(detect_limiter iptables)
   case "$lim" in
     connbytes)   row ok limiter "$(M "есть connbytes: лимит исх. $PKT_LIMIT_OUT / вх. $PKT_LIMIT_IN пак. на соединение" "connbytes present: limit out $PKT_LIMIT_OUT / in $PKT_LIMIT_IN packets per connection")" ;;
-    connmark_out) row warn limiter "$(M "нет connbytes: лимит вх./исх. $PKT_LIMIT_IN/$PKT_LIMIT_OUT пак. через CONNMARK, обнуляется раз в 20 сек" "no connbytes: in/out limit $PKT_LIMIT_IN/$PKT_LIMIT_OUT packets via CONNMARK, reset every 20 s")" ;;
+    connmark_out) row warn limiter "$(M "нет connbytes: лимит вх./исх. $PKT_LIMIT_IN/$PKT_LIMIT_OUT пак. на соединение через CONNMARK" "no connbytes: in/out limit $PKT_LIMIT_IN/$PKT_LIMIT_OUT packets per connection via CONNMARK")" ;;
   esac
   has_ipt_feature iptables -m owner --uid-owner 0 -j RETURN \
     && row ok owner "$(M 'фильтр приложений доступен' 'app filter available')" \
@@ -826,7 +826,6 @@ cmd_probe_dpi() {
   trap 'cleanup_probe_app_rule' EXIT INT TERM
 
   case "$mode" in
-    net) cmd_net_info ;;
     web) cmd_probe_all_inner "$kind" "$bin" ;;
     tcp16) cmd_probe_tcp16 ;;
     dns) cmd_probe_dns ;;
@@ -842,10 +841,6 @@ cmd_probe_dpi() {
 
   cleanup_probe_app_rule
   echo done
-}
-
-cmd_probe_all() {
-  cmd_probe_dpi "${1:-web}"
 }
 
 # ---------------------------------------------------------------- обновления списков
@@ -881,8 +876,6 @@ case "$1" in
   doctor) cmd_doctor ;;
 
   get-conf) cat "$CONFFILE" ;;
-  validate-conf-b64)
-    t="$STATE_DIR/val.tmp"; b64d "$2" > "$t"; validate_conf "$t" && echo OK; rc=$?; rm -f "$t"; exit $rc ;;
   save-conf-b64)
     t="$STATE_DIR/save.tmp"; b64d "$2" > "$t"
     if [ ! -s "$t" ]; then echo "Пустой конфиг" >&2; rm -f "$t"; exit 1; fi
@@ -1018,7 +1011,6 @@ case "$1" in
     case "$2" in list|auto|all) set_conf_param NFQWS_EXTRA_ARGS "\$MODE_$(printf '%s' "$2" | tr a-z A-Z)"; echo OK; need_restart_note ;;
       *) echo "list|auto|all" >&2; exit 1 ;; esac ;;
   list-apps) cmd_list_apps ;;
-  apply-apps) cmd_apply_apps ;;
   get-logs) cmd_get_logs "$2" "$3" "$4" ;;
   export-logs) cmd_export_logs ;;
   wifi-ssid) current_ssid || exit 1 ;;
@@ -1026,17 +1018,13 @@ case "$1" in
   backup-list) cmd_backup_list ;;
   backup-restore) cmd_backup_restore "$2" ;;
   net-info) cmd_net_info ;;
-  probe-all) cmd_probe_all "${2:-web}" ;;
   probe-dpi) cmd_probe_dpi "${2:-all}" ;;
-  probe-tcp16) cmd_probe_dpi tcp16 ;;
-  probe-dns) cmd_probe_dpi dns ;;
-  probe-tg) cmd_probe_dpi tg ;;
   clear-logs) : > "$SERVICE_LOG"; : > "$NFQWS_LOG"; rm -f "$LOG_DIR/nfqws2-debug.log" "$LOG_DIR/auto.log"; echo OK ;;
   *)
     echo "Команды: status json-status is-running start stop restart reload doctor get-conf save-conf-b64 reset-conf conf-modified" >&2
     echo "         list-strategies get-strategy set-strategy strategy-get-b64 strategy-save-b64 strategy-reset" >&2
     echo "         import-add-b64 list-imports get-import-merged-b64 rename-import delete-import" >&2
-    echo "         get-list save-list-b64 list-update add-domain clear-auto reset-lists set set-mode list-apps apply-apps" >&2
-    echo "         get-logs export-logs clear-logs wifi-ssid backup-create backup-list backup-restore probe-all probe-dpi net-info" >&2
+    echo "         get-list save-list-b64 list-update add-domain clear-auto reset-lists set set-mode list-apps" >&2
+    echo "         get-logs export-logs clear-logs wifi-ssid backup-create backup-list backup-restore probe-dpi net-info" >&2
     exit 1 ;;
 esac

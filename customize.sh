@@ -23,7 +23,7 @@ unzip -o "$ZIPFILE" -x 'META-INF/*' -d "$MODPATH" >&2 || abort "! Не удал�
 
 # Разработческие каталоги не должны оставаться на устройстве, даже если архив
 # собран вручную — например, простым zip из корня репозитория, куда попадают и
-# tests/, и tools/, и логи работы. Штатная сборка (tools/build.py) их не кладёт
+# tests/, и tools/, и логи работы. Штатная сборка (workflow release) их не кладёт
 # вовсе, а здесь — вторая линия защиты.
 #
 # Именно удаление, а не `unzip -x`: в unzip '*' не пересекает '/', поэтому
@@ -93,11 +93,6 @@ for src in "$MODPATH"/lists/*.list; do
 done
 [ -f "$CONF/apps.list" ] || echo "# Пакеты для фильтра приложений (APP_MODE=include|exclude), по одному на строку" > "$CONF/apps.list"
 [ -f "$CONF/home_wifi.list" ] || echo "# Домашние сети Wi-Fi (SSID по одному на строку): в них обход ставится на паузу" > "$CONF/home_wifi.list"
-# Файл caps писали старые версии модуля; сам механизм больше не существует, но
-# уборку оставляем: при обновлении со старой версии файл должен исчезнуть.
-# Переменная CAPS_FILE из lib/common.sh удалена ревью 2026-10-06 как мёртвая —
-# здесь путь намеренно литералом, читать его больше неоткуда.
-rm -f "$CONF/state/caps"
 
 set_perm_recursive "$MODPATH" 0 0 0755 0644
 for x in service.sh action.sh uninstall.sh bin/nfqws2 bin/nfqws2-ctl; do

@@ -67,8 +67,6 @@ set_defaults() {
   : "${WATCHDOG:=1}"
   : "${BLOCK_QUIC:=0}"
   : "${NAT_FIX:=1}"
-  : "${STRATEGY_TLS:=auto}"
-  : "${STRATEGY_UDP:=auto}"
   : "${APP_MODE:=off}"
   : "${LOG_MAX_KB:=512}"
   : "${PKT_LIMIT_OUT:=15}"
@@ -84,7 +82,10 @@ log_msg() {
 }
 
 sync_lists_and_blobs() {
-  mkdir -p "$LISTS_DIR" "$CONFDIR" "$LOG_DIR" "$STATE_DIR" 2>/dev/null
+  # mkdir -p — отдельный процесс, а load_conf зовут на каждый тик netwatch (2 с)
+  # и на каждый вызов nfqws2-ctl: проверка каталогов встроенной `[` его экономит.
+  [ -d "$LISTS_DIR" ] && [ -d "$LOG_DIR" ] && [ -d "$STATE_DIR" ] ||
+    mkdir -p "$LISTS_DIR" "$CONFDIR" "$LOG_DIR" "$STATE_DIR" 2>/dev/null
 
   for sdir in "$MODDIR/lists" "$MODDIR/defaults/lists"; do
     if [ -d "$sdir" ]; then
@@ -95,44 +96,6 @@ sync_lists_and_blobs() {
       done
     fi
   done
-
-  for l in google youtube user_extra ipset_as ipset_do ipset_cf_full ipset_amazon ipset_ovh; do
-    if [ ! -f "$LISTS_DIR/$l.list" ]; then
-      case "$l" in
-        google)
-          printf 'google.com\ngooglevideo.com\nyoutube.com\nytimg.com\nggpht.com\ngoogleapis.com\ngvt1.com\n' > "$LISTS_DIR/google.list" ;;
-        youtube)
-          printf 'youtube.com\nyoutu.be\ngooglevideo.com\nytimg.com\nggpht.com\n' > "$LISTS_DIR/youtube.list" ;;
-        user_extra)
-          # Явный if, а не `[ -f ] && cp || touch`: при падении cp выполнился бы
-          # touch, и на месте копии остался бы пустой список. Так ошибка видна,
-          # а посев повторится при следующем запуске.
-          if [ -f "$LISTS_DIR/user.list" ]; then
-            cp -f "$LISTS_DIR/user.list" "$LISTS_DIR/user_extra.list"
-          else
-            touch "$LISTS_DIR/user_extra.list"
-          fi ;;
-        *)
-          touch "$LISTS_DIR/$l.list" ;;
-      esac
-      chmod 0644 "$LISTS_DIR/$l.list" 2>/dev/null
-    fi
-  done
-
-  if [ -d "$BLOBS_DIR" ]; then
-    [ -f "$BLOBS_DIR/quic_initial_www_google_com.bin" ] || [ ! -f "$BLOBS_DIR/quic_initial.bin" ] || ln -sf "$BLOBS_DIR/quic_initial.bin" "$BLOBS_DIR/quic_initial_www_google_com.bin"
-    [ -f "$BLOBS_DIR/tls_clienthello_www_google_com.bin" ] || [ ! -f "$BLOBS_DIR/tls_clienthello.bin" ] || ln -sf "$BLOBS_DIR/tls_clienthello.bin" "$BLOBS_DIR/tls_clienthello_www_google_com.bin"
-    [ -f "$BLOBS_DIR/tls_clienthello_max_ru.bin" ] || [ ! -f "$BLOBS_DIR/tls_clienthello.bin" ] || ln -sf "$BLOBS_DIR/tls_clienthello.bin" "$BLOBS_DIR/tls_clienthello_max_ru.bin"
-    [ -f "$BLOBS_DIR/tls_clienthello_sochi_park.bin" ] || [ ! -f "$BLOBS_DIR/tls_clienthello.bin" ] || ln -sf "$BLOBS_DIR/tls_clienthello.bin" "$BLOBS_DIR/tls_clienthello_sochi_park.bin"
-    [ -f "$BLOBS_DIR/stun2.bin" ] || [ ! -f "$BLOBS_DIR/stun.bin" ] || ln -sf "$BLOBS_DIR/stun.bin" "$BLOBS_DIR/stun2.bin"
-    [ -f "$BLOBS_DIR/stun.bin" ] || [ ! -f "$BLOBS_DIR/stun2.bin" ] || ln -sf "$BLOBS_DIR/stun2.bin" "$BLOBS_DIR/stun.bin"
-    [ -f "$BLOBS_DIR/ACTIVE_DISCORD_UDP.bin" ] || [ ! -f "$BLOBS_DIR/discord_udp.bin" ] || ln -sf "$BLOBS_DIR/discord_udp.bin" "$BLOBS_DIR/ACTIVE_DISCORD_UDP.bin"
-    [ -f "$BLOBS_DIR/discord_udp.bin" ] || [ ! -f "$BLOBS_DIR/ACTIVE_DISCORD_UDP.bin" ] || ln -sf "$BLOBS_DIR/ACTIVE_DISCORD_UDP.bin" "$BLOBS_DIR/discord_udp.bin"
-    [ -f "$BLOBS_DIR/ACTIVE_GAME_UDP.bin" ] || [ ! -f "$BLOBS_DIR/ACTIVE_DISCORD_UDP.bin" ] || ln -sf "$BLOBS_DIR/ACTIVE_DISCORD_UDP.bin" "$BLOBS_DIR/ACTIVE_GAME_UDP.bin"
-    for qb in 5ka_ru vk_com steamcommunity_com 4pda_to dbankcloud_ru my_youtube; do
-      [ -f "$BLOBS_DIR/quic_initial_${qb}.bin" ] || [ ! -f "$BLOBS_DIR/quic_initial.bin" ] || ln -sf "$BLOBS_DIR/quic_initial.bin" "$BLOBS_DIR/quic_initial_${qb}.bin"
-    done
-  fi
 }
 
 rotate_file() {
@@ -251,23 +214,6 @@ norm_args() {
     | sed -e 's/  */ /g; s/^ //; s/ $//'
 }
 
-apply_strategy() {
-  local args="$1" n="$2"
-  case "$n" in ''|auto|AUTO|0) printf '%s' "$args"; return ;; esac
-  set -f
-  printf '%s\n' $args | awk -v n="$n" '
-    /^--lua-desync=circular/ { next }
-    /^--lua-desync=/ {
-      if (match($0, /:strategy=[0-9]+/)) {
-        s = substr($0, RSTART + 10, RLENGTH - 10)
-        if (s != n) next
-        $0 = substr($0, 1, RSTART - 1) substr($0, RSTART + RLENGTH)
-      }
-    }
-    { printf "%s ", $0 }' | sed 's/ $//'
-  set +f
-}
-
 app_mode_active() {
   case "$APP_MODE" in include|exclude) return 0 ;; *) return 1 ;; esac
 }
@@ -358,9 +304,8 @@ _startup_args() {
   local base tcp quic udp extra custom ipset
   base=$(norm_args "$NFQWS_BASE_ARGS")
   tcp=$(norm_args "$NFQWS_ARGS")
-  tcp=$(apply_strategy "$tcp" "$STRATEGY_TLS")
   quic=$(norm_args "$NFQWS_ARGS_QUIC")
-  udp=$(apply_strategy "$(norm_args "$NFQWS_ARGS_UDP")" "$STRATEGY_UDP")
+  udp=$(norm_args "$NFQWS_ARGS_UDP")
   extra=$(norm_args "$NFQWS_EXTRA_ARGS")
   custom=$(norm_args "$NFQWS_ARGS_CUSTOM")
   ipset=""
@@ -622,26 +567,6 @@ firewall_ok() {
   iptables -w -t mangle -S $IPT_GROUP_POST 2>/dev/null | grep -qE -- 'NFQUEUE|nfqws_qout'
 }
 
-# Бюджет PKT_LIMIT_OUT/IN тратится один раз за всю жизнь соединения и никогда не возвращается:
-# у долгоживущих keep-alive соединений он кончается быстро, и дальше DPI уже нечем перехватывать.
-# Раз в тик watchdog обнуляем оба счётчика вставкой и немедленным снятием одного временного
-# правила. Снимаем по спецификации, а не «правилом номер 1», чтобы не удалить чужое правило,
-# вставленное в цепочку параллельным firewall_start. Если цепочек нет (LIMITER=connbytes),
-# команды просто ничего не найдут.
-refresh_connmark_counter() {
-  local spec
-  for spec in "$IPT_GROUP_QOUT $CNT_OUT_MASK" "$IPT_GROUP_QIN $CNT_IN_MASK"; do
-    set -- $spec
-    iptables  -w -t mangle -I "$1" 1 -j CONNMARK --set-xmark "0x0/$2" 2>/dev/null && \
-    iptables  -w -t mangle -D "$1"     -j CONNMARK --set-xmark "0x0/$2" 2>/dev/null
-    if [ "$IPV6_ENABLED" != "0" ]; then
-      ip6tables -w -t mangle -I "$1" 1 -j CONNMARK --set-xmark "0x0/$2" 2>/dev/null && \
-      ip6tables -w -t mangle -D "$1"     -j CONNMARK --set-xmark "0x0/$2" 2>/dev/null
-    fi
-  done
-  return 0
-}
-
 # На части Android-прошивок (особенно с агрессивным энергосбережением) корневой процесс модуля
 # создаётся в cgroup вызвавшего root-доступ приложения и попадает под заморозку фоновых процессов
 # вместе с ним. Переносим в корневую cgroup верхнего уровня (cgroup v2) — её не замораживают.
@@ -670,13 +595,9 @@ acquire_wakelock() {
 }
 # Снимаем независимо от WAKELOCK: если пользователь успел выключить параметр, а лок остался
 # висеть (прошивка не передала его при рестарте службы), иначе он не освободится никогда.
-#
-# Старое имя снимаем тоже: лок в ядре не привязан к процессу и переживает обновление
-# модуля, поэтому взятый прежней версией nfqws2-magisk висел бы до перезагрузки.
 release_wakelock() {
   [ -w /sys/power/wake_unlock ] 2>/dev/null || return 0
   echo "nfqws2-android" > /sys/power/wake_unlock 2>/dev/null
-  echo "nfqws2-magisk" > /sys/power/wake_unlock 2>/dev/null
   return 0
 }
 

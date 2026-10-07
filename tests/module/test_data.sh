@@ -213,14 +213,9 @@ assert_eq "1" "$(grep -c "\"$mod_id\"" "$REPO_DIR/bin/nfqws2-ctl")" \
 assert_eq "1" "$(grep -c "echo $mod_id " "$REPO_DIR/uninstall.sh")" \
   "uninstall releases the same name"
 
-# The old name may survive only where it is deliberately released, so that a lock
-# taken by an older version does not outlive the update. What must never happen is
-# acquiring it again — then nothing would release it.
-assert_eq "0" "$(grep -rn "nfqws2-magisk" "$REPO_DIR/lib/common.sh" "$REPO_DIR/uninstall.sh" \
-                 | grep -c "wake_lock")" \
-  "the legacy name is only released, never acquired"
-assert_eq "0" "$(grep -rl "nfqws2-magisk" "$REPO_DIR/bin" "$REPO_DIR/service.sh" "$REPO_DIR/webroot" 2>/dev/null | wc -l | tr -d ' ')" \
-  "nothing else still refers to the legacy name"
+# The legacy lock name must never come back: nothing would release it.
+assert_eq "0" "$(grep -rl "nfqws2-magisk" "$REPO_DIR/bin" "$REPO_DIR/lib" "$REPO_DIR/service.sh" "$REPO_DIR/uninstall.sh" "$REPO_DIR/webroot" 2>/dev/null | wc -l | tr -d ' ')" \
+  "nothing refers to the legacy name"
 
 # ── uninstall.sh ──────────────────────────────────────────────────────────────
 section "uninstall"

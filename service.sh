@@ -259,7 +259,6 @@ watchdog() {
       log_msg "watchdog: правила iptables сброшены системой — восстановление"
       firewall_start
     fi
-    refresh_connmark_counter
     [ $((tick % 25)) -eq 0 ] && rotate_logs
   done
   rm -f "$WD_PIDFILE"
@@ -326,9 +325,7 @@ case "$1" in
   status)             status_service ;;
   watchdog)           watchdog ;;
   netwatch)           netwatch ;;
-  firewall_iptables)  firewall_iptables ;;
   firewall_apply)     firewall_start ;;
-  firewall_ip6tables) firewall_ip6tables ;;
   firewall_stop)      firewall_stop ;;
   *)
     until [ "$(getprop sys.boot_completed 2>/dev/null)" = "1" ]; do sleep 3; done

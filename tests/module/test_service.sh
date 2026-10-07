@@ -144,13 +144,6 @@ section "IPv6 disabled"
 
 assert_no_file "$MOCK_IPT_STORE/ip6tables/mangle/nfqws_post" "no ip6tables chain is created"
 
-section "refresh_connmark_counter leaves no trace"
-
-before=$(ipt_count nfqws_qout)
-svc reload >/dev/null 2>&1
-refresh_connmark_counter
-assert_eq "$before" "$(ipt_count nfqws_qout)" "the temporary reset rule is removed again"
-
 # ── firewall_ok ───────────────────────────────────────────────────────────────
 section "firewall_ok"
 

@@ -208,11 +208,6 @@ assert_rc 1 "$ctl_rc" "an empty config is rejected"
 
 assert_file "$CONFFILE.bak" "a backup of the previous config is kept"
 
-ctl validate-conf-b64 "$(b64 'OK=1')"
-assert_rc 0 "$ctl_rc" "validate-conf-b64 accepts a valid config"
-ctl validate-conf-b64 "$(b64 'BAD=`x`')"
-assert_rc 1 "$ctl_rc" "validate-conf-b64 rejects an invalid config"
-
 # ── strategies ────────────────────────────────────────────────────────────────
 section "strategies"
 

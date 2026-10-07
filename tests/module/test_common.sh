@@ -46,23 +46,6 @@ out=$(norm_args '/opt/etc/nfqws2/lua/a.lua /opt/etc/nfqws2/lists/b.list /opt/etc
 assert_eq "$LUA_DIR/a.lua $LISTS_DIR/b.list $CONFDIR/c.conf" "$out" \
   "specific paths win over the generic /opt/etc/nfqws2 rule"
 
-# ── apply_strategy ────────────────────────────────────────────────────────────
-section "apply_strategy"
-
-args='--lua-desync=circular:fails=2 --lua-desync=fake:strategy=1 --lua-desync=multisplit:strategy=2'
-
-out=$(apply_strategy "$args" auto)
-assert_eq "$args" "$out" "auto leaves the args untouched"
-
-out=$(apply_strategy "$args" '')
-assert_eq "$args" "$out" "empty strategy leaves the args untouched"
-
-out=$(apply_strategy "$args" 2)
-assert_not_contains "$out" "circular" "circular desync is dropped"
-assert_not_contains "$out" "strategy=1" "non-matching strategy is dropped"
-assert_contains "$out" "--lua-desync=multisplit" "matching strategy survives"
-assert_not_contains "$out" "strategy=2" "the strategy=N suffix is stripped"
-
 # ── list_count ────────────────────────────────────────────────────────────────
 section "list_count"
 
@@ -260,25 +243,19 @@ rotate_file "$small" 500
 assert_eq "tiny" "$(cat "$small")" "small file is left alone"
 
 # ── sync_lists_and_blobs ──────────────────────────────────────────────────────
-section "sync_lists_and_blobs: seeding a missing user_extra.list"
+section "sync_lists_and_blobs: restoring a missing list"
 
-# The seeding branch is a fallback — lists/user_extra.list ships with the module,
-# so it only runs when that copy is gone as well. All three sources are removed
-# here to reach it.
-rm -f "$LISTS_DIR/user_extra.list" \
-      "$MODDIR/lists/user_extra.list" "$MODDIR/defaults/lists/user_extra.list"
-printf 'seed-me\n' > "$LISTS_DIR/user.list"
+# A list deleted from the config directory comes back from the module's copy;
+# an existing one, edited by the user, is never overwritten.
+rm -f "$LISTS_DIR/user_extra.list"
+printf 'mine\n' > "$LISTS_DIR/youtube.list"
 sync_lists_and_blobs >/dev/null 2>&1
-assert_eq "seed-me" "$(cat "$LISTS_DIR/user_extra.list" 2>/dev/null)" \
-  "user_extra.list is copied from user.list"
+assert_eq "$(cat "$MODDIR/lists/user_extra.list")" "$(cat "$LISTS_DIR/user_extra.list" 2>/dev/null)" \
+  "a missing list is copied from the module"
+assert_eq "mine" "$(cat "$LISTS_DIR/youtube.list")" "an existing list is left alone"
 
-# With nothing to copy from, an empty list appears instead — and it is created,
-# not left missing, so the next start does not try again.
-rm -f "$LISTS_DIR/user_extra.list" "$LISTS_DIR/user.list" \
-      "$MODDIR/lists/user.list" "$MODDIR/defaults/lists/user.list"
+rm -rf "$LISTS_DIR"
 sync_lists_and_blobs >/dev/null 2>&1
-assert_file "$LISTS_DIR/user_extra.list" "an empty user_extra.list is created"
-assert_eq "0" "$(wc -c < "$LISTS_DIR/user_extra.list" 2>/dev/null | tr -d ' ')" \
-  "and it is empty"
+assert_file "$LISTS_DIR/user.list" "a removed lists directory is recreated and filled"
 
 harness_finish
