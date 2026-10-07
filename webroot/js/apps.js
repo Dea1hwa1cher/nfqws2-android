@@ -83,29 +83,38 @@ async function drawPk(animate){
     const n = typeof item === 'string' ? item : (item.name || item.pkg || '');
     return !f || p.toLowerCase().includes(f) || n.toLowerCase().includes(f);
   });
-  if(!f){
-    shown.sort((a, b) => {
-      const pa = typeof a === 'string' ? a : a.pkg;
-      const pb = typeof b === 'string' ? b : b.pkg;
-      const sa = s.has(pa) ? 1 : 0;
-      const sb = s.has(pb) ? 1 : 0;
-      if(sa !== sb) return sb - sa;
-      const na = typeof a === 'string' ? a : (a.name || a.pkg || '');
-      const nb = typeof b === 'string' ? b : (b.name || b.pkg || '');
-      return na.localeCompare(nb, undefined, { sensitivity: 'base' });
-    });
-  }
+  shown.sort((a, b) => {
+    const pa = typeof a === 'string' ? a : a.pkg;
+    const pb = typeof b === 'string' ? b : b.pkg;
+    const sa = s.has(pa) ? 1 : 0;
+    const sb = s.has(pb) ? 1 : 0;
+    if(sa !== sb) return sb - sa;
+    const na = typeof a === 'string' ? a : (a.name || a.pkg || '');
+    const nb = typeof b === 'string' ? b : (b.name || b.pkg || '');
+    return na.localeCompare(nb, undefined, { sensitivity: 'base' });
+  });
   $('pk-count').textContent = t('Найдено {0} из {1}, выбрано {2}', shown.length, pkgs.length, s.size) +
     (shown.length > 120 ? '. ' + t('Показаны первые 120, уточните поиск') : '');
-  setHTML('pk', shown.slice(0, 120).map(item => {
+  const slice = shown.slice(0, 120);
+  /* class="sel-single sel-first sel-mid sel-last" */
+  setHTML('pk', slice.map((item, idx) => {
     const p = typeof item === 'string' ? item : item.pkg;
     const name = typeof item === 'string' ? item : (item.name || item.pkg);
     const icon = typeof item === 'object' && item.icon ? item.icon : '';
     const sel = s.has(p);
+    let selCls = '';
+    if(sel){
+      const prev = idx > 0 && s.has(typeof slice[idx - 1] === 'string' ? slice[idx - 1] : slice[idx - 1].pkg);
+      const next = idx < slice.length - 1 && s.has(typeof slice[idx + 1] === 'string' ? slice[idx + 1] : slice[idx + 1].pkg);
+      if(!prev && !next) selCls = ' sel-single';
+      else if(!prev && next) selCls = ' sel-first';
+      else if(prev && next) selCls = ' sel-mid';
+      else selCls = ' sel-last';
+    }
     const iconHtml = icon
       ? '<img class="app-ico" src="' + esc(icon) + '" alt="" loading="lazy">'
       : '<span class="app-ico-fallback"><svg class="icon s24" aria-hidden="true"><use href="#i-apps"/></svg></span>';
-    return '<label class="list-item two-line clickable state' + (sel ? ' selected' : '') + '">' +
+    return '<label class="list-item two-line clickable state' + (sel ? ' selected' + selCls : '') + '">' +
       '<span class="li-icon plain app-ico-cell">' + iconHtml + '</span>' +
       '<span class="li-text">' +
         '<span class="li-primary">' + esc(name) + '</span>' +

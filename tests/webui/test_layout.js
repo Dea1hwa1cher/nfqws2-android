@@ -302,6 +302,19 @@ const VIEWPORTS = [
     const listed = await page.evaluate(() => document.querySelectorAll('#pk input[data-pkg]').length);
     eq(4, listed, 'the package list is rendered');
 
+    const selRadii = await page.evaluate(() => {
+      const getRadii = el => {
+        const parts = getComputedStyle(el).borderRadius.split(/\s+/).map(v => parseFloat(v));
+        if (parts.length === 1) return [parts[0], parts[0], parts[0], parts[0]];
+        if (parts.length === 2) return [parts[0], parts[1], parts[0], parts[1]];
+        if (parts.length === 3) return [parts[0], parts[1], parts[2], parts[1]];
+        return parts;
+      };
+      return [...document.querySelectorAll('#pk .list-item.selected')].map(getRadii);
+    });
+    eq('16,16,0,0', selRadii[0].join(','), 'first selected app has rounded top corners and flat bottom');
+    eq('0,0,16,16', selRadii[1].join(','), 'last selected app has flat top and rounded bottom corners');
+
     await page.evaluate(() => { window.__calls = []; });
     await page.evaluate(() => { document.getElementById('pf').value = ''; });
     await page.evaluate(() => {
