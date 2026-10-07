@@ -24,14 +24,13 @@ SERVICE_LOG="$LOG_DIR/service.log"
 NFQWS_LOG="$LOG_DIR/nfqws2.log"
 ACTIVE_FILE="$STATE_DIR/active_strategy"
 
-# Списки, поставленные релизом: .pending — новая версия, которую установщик
-# не стал класть поверх правок пользователя (WebUI предлагает заменить её вручную).
+# Release-shipped lists; .pending = newer version kept aside due to user edits
 LISTS_PENDING_DIR="$LISTS_DIR/.pending"
 
-# Домашняя Wi-Fi: в этих сетях обход ставится на паузу (HOME_WIFI=1)
+# Home Wi-Fi: bypass pauses on these networks (HOME_WIFI=1)
 HOME_FILE="$CONFDIR/home_wifi.list"
-HOME_PAUSED_FILE="$STATE_DIR/home_paused"      # служба остановлена из-за домашней сети, в файле — её SSID
-HOME_OVERRIDE_FILE="$STATE_DIR/home_override"  # пользователь включил службу вручную в этой сети
+HOME_PAUSED_FILE="$STATE_DIR/home_paused"      # paused by home network; holds SSID
+HOME_OVERRIDE_FILE="$STATE_DIR/home_override"  # user re-enabled on this network
 
 MARK_EXCLUDE="0x20000000/0x20000000"
 MARK_INCLUDE="0x10000000/0x10000000"
@@ -41,19 +40,18 @@ IPT_GROUP_POST="nfqws_post"
 IPT_GROUP_PRE="nfqws_pre"
 IPT_GROUP_NAT="nfqws_nat"
 IPT_GROUP_QOUT="nfqws_qout"
-IPT_GROUP_QIN="nfqws_qin"    # то же, что QOUT, но для входящих, когда нет connbytes
+IPT_GROUP_QIN="nfqws_qin" # like QOUT, for incoming when connbytes is missing
 IPT_GROUP_APP="nfqws_app"
 
-# xt_owner принимает не более 128 диапазонов в одном правиле
+# xt_owner allows max 128 ranges per rule
 APP_UID_MAX=128
 
 CNT_OUT_MASK=0x0f000000
 CNT_OUT_STEP=16777216
-CNT_IN_MASK=0x000f0000   # биты 16-19: отдельно от исходящего счётчика (24-27) и MARK_* (28-30)
+CNT_IN_MASK=0x000f0000   # bits 16-19, apart from out counter (24-27) and MARK_* (28-30)
 CNT_IN_STEP=65536        # 1<<16
 
-# Каталоги обычно уже есть: встроенная `[` дешевле отдельного процесса mkdir,
-# а common.sh подключает каждый вызов nfqws2-ctl (WebUI опрашивает его раз в 5 с).
+# dirs usually exist; builtin test avoids forking mkdir (sourced on every nfqws2-ctl call)
 [ -d "$LISTS_DIR" ] && [ -d "$STATE_DIR" ] && [ -d "$LOG_DIR" ] && [ -d "$USER_STRATEGIES_DIR" ] ||
   mkdir -p "$LISTS_DIR" "$STATE_DIR" "$LOG_DIR" "$USER_STRATEGIES_DIR" 2>/dev/null
 
@@ -85,8 +83,7 @@ log_msg() {
 }
 
 sync_lists_and_blobs() {
-  # mkdir -p — отдельный процесс, а load_conf зовут на каждый тик netwatch (2 с)
-  # и на каждый вызов nfqws2-ctl: проверка каталогов встроенной `[` его экономит.
+  # builtin dir check avoids a fork on every netwatch tick and nfqws2-ctl call
   [ -d "$LISTS_DIR" ] && [ -d "$LOG_DIR" ] && [ -d "$STATE_DIR" ] ||
     mkdir -p "$LISTS_DIR" "$CONFDIR" "$LOG_DIR" "$STATE_DIR" 2>/dev/null
 
@@ -116,8 +113,7 @@ rotate_logs() {
   for f in "$SERVICE_LOG" "$NFQWS_LOG" "$LOG_DIR/auto.log"; do rotate_file "$f" "$max"; done
   if [ "$1" = "start" ]; then
     f="$LOG_DIR/nfqws2-debug.log"
-    # То же самое: при неудачном обнулении `&& … ||` запустил бы ротацию вместо
-    # него. С включённой отладкой лог начинается заново, с выключенной — ротируется.
+    # truncate when debug on, rotate when off; && ... || would rotate on failed truncate
     if [ "$LOG_LEVEL" = "1" ]; then
       : > "$f" 2>/dev/null
     else
@@ -179,14 +175,13 @@ list_count() {
   printf '%s' "${c:-0}"
 }
 
-# То же, что list_count, но для нескольких файлов одним grep вместо пары процессов
-# на каждый: числа через пробел в порядке аргументов, 0 для отсутствующих.
-# Именно grep, а не awk: на больших ipset-списках awk из toybox вчетверо медленнее.
+# list_count for many files in one grep; counts space-separated, 0 if missing.
+# grep not awk: toybox awk is 4x slower on large ipset lists.
 list_counts() {
   local f out="" c r="" have=""
   for f; do [ -f "$f" ] && have="$have${have:+
 }$f"; done
-  # /dev/null в конце — чтобы grep и для одного файла писал «имя:число»
+  # trailing /dev/null makes grep print "name:count" even for a single file
   [ -n "$have" ] && out=$(IFS='
 '; set -f; grep -cv -e '^[[:space:]]*$' -e '^[[:space:]]*#' $have /dev/null 2>/dev/null)
   out="
@@ -201,20 +196,9 @@ $f:"}"; c="${c%%[!0-9]*}" ;; esac
   printf '%s' "$r"
 }
 
-# Перезапись keenetic-путей на каталоги этого модуля. Раньше это правило
-# копировалось трижды (norm_args, set_strategy, render_import_merged) и успело
-# разойтись по кавычкам: две копии раскрывали переменные, третья — писала
-# ссылкой, и по коду это различие видно не было.
-#
-# Порядок подстановок важен: частные пути (/opt/etc/nfqws2/lua, /blobs, /lists)
-# обязаны идти раньше общего /opt/etc/nfqws2, иначе они подменяются общим
-# правилом и превращаются в $CONFDIR/lua.
-#
-#   без аргумента  — подставить реальные пути: так нужно в командную строку
-#                    бинарника;
-#   аргумент "refs" — записать ссылками $LUA_DIR/$BLOBS_DIR/... : так нужно в
-#                     конфиг, который модуль потом сорсит (именно в такой форме
-#                     пути записаны в defaults/nfqws2.conf и в стратегиях).
+# Rewrite keenetic paths to module dirs.
+# Specific paths must be substituted before the generic /opt/etc/nfqws2.
+# arg "refs": keep $LUA_DIR/... references (for stored config); no arg: expand.
 rewrite_keenetic_paths() {
   if [ "$1" = "refs" ]; then
     sed -e 's#/opt/etc/nfqws2/lua#$LUA_DIR#g' \
@@ -243,11 +227,11 @@ app_mode_active() {
   case "$APP_MODE" in include|exclude) return 0 ;; *) return 1 ;; esac
 }
 
-# apps.list (имена пакетов) -> список UID из pm
+# apps.list package names -> comma-separated UIDs via pm
 resolve_app_uids() {
   local f="$CONFDIR/apps.list" PM=pm
   [ -f "$f" ] || return 0
-  # WebUI/root-шелл не всегда имеет /system/bin в PATH
+  # WebUI/root shell may lack /system/bin in PATH
   command -v pm >/dev/null 2>&1 || PM=/system/bin/pm
   command -v "$PM" >/dev/null 2>&1 || return 0
   [ -s "$f" ] || return 0
@@ -278,7 +262,7 @@ app_uid_count() {
   printf '%s' "${n:-0}"
 }
 
-# Возвращает 0, если фильтр по приложениям установлен, 1 — если выключен/неприменим, 2 — с ошибкой
+# 0 = app filter applied, 1 = off/not applicable, 2 = error
 app_rules() {
   local CMD="$1" uids n chunk mark
   if ! app_mode_active; then
@@ -302,8 +286,7 @@ app_rules() {
     return 2
   fi
 
-  # В PREROUTING у пакета нет сокета, поэтому -m owner там не работает:
-  # решение по UID принимается в POSTROUTING, а для ответных пакетов используется метка соединения.
+  # -m owner needs a socket, so UID matching runs in POSTROUTING; replies use the conn mark
   mark="$MARK_INCLUDE"
   [ "$APP_MODE" = "exclude" ] && mark="$MARK_EXCLUDE"
   $CMD -w -t mangle -N $IPT_GROUP_APP 2>/dev/null
@@ -465,34 +448,33 @@ _fw_iface_rules() {
       ;;
   esac
 
-  # Пакеты, уже обработанные nfqws2 (маркированные MARK_PROCESSED),
-  # не должны повторно отправляться в очередь ни на выходе, ни на входе
+  # don't requeue packets already processed by nfqws2
   $CMD -w -t mangle -A $IPT_GROUP_POST $OUT -m mark --mark $MARK_PROCESSED -j RETURN
   $CMD -w -t mangle -A $IPT_GROUP_PRE $IN -m mark --mark $MARK_PROCESSED -j RETURN
 
-  # Исходящий трафик (POSTROUTING)
+  # outgoing (POSTROUTING)
   [ -n "$UP" ] && _fw_add_rule "$CMD" $IPT_GROUP_POST "$OUT" udp dports "$UP" "" "$TARGET_OUT"
   [ -n "$TP" ] && _fw_add_rule "$CMD" $IPT_GROUP_POST "$OUT" tcp dports "$TP" "" "$TARGET_OUT"
 
-  # Завершение TCP-сессий (FIN/RST) отправляем в nfqws для корректного conntrack
+  # FIN/RST go to nfqws for clean conntrack
   if [ -n "$TP" ]; then
     _fw_add_rule "$CMD" $IPT_GROUP_POST "$OUT" tcp dports "$TP" "--tcp-flags fin fin" "$JNFQ"
     _fw_add_rule "$CMD" $IPT_GROUP_POST "$OUT" tcp dports "$TP" "--tcp-flags rst rst" "$JNFQ"
   fi
 
-  # NAT fix для UDP
+  # NAT fix for UDP
   if [ "$CMD" = "iptables" ] && [ "$NAT_FIX" = "1" ]; then
     $CMD -w -t nat -A $IPT_GROUP_NAT $OUT -p udp -m mark --mark $MARK_PROCESSED -j MASQUERADE
   fi
 
-  # Входящий трафик (PREROUTING)
+  # incoming (PREROUTING)
   if [ -n "$TP" ]; then
     _fw_add_rule "$CMD" $IPT_GROUP_PRE "$IN" tcp sports "$TP" "--tcp-flags syn,ack syn,ack" "$JNFQ"
     _fw_add_rule "$CMD" $IPT_GROUP_PRE "$IN" tcp sports "$TP" "--tcp-flags fin fin" "$JNFQ"
     _fw_add_rule "$CMD" $IPT_GROUP_PRE "$IN" tcp sports "$TP" "--tcp-flags rst rst" "$JNFQ"
   fi
 
-  # Входящий поток данных (connbytes или connmark_in)
+  # Incoming data flow (connbytes or connmark_in)
   [ -n "$UP" ] && _fw_add_rule "$CMD" $IPT_GROUP_PRE "$IN" udp sports "$UP" "" "$TARGET_IN"
   [ -n "$TP" ] && _fw_add_rule "$CMD" $IPT_GROUP_PRE "$IN" tcp sports "$TP" "" "$TARGET_IN"
 }
@@ -575,9 +557,7 @@ _firewall_stop() {
 firewall_iptables()  { _firewall_start iptables; }
 firewall_ip6tables() { [ "$IPV6_ENABLED" = "0" ] && return 0; _firewall_start ip6tables; }
 
-# Статус обеих половин, а не только последней. firewall_ip6tables() при
-# выключенном IPv6 возвращает 0 безусловно, поэтому провал iptables в ней тонул:
-# функция рапортовала успех, когда правила IPv4 не встали.
+# check both rc: firewall_ip6tables returns 0 when IPv6 is off, masking an iptables failure
 firewall_start() {
   local rc=0
   firewall_iptables || rc=1
@@ -597,34 +577,25 @@ firewall_ok() {
   iptables -w -t mangle -S $IPT_GROUP_POST 2>/dev/null | grep -qE -- 'NFQUEUE|nfqws_qout'
 }
 
-# На части Android-прошивок (особенно с агрессивным энергосбережением) корневой процесс модуля
-# создаётся в cgroup вызвавшего root-доступ приложения и попадает под заморозку фоновых процессов
-# вместе с ним. Переносим в корневую cgroup верхнего уровня (cgroup v2) — её не замораживают.
-# Всё best-effort: если недоступно, просто не срабатывает. Проверка -w перед записью нужна
-# потому, что в dash ошибка ОТКРЫТИЯ файла для записи уходит в stderr раньше, чем применяется
-# редирект самой команды, и «2>/dev/null» после > её не подавляет.
-protect_process() {   # $1 - PID; по умолчанию текущий процесс
+# Some ROMs freeze the app cgroup the root process started in; move it to the
+# root cgroup (v2), which is not frozen. Best-effort.
+# -w first: dash reports a redirect open() error before 2>/dev/null applies.
+protect_process() {   # $1 - PID; default: current process
   local p="${1:-$$}"
   [ -w "/proc/$p/oom_score_adj" ] 2>/dev/null && echo -1000 > "/proc/$p/oom_score_adj" 2>/dev/null
   [ -w /sys/fs/cgroup/cgroup.procs ] 2>/dev/null && echo "$p" > /sys/fs/cgroup/cgroup.procs 2>/dev/null
   return 0
 }
 
-# Партиционный wakelock держит CPU от глубокого сна, пока служба запущена. Это НЕ бесплатно —
-# заметно повышает расход батареи, особенно ночью, когда телефон иначе спал бы. Включается
-# только явно (WAKELOCK=1) — это эксперимент для проверки гипотезы, что именно заморозка/сон на
-# этой конкретной прошивке останавливает обработку пакетов, а не включение по умолчанию для всех.
-# Имя лока — это id модуля (module.prop). Совпадение обязательно: захват,
-# освобождение и проверка в докторе пишут и читают одну и ту же строку, и если
-# они разойдутся, лок не снимется никогда — телефон не заснёт до перезагрузки.
-# Совпадение с module.prop проверяется тестом test_data.sh.
+# Partition wakelock blocks deep sleep while the service runs; costs battery, so
+# opt-in only (WAKELOCK=1). The name must match the module.prop id exactly or the
+# lock is never released (checked by test_data.sh).
 acquire_wakelock() {
   [ "$WAKELOCK" = "1" ] || return 0
   [ -w /sys/power/wake_lock ] 2>/dev/null && echo "nfqws2-android" > /sys/power/wake_lock 2>/dev/null
   return 0
 }
-# Снимаем независимо от WAKELOCK: если пользователь успел выключить параметр, а лок остался
-# висеть (прошивка не передала его при рестарте службы), иначе он не освободится никогда.
+# release regardless of WAKELOCK: a stale lock is never freed otherwise
 release_wakelock() {
   [ -w /sys/power/wake_unlock ] 2>/dev/null || return 0
   echo "nfqws2-android" > /sys/power/wake_unlock 2>/dev/null
@@ -639,16 +610,9 @@ system_config() {
   sysctl -w net.core.rmem_default=2097152 >/dev/null 2>&1
   sysctl -w net.core.netdev_max_backlog=16384 >/dev/null 2>&1
 
-  # На живом Keenetic-роутере (где nfqws2-keenetic работает стабильно) эти два параметра явно
-  # выставлены в startup-config: nf_conntrack_tcp_timeout_established=1200, ip conntrack
-  # max-entries=16384. У нас они не трогались вовсе — остаются дефолтом ядра телефона, а на
-  # части Android-прошивок (особенно с агрессивной экономией батареи/памяти) этот таймаут может
-  # быть куда короче. Если запись conntrack для долгоживущего, но не постоянно активного
-  # соединения (мессенджер, соцсеть) истекает раньше, чем приложение реально закрыло сокет,
-  # ядро начинает видеть его пакеты как INVALID/untracked — и дальше зависит от того, что с
-  # такими пакетами делает остальной стек (часто — тихо дропает). Подозреваемый отдельных
-  # "зависших" соединений посреди работы, не только на старте. Задаём те же значения, что
-  # доказанно стабильны на роутере — явно, не полагаясь на дефолт ядра телефона.
+  # Values proven stable on the reference router (1200 / 16384). Android defaults
+  # can expire idle long-lived connections; their packets then look INVALID and
+  # are silently dropped.
   local cur_est cur_max
   cur_est=$(sysctl -n net.netfilter.nf_conntrack_tcp_timeout_established 2>/dev/null)
   cur_max=$(sysctl -n net.netfilter.nf_conntrack_max 2>/dev/null)
@@ -661,8 +625,8 @@ system_config() {
   return 0
 }
 
-# ---------------------------------------------------------------- импорт конфигов пачками
-# Файл считается конфигом nfqws2-keenetic, если в нём есть минимум 2 ключевых переменной.
+# ---------------------------------------------------------------- batch config import
+# A keenetic config has at least 2 key variables.
 is_keenetic_config() {
   local f="$1" n
   [ -f "$f" ] || return 1
@@ -671,11 +635,8 @@ is_keenetic_config() {
 }
 
 import_safe_name() {
-  # Чёрный список вместо белого: убираем только то, что реально опасно для пути/shell
-  # (/ как разделитель каталогов, кавычки, обратный слэш, $ и обратные кавычки), а не весь
-  # не-ASCII — иначе кириллица и любой другой unicode превращались бы в подчёркивания.
-  # Байты '/','\','`','$','"',''' всегда однобайтовые (< 0x80) и не входят в UTF-8-продолжения,
-  # поэтому их можно безопасно вырезать побайтово, не трогая многобайтовые символы.
+  # strip only shell/path-dangerous bytes; they are single-byte ASCII, so
+  # multibyte names (Cyrillic etc.) survive
   printf '%s' "$1" | tr -d '/\\`$"'"'" | tr -d '\n\r\t' | sed -e 's/^[[:space:].]*//' -e 's/[[:space:]]*$//' | cut -c1-200
 }
 
@@ -687,23 +648,17 @@ list_imports() {
   done | sort
 }
 
-# Ключи, которые описывают сам обход. Всё остальное в конфиге — настройки модуля
-# (порты, очередь, лимиты, переключатели, режим списков): у всех встроенных
-# стратегий они одинаковые, и при смене стратегии берутся из действующего
-# конфига пользователя (USER_KEYS ниже).
+# Keys defining the bypass itself; the rest are module settings, identical for
+# all strategies and taken from the live config on switch (see USER_KEYS).
 STRATEGY_KEYS="NFQWS_BASE_ARGS NFQWS_ARGS NFQWS_ARGS_QUIC NFQWS_ARGS_UDP NFQWS_ARGS_IPSET NFQWS_ARGS_CUSTOM"
 
-# Параметры, которых нет в nfqws2 этого модуля, но которые встречаются в
-# стратегиях для других сборок (например, nfqws2-keenetic). nfqws2 на любом
-# незнакомом параметре печатает справку и не запускается.
+# Options from other nfqws2 builds; on an unknown option nfqws2 prints help and exits.
 FOREIGN_OPTS="fastpath-workaround"
 
-# Имена параметров из файла (без «--»), которые этот nfqws2 не поддерживает, по
-# одному на строку. Помимо FOREIGN_OPTS проверяется сам бинарник: имена длинных
-# параметров лежат в нём строками, и имени, которого в бинарнике нет вообще, он
-# точно не знает. Проверка односторонняя — убираем только заведомо чужое. Если
-# бинарник не похож на nfqws2 (нет «lua-desync»), действует только список.
-unsupported_opts() { # <файл>
+# Unsupported long options in a file, one per line. FOREIGN_OPTS plus a grep of
+# the binary (option names are strings in it); if the binary isn't nfqws2
+# (no "lua-desync"), FOREIGN_OPTS only.
+unsupported_opts() { # <file>
   local n real=0
   grep -qF lua-desync "$NFQWS_BIN" 2>/dev/null && grep -qF filter-tcp "$NFQWS_BIN" 2>/dev/null && real=1
   grep -v '^[[:space:]]*#' "$1" 2>/dev/null | grep -oE -e '(^|[[:space:]"])--[A-Za-z0-9][A-Za-z0-9-]*' | sed 's/^.*--//' | sort -u |
@@ -713,12 +668,9 @@ unsupported_opts() { # <файл>
   done
 }
 
-# Вырезает из конфига параметры из списка (имена через пробел) вместе со
-# значением «--имя=значение». Строка, от которой ничего не осталось, удаляется;
-# одинокая закрывающая кавычка уходит в конец предыдущей строки, а «КЛЮЧ="» без
-# значения склеивается со следующей строкой — так конфиг в редакторе выглядит,
-# будто параметра там и не было.
-strip_opts() { # <имена через пробел>  stdin -> stdout
+# Remove listed --name[=value] options from a config, merging orphaned quotes and
+# line continuations so the file looks as if the option was never there.
+strip_opts() { # <space-separated names>  stdin -> stdout
   awk -v bad=" $1 " '
     function emit(l) { if (have) print prev; prev = l; have = 1 }
     {
@@ -730,7 +682,7 @@ strip_opts() { # <имена через пробел>  stdin -> stdout
         pre = substr(s, 1, RSTART - 1); s = substr(s, RSTART + RLENGTH)
         if (index(bad, " " name " ")) {
           cut = 1
-          # пробел перед параметром не нужен, если после него тоже пробел
+          # no space needed before the option if one follows it
           if (lead ~ /[[:space:]]/ && s ~ /^[[:space:]]/) lead = ""
           out = out pre lead
         } else out = out pre lead tok
@@ -750,14 +702,11 @@ strip_opts() { # <имена через пробел>  stdin -> stdout
     END { if (join) emit(held); if (have) print prev }'
 }
 
-# Приводит импортированный конфиг nfqws2-keenetic к виду встроенной стратегии:
-# каркас — defaults/nfqws2.conf, из импорта берутся только ключи обхода
-# (STRATEGY_KEYS) и собственные переменные, на которые они ссылаются; пути
-# Keenetic переписываются на каталоги модуля. Ключа обхода нет в импорте —
-# он пустой, а не унаследованный от стандартной стратегии. Функция
-# идемпотентна: уже приведённый файл проходит через неё без изменений.
-# Параметры, которых этот nfqws2 не знает (unsupported_opts), вырезаются.
-normalize_import() { # <файл импорта> -> stdout
+# Convert an imported keenetic config into strategy format: defaults/nfqws2.conf
+# skeleton, only STRATEGY_KEYS and their own variables from the import, paths
+# rewritten, unsupported options stripped. A missing key stays empty, not
+# inherited. Idempotent.
+normalize_import() { # <import file> -> stdout
   local src="$1" clean="$STATE_DIR/import_norm.$$"
   [ -f "$src" ] || return 1
   tr -d '\r' < "$src" | rewrite_keenetic_paths refs > "$clean"
@@ -767,7 +716,7 @@ normalize_import() { # <файл импорта> -> stdout
   awk -v skeys=" $STRATEGY_KEYS " -v tpl="$MODDIR/defaults/nfqws2.conf" '
     function quotes(str,   t) { t = str; return gsub(/"/, "", t) }
     function keyof(line) { return match(line, /^[A-Za-z_][A-Za-z0-9_]*=/) ? substr(line, 1, RLENGTH - 1) : "" }
-    # Читает файл блоками «КЛЮЧ=значение» (значение может занимать несколько строк)
+    # read file into KEY=blocks (values may span lines)
     function load(file, blk, ord,   line, k, cur, inval, n) {
       n = 0; inval = 0; cur = ""
       while ((getline line < file) > 0) {
@@ -790,8 +739,7 @@ normalize_import() { # <файл импорта> -> stdout
         k = tord[i]
         if (substr(k, 1, 1) == "\001") { print substr(k, 2); continue }
         if (index(skeys, " " k " ")) {
-          # Собственные переменные импорта (например ARGS_BLOCK16) нужны раньше,
-          # чем на них сошлются ключи обхода, — выводим их перед первым из них.
+          # own variables of the import must precede bypass keys using them
           if (first) {
             for (j = 1; j <= ni; j++) { e = iord[j]
               if (!(e in intpl) && !(e in skip) && !(e in done)) { print imp[e]; print ""; done[e] = 1 } }
@@ -807,7 +755,7 @@ normalize_import() { # <файл импорта> -> stdout
   rm -f "$clean"
 }
 
-# Предпросмотр импорта в редакторе: стратегия + настройки из действующего конфига
+# Import preview for the editor: strategy + settings from the live config
 render_import_merged() {
   local raw="$STATE_DIR/import_prev.$$"
   normalize_import "$1" > "$raw" || { rm -f "$raw"; return 1; }
@@ -815,16 +763,13 @@ render_import_merged() {
   rm -f "$raw"
 }
 
-# ---------------------------------------------------------------- язык служебного вывода
-# Строки, которые WebUI показывает как содержимое (диагностика, сводка журналов,
-# проверка доступности), печатаются на языке интерфейса: WebUI передаёт его в
-# NFQWS_LANG. Журналы и сообщения службы остаются русскими.
+# ---------------------------------------------------------------- service output language
+# WebUI-shown content strings follow NFQWS_LANG; service logs stay Russian.
 M() { if [ "$NFQWS_LANG" = "en" ]; then printf '%s' "$2"; else printf '%s' "$1"; fi; }
 
-# ---------------------------------------------------------------- статус в module.prop
-# Менеджер (Magisk / KernelSU / APatch) показывает description прямо в списке
-# модулей, поэтому туда пишется текущее состояние службы. Пишем через cat >,
-# а не mv: так у module.prop остаются прежние владелец и права.
+# ---------------------------------------------------------------- status in module.prop
+# Managers show description in the module list, so write live state there.
+# cat > (not mv) keeps module.prop owner and mode.
 DESC_BASE="Обход DPI на базе nfqws2."
 current_mode() {
   awk '/^NFQWS_EXTRA_ARGS=/ { if (match($0, /MODE_[A-Z]*/)) print tolower(substr($0, RSTART + 5, RLENGTH - 5)); exit }' "$CONFFILE" 2>/dev/null
@@ -848,24 +793,23 @@ update_description() { # running | stopped | paused <ssid>
   return 0
 }
 
-# ---------------------------------------------------------------- стратегии
-# Встроенная стратегия лежит в модуле и обновляется с релизом; правка
-# пользователя сохраняется в $USER_STRATEGIES_DIR под тем же именем и
-# перекрывает встроенную. Сброс к исходнику — удаление этой копии.
-# Импортированные конфиги nfqws2-keenetic участвуют в выборе как «imp:<имя>».
+# ---------------------------------------------------------------- strategies
+# Built-in strategies ship in the module; a user edit under the same name in
+# $USER_STRATEGIES_DIR overrides it. Reset = delete that copy.
+# Imported configs are selectable as "imp:<name>".
 strategy_name_ok() {
   case "$1" in ''|*/*|*'`'*|*'$'*|*'"'*|*\'*|*'\'*|.*) return 1 ;; esac
   return 0
 }
 strategy_builtin_file() { [ -f "$STRATEGIES_DIR/$1.conf" ] && printf '%s' "$STRATEGIES_DIR/$1.conf"; }
-strategy_file() { # действующий файл стратегии: правка пользователя, иначе встроенная
+strategy_file() { # effective strategy file: user edit first, else built-in
   case "$1" in
     imp:*) [ -f "$IMPORTS_DIR/${1#imp:}.conf" ] && printf '%s' "$IMPORTS_DIR/${1#imp:}.conf" ;;
     *) if [ -f "$USER_STRATEGIES_DIR/$1.conf" ]; then printf '%s' "$USER_STRATEGIES_DIR/$1.conf"
        else strategy_builtin_file "$1"; fi ;;
   esac
 }
-# 0 — встроенная стратегия отредактирована пользователем и отличается от исходника
+# 0: built-in strategy was edited and differs from the original
 strategy_modified() {
   local b
   b=$(strategy_builtin_file "$1") || return 1
@@ -873,8 +817,7 @@ strategy_modified() {
   ! cmp -s "$b" "$USER_STRATEGIES_DIR/$1.conf"
 }
 
-# Конфиг стратегии в том виде, в каком его кладёт set-strategy, — до переноса
-# пользовательских настроек.
+# Strategy config as set-strategy writes it, before carrying over user settings.
 render_strategy() {
   local f
   case "$1" in
@@ -887,13 +830,10 @@ render_strategy() {
   esac
 }
 
-# Нижний блок конфига — настройки модуля, а не стратегии: у всех встроенных
-# стратегий он одинаковый. Поэтому при смене стратегии и сбросе конфига он
-# целиком переносится из действующего конфига: переключатели, порты, очередь,
-# лимиты, режим списков, фильтр приложений и домашняя Wi-Fi остаются прежними.
-# Режим списков переносится, только если это одна из штатных ссылок $MODE_*.
+# Module settings (same across strategies) are carried over whole from the live
+# config on strategy change/reset. NFQWS_EXTRA_ARGS only for standard $MODE_* refs.
 USER_KEYS="IPV6_ENABLED TCP_PORTS UDP_PORTS NFQUEUE_NUM PKT_LIMIT_OUT PKT_LIMIT_IN BLOCK_QUIC NAT_FIX APP_MODE AUTOSTART WATCHDOG NFQWS_USER LOG_LEVEL LOG_MAX_KB WAKELOCK HOME_WIFI NFQWS_EXTRA_ARGS"
-merge_user_keys() { # <сгенерированный конфиг> <конфиг-источник настроек>  -> stdout
+merge_user_keys() { # <generated config> <settings source config>  -> stdout
   awk -v keys=" $USER_KEYS " -v src="$2" '
     function quotes(str,   t) { t = str; return gsub(/"/, "", t) }
     function keyof(line) { return match(line, /^[A-Za-z_][A-Za-z0-9_]*=/) ? substr(line, 1, RLENGTH - 1) : "" }
@@ -926,9 +866,8 @@ merge_user_keys() { # <сгенерированный конфиг> <конфи�
     }' "$1"
 }
 
-# ---------------------------------------------------------------- домашняя Wi-Fi
-# SSID текущей сети или код 1, если телефон не подключён к Wi-Fi. `cmd wifi`
-# есть с Android 11, dumpsys — запасной путь для старых прошивок.
+# ---------------------------------------------------------------- home Wi-Fi
+# Current SSID, rc 1 if not on Wi-Fi. cmd wifi needs Android 11; dumpsys is the fallback.
 current_ssid() {
   local s
   s=$(cmd wifi status 2>/dev/null | sed -n 's/^Wifi is connected to "\(.*\)"[[:space:]]*$/\1/p' | head -n1)
