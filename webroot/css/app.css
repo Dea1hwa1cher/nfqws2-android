@@ -212,4 +212,11 @@ html[data-containers="true"] #pk .list-item.selected + .list-item:not(.selected)
   border-start-start-radius: var(--shape-large);
   border-start-end-radius: var(--shape-large);
 }
+#pk .list-item:active {
+  border-radius: 20px;
+  border-start-start-radius: 20px;
+  border-start-end-radius: 20px;
+  border-end-start-radius: 20px;
+  border-end-end-radius: 20px;
+}
 

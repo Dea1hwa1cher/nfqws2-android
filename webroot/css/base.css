@@ -477,13 +477,24 @@ body.nav-hidden .content { padding-bottom: calc(var(--bottom-inset) + 24px); }
   display: flex; align-items: center; gap: 16px; min-height: 56px; padding: 8px 16px;
   appearance: none; border: none; background: transparent; text-align: left;
   color: var(--md-sys-color-on-surface); border-radius: var(--shape-small);
-  transition: background-color var(--dur-short) var(--standard);
+  transition: background-color var(--dur-short) var(--standard),
+              border-radius 0.2s ease,
+              transform var(--dur-short) var(--spring);
+}
+.list-item:active {
+  border-radius: 20px;
+}
+.list-item.state:active {
+  transform: none;
 }
 html[data-containers="true"] .list { gap: 3px; }
 html[data-containers="true"] .sheet .list { gap: 0; }
 html[data-containers="true"] .list-item {
   background: var(--md-sys-color-surface-container-low);
   border-radius: var(--shape-extra-small);
+  transition: background-color var(--dur-short) var(--standard),
+              border-radius 0.2s ease,
+              transform var(--dur-short) var(--spring);
 }
 html[data-containers="true"] .sheet .list-item {
   background: transparent;
@@ -497,9 +508,20 @@ html[data-containers="true"] .list > .list-item:where(:last-child) {
   border-end-start-radius: var(--shape-large);
   border-end-end-radius: var(--shape-large);
 }
+html[data-containers="true"] .list > .list-item:where(:only-child) {
+  border-radius: var(--shape-large);
+}
 html[data-containers="true"] .sheet > .list-item {
   background: transparent;
   border-radius: var(--shape-large);
+}
+html[data-containers="true"] .list-item:active,
+html[data-containers="true"] .list > .list-item:active {
+  border-radius: 20px;
+  border-start-start-radius: 20px;
+  border-start-end-radius: 20px;
+  border-end-start-radius: 20px;
+  border-end-end-radius: 20px;
 }
 .list-item.two-line { min-height: 72px; }
 .list-item.clickable, .list-item[role="button"] { cursor: pointer; }

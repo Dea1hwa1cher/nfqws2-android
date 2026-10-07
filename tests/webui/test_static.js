@@ -254,6 +254,17 @@ eq(0, (html.match(/on[a-z]+="[^"]*\\''\s*\+/g) || []).length,
   'no handler splices an unquoted value into a JS string');
 truthy(script.includes('const jsArg ='), 'jsArg exists for the handlers that need it');
 
+// ── container animation (bindhosts style) ────────────────────────────────────
+sect('container animation');
+truthy(/\.list-item\s*\{[^}]*transition:[^}]*border-radius\s+0\.2s\s+ease/s.test(styleBlock),
+  'list-item has border-radius 0.2s ease transition');
+truthy(/\.list-item:active\s*\{[^}]*border-radius:\s*20px/s.test(styleBlock),
+  'list-item:active morphs to 20px border-radius');
+truthy(/html\[data-containers="true"\]\s+\.list-item:active[^}]*border-radius:\s*20px/s.test(styleBlock),
+  'container list-item:active sets 20px border-radius');
+truthy(/html\[data-containers="true"\]\s+\.list-item\s*\{[^}]*transition:[^}]*border-radius\s+0\.2s\s+ease/s.test(styleBlock),
+  'container list-item has border-radius 0.2s ease transition');
+
 // ── summary ───────────────────────────────────────────────────────────────────
 process.stdout.write('\n----------------------------------------\n');
 if (failures.length === 0) {
