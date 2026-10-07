@@ -354,6 +354,7 @@ assert_rc 0 "$ctl_rc" "doctor runs to completion"
 assert_match "$ctl_out" "^(ok|warn|fail|info)	" "doctor emits tab-separated severity rows"
 assert_contains "$ctl_out" "NFQUEUE" "doctor checks the NFQUEUE target"
 assert_contains "$ctl_out" "limiter" "doctor reports the limiter in use"
+assert_contains "$ctl_out" "ОЗУ" "doctor reports memory consumption"
 
 section "doctor without kernel features"
 

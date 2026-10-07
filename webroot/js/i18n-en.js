@@ -208,6 +208,7 @@ EN = {
  "Проверка ядра и правил…": "Checking the kernel and rules…",
  "Проверка не удалась": "Check failed",
  "Служба ещё не запускалась": "The service has not been started yet",
+ "ОЗУ:": "RAM:",
  "Аргументы скопированы": "Arguments copied",
  "Не удалось скопировать: выделите текст вручную": "Could not copy: select the text manually",
  "Включено": "On",
