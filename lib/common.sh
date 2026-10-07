@@ -693,16 +693,77 @@ list_imports() {
 # конфига пользователя (USER_KEYS ниже).
 STRATEGY_KEYS="NFQWS_BASE_ARGS NFQWS_ARGS NFQWS_ARGS_QUIC NFQWS_ARGS_UDP NFQWS_ARGS_IPSET NFQWS_ARGS_CUSTOM"
 
+# Параметры, которых нет в nfqws2 этого модуля, но которые встречаются в
+# стратегиях для других сборок (например, nfqws2-keenetic). nfqws2 на любом
+# незнакомом параметре печатает справку и не запускается.
+FOREIGN_OPTS="fastpath-workaround"
+
+# Имена параметров из файла (без «--»), которые этот nfqws2 не поддерживает, по
+# одному на строку. Помимо FOREIGN_OPTS проверяется сам бинарник: имена длинных
+# параметров лежат в нём строками, и имени, которого в бинарнике нет вообще, он
+# точно не знает. Проверка односторонняя — убираем только заведомо чужое. Если
+# бинарник не похож на nfqws2 (нет «lua-desync»), действует только список.
+unsupported_opts() { # <файл>
+  local n real=0
+  grep -qF lua-desync "$NFQWS_BIN" 2>/dev/null && grep -qF filter-tcp "$NFQWS_BIN" 2>/dev/null && real=1
+  grep -v '^[[:space:]]*#' "$1" 2>/dev/null | grep -oE -e '(^|[[:space:]"])--[A-Za-z0-9][A-Za-z0-9-]*' | sed 's/^.*--//' | sort -u |
+  while IFS= read -r n; do
+    case " $FOREIGN_OPTS " in *" $n "*) echo "$n"; continue ;; esac
+    [ "$real" = 1 ] && ! grep -qF -e "$n" "$NFQWS_BIN" 2>/dev/null && echo "$n"
+  done
+}
+
+# Вырезает из конфига параметры из списка (имена через пробел) вместе со
+# значением «--имя=значение». Строка, от которой ничего не осталось, удаляется;
+# одинокая закрывающая кавычка уходит в конец предыдущей строки, а «КЛЮЧ="» без
+# значения склеивается со следующей строкой — так конфиг в редакторе выглядит,
+# будто параметра там и не было.
+strip_opts() { # <имена через пробел>  stdin -> stdout
+  awk -v bad=" $1 " '
+    function emit(l) { if (have) print prev; prev = l; have = 1 }
+    {
+      s = $0; out = ""; cut = 0
+      while (match(s, /(^|[[:space:]"])--[A-Za-z0-9][A-Za-z0-9-]*(=[^[:space:]"]*)?/)) {
+        tok = substr(s, RSTART, RLENGTH); lead = ""
+        if (substr(tok, 1, 2) != "--") { lead = substr(tok, 1, 1); tok = substr(tok, 2) }
+        name = substr(tok, 3); sub(/=.*/, "", name)
+        pre = substr(s, 1, RSTART - 1); s = substr(s, RSTART + RLENGTH)
+        if (index(bad, " " name " ")) {
+          cut = 1
+          # пробел перед параметром не нужен, если после него тоже пробел
+          if (lead ~ /[[:space:]]/ && s ~ /^[[:space:]]/) lead = ""
+          out = out pre lead
+        } else out = out pre lead tok
+      }
+      out = out s
+      if (!cut) {
+        if (join) { sub(/^[[:space:]]+/, "", out); out = held out; join = 0 }
+        emit(out); next
+      }
+      sub(/[[:space:]]+$/, "", out); sub(/[[:space:]]+"/, "\"", out)
+      if (join) { sub(/^[[:space:]]+/, "", out); out = held out; join = 0 }
+      if (out ~ /^[[:space:]]*$/) next
+      if (out ~ /^[[:space:]]*"$/ && have) { prev = prev "\""; next }
+      if (out ~ /="$/) { held = out; join = 1; next }
+      emit(out)
+    }
+    END { if (join) emit(held); if (have) print prev }'
+}
+
 # Приводит импортированный конфиг nfqws2-keenetic к виду встроенной стратегии:
 # каркас — defaults/nfqws2.conf, из импорта берутся только ключи обхода
 # (STRATEGY_KEYS) и собственные переменные, на которые они ссылаются; пути
 # Keenetic переписываются на каталоги модуля. Ключа обхода нет в импорте —
 # он пустой, а не унаследованный от стандартной стратегии. Функция
 # идемпотентна: уже приведённый файл проходит через неё без изменений.
+# Параметры, которых этот nfqws2 не знает (unsupported_opts), вырезаются.
 normalize_import() { # <файл импорта> -> stdout
   local src="$1" clean="$STATE_DIR/import_norm.$$"
   [ -f "$src" ] || return 1
   tr -d '\r' < "$src" | rewrite_keenetic_paths refs > "$clean"
+  local bad
+  bad=$(unsupported_opts "$clean" | tr '\n' ' ')
+  if [ -n "$bad" ]; then strip_opts "$bad" < "$clean" > "$clean.s" && mv -f "$clean.s" "$clean"; fi
   awk -v skeys=" $STRATEGY_KEYS " -v tpl="$MODDIR/defaults/nfqws2.conf" '
     function quotes(str,   t) { t = str; return gsub(/"/, "", t) }
     function keyof(line) { return match(line, /^[A-Za-z_][A-Za-z0-9_]*=/) ? substr(line, 1, RLENGTH - 1) : "" }

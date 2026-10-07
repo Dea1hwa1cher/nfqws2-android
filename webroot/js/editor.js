@@ -320,7 +320,7 @@ $('panel-save-btn').onclick = async () => {
       return;
     }
     closeSlideEditor(true);
-    showImportMsg('');
+    showImportMsg(importRemoved(ri));
     toast(t('Импортировано'));
     loadImports();
     return;

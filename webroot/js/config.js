@@ -75,6 +75,12 @@ async function delImport(name){
   toast(t('Удалено'));
   loadImports();
 }
+/* Вторая строка ответа import-add-b64 — параметры, которых нет в этой сборке
+   nfqws2: модуль вырезает их при импорте, иначе nfqws2 не запустится. */
+function importRemoved(r){
+  const m = /^removed\t(.+)$/m.exec(r.out || '');
+  return m ? t('убраны параметры, неизвестные nfqws2 этого модуля: {0}', m[1]) : '';
+}
 function showImportMsg(text){
   $('impMsg').textContent = text || '';
   $('impMsg').hidden = !text;
@@ -87,7 +93,8 @@ async function importFiles(files){
     const ext = (f.name.match(/\.[^.]+$/) || [''])[0].toLowerCase();
     if(!IMPORT_EXTS.includes(ext)){ fail++; errs.push(f.name + ': ' + t('расширение не подходит ({0})', IMPORT_EXTS.join(' '))); continue; }
     const r = await withBusy(['import-add-b64', b64(f.name.replace(/\.[^.]+$/, '')), b64(await f.text())]);
-    if(!r.code) ok++; else { fail++; errs.push(f.name + ': ' + errText(r, 'отклонён')); }
+    if(!r.code){ ok++; const rm = importRemoved(r); if(rm) errs.push(f.name + ': ' + rm); }
+    else { fail++; errs.push(f.name + ': ' + errText(r, 'отклонён')); }
   }
   $('impFile').value = '';
   showImportMsg(errs.join('\n'));

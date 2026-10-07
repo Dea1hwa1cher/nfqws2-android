@@ -340,6 +340,13 @@ cmd_import_add() { # $1 = имя, $2 = путь к файлу с содержи�
   fi
   chmod 0644 "$dst"
   echo "$(basename "$dst" .conf)"
+  # Вторая строка — для WebUI: какие параметры убраны при импорте
+  local bad
+  bad=$(unsupported_opts "$src" | sed 's/^/--/' | tr '\n' ' ' | sed 's/ $//')
+  if [ -n "$bad" ]; then
+    log_msg "Импорт «$(basename "$dst" .conf)»: убраны параметры, которых нет в этой сборке nfqws2: $bad" >/dev/null
+    printf 'removed\t%s\n' "$bad"
+  fi
 }
 
 # Строки, которые фильтр «Ошибки» в WebUI считает ошибками

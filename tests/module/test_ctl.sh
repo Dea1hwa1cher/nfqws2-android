@@ -266,6 +266,27 @@ preview=$(printf '%s' "$ctl_out" | base64 -d 2>/dev/null)
 assert_not_contains "$preview" "ISP_INTERFACE=" "the preview drops ISP_INTERFACE"
 assert_contains "$preview" "AUTOSTART=" "the preview fills in Android settings"
 
+# Strategies written for other nfqws2 builds carry options this one does not
+# know; nfqws2 refuses to start on any unknown option, so the import cuts them.
+imp=$(b64 '# e.g. NFQWS_ARGS_CUSTOM="--fastpath-workaround=auto"
+NFQWS_BASE_ARGS="--fastpath-workaround=auto
+                 --lua-init=@/opt/etc/nfqws2/lua/zapret-lib.lua"
+NFQWS_ARGS="--filter-tcp=443 --fastpath-workaround --payload=tls_client_hello
+            --lua-desync=fake:blob=tls_clienthello
+            --fastpath-workaround=auto"
+ISP_INTERFACE="eth0"')
+ctl import-add-b64 "$(b64 'foreign')" "$imp"
+assert_rc 0 "$ctl_rc" "a config with a foreign option is still imported"
+assert_contains "$ctl_out" "removed	--fastpath-workaround" "the removed option is reported"
+f=$(cat "$CONFDIR/imports/foreign.conf")
+assert_not_contains "$f" "fastpath" "the foreign option is gone from every line"
+assert_contains "$f" 'NFQWS_BASE_ARGS="--lua-init=@$LUA_DIR/zapret-lib.lua"' "a value left empty on its first line joins the next one"
+assert_contains "$f" '--filter-tcp=443 --payload=tls_client_hello' "a mid-line option leaves no gap"
+assert_contains "$f" '--lua-desync=fake:blob=tls_clienthello"' "a closing quote moves up to the last argument"
+ctl import-add-b64 "$(b64 'clean')" "$(b64 'NFQWS_ARGS="--filter-tcp=443"
+TCP_PORTS=443')"
+assert_not_contains "$ctl_out" "removed" "a clean config reports nothing"
+
 ctl import-add-b64 "$(b64 'not-a-config')" "$(b64 'just some text')"
 assert_rc 1 "$ctl_rc" "a non-keenetic file is rejected"
 

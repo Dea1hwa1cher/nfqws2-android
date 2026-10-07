@@ -377,5 +377,6 @@ EN = {
   "Добавить на главный экран телефона": "Add to phone home screen",
   "Ярлык добавлен на рабочий стол": "Shortcut added to home screen",
   "KernelSU: в списке модулей удерживайте кнопку WebUI на карточке nfqws2 и выберите «Создать ярлык».\nMMRL и KsuWebUI: «Создать ярлык» в меню модуля.\nИконка ярлыка подставится из модуля сама.": "KernelSU: in the module list, long-press the WebUI button on the nfqws2 card and choose “Create shortcut”.\nMMRL and KsuWebUI: “Create shortcut” in the module menu.\nThe shortcut icon is taken from the module automatically.",
-  "Понятно": "Got it"
+  "Понятно": "Got it",
+ "убраны параметры, неизвестные nfqws2 этого модуля: {0}": "removed options unknown to this module's nfqws2: {0}"
 };
