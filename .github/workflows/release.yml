@@ -50,6 +50,8 @@ jobs:
       - name: Опубликовать релиз
         env:
           GH_TOKEN: ${{ github.token }}
+          PYTHONIOENCODING: utf-8
+          LC_ALL: C.UTF-8
         run: |
           python3 -c "
           import sys, re
