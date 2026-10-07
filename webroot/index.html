@@ -196,7 +196,7 @@
     <div class="pcol">
       <div class="row">
         <button class="btn tonal with-icon state" onclick="exportLogs()">
-          <svg aria-hidden="true" class="icon s18"><use href="#i-download"/></svg><span data-t>Экспорт в Download</span>
+          <svg aria-hidden="true" class="icon s18"><use href="#i-download"/></svg><span data-t>Экспорт логов</span>
         </button>
         <button class="btn text danger state" onclick="clearLogs()"><span data-t>Очистить журналы</span></button>
       </div>
@@ -467,7 +467,13 @@
 <div class="sheet list-sheet" id="backup-sheet" role="dialog" aria-modal="true" aria-labelledby="backup-sheet-title">
   <button type="button" class="sheet-drag" aria-label="Закрыть" data-ta="aria-label"><span class="handle"></span></button>
   <div class="sheet-title" id="backup-sheet-title" data-t>Восстановить из копии</div>
-  <div class="sheet-desc" data-t>Копии ищутся в папке Download. Текущие настройки, пользовательские списки и стратегии будут заменены.</div>
+  <div class="sheet-desc" data-t>Выберите архив .tar через проводник или сохранённую копию из списка ниже. Текущие настройки, списки и стратегии будут заменены.</div>
+  <input type="file" id="backupFile" accept=".tar,application/x-tar" hidden onchange="restoreBackupFromFile(this.files[0])">
+  <div class="row" style="margin-bottom:8px">
+    <button class="btn tonal with-icon state" onclick="$('backupFile').click()">
+      <svg aria-hidden="true" class="icon s18"><use href="#i-upload"/></svg><span data-t>Выбрать файл архива</span>
+    </button>
+  </div>
   <div class="list sheet-scroll" id="backup-list"></div>
   <div class="sheet-actions">
     <button class="btn text state" onclick="closeSheet()"><span data-t>Закрыть</span></button>

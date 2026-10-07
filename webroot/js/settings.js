@@ -26,8 +26,8 @@ function renderSettings(){
       {icon: 'medical', title: 'Диагностика', sub: t('Ядро, правила iptables и аргументы запуска'), on: "navigate('diag')", chevron: true}
     ]],
     ['Резервная копия', [
-      {icon: 'download', title: 'Создать копию', sub: t('Конфиг, списки, стратегии и оформление — архивом в Download'), on: 'createBackup()'},
-      {icon: 'upload', title: 'Восстановить из копии', sub: t('Выбрать архив из Download'), on: 'openBackupSheet()'}
+      {icon: 'download', title: 'Создать копию', sub: t('Конфиг, списки, стратегии и оформление — в архив .tar'), on: 'createBackup()'},
+      {icon: 'upload', title: 'Восстановить из копии', sub: t('Выбрать архив .tar или из списка'), on: 'openBackupSheet()'}
     ]],
     ['Оформление', [
       {icon: 'palette', title: 'Тема оформления', sub: t('Светлая, тёмная, AMOLED и цвет акцента'), on: 'openMonetModal()'},
@@ -202,7 +202,17 @@ async function createBackup(){
   const ui = {};
   UI_KEYS.forEach(k => { const v = store.get(k); if(v != null) ui[k] = v; });
   const r = await withBusy(['backup-create', b64(JSON.stringify(ui))], 60000);
-  toast(r.code ? errText(r, 'Не удалось создать копию') : t('Копия сохранена: {0}', r.out.trim().split('/').pop()));
+  if(r.code){ toast(errText(r, 'Не удалось создать копию')); return; }
+  const parts = r.out.trim().split('\n')[0].split('\t');
+  const filename = parts[0] || ('nfqws2-backup-' + Date.now() + '.tar');
+  const filePath = parts[1] || '';
+  const b64Data = parts[2] || '';
+  if(b64Data){
+    const blob = b64toBlob(b64Data, 'application/x-tar');
+    await exportBlobFile(blob, filename, 'application/x-tar', filePath);
+  } else {
+    toast(t('Копия сохранена: {0}', filename));
+  }
 }
 async function openBackupSheet(){
   setHTML('backup-list', '<div class="list-item"><span class="spinner"></span><span class="li-text"><span class="li-secondary">' +
@@ -219,18 +229,13 @@ async function openBackupSheet(){
         '<span class="li-secondary li-mono truncate">' + esc(name) + ' · ' + Math.max(1, Math.round((+size || 0) / 1024)) + ' KB</span></span>' +
     '</div>';
   }).join('') : '<div class="empty"><span class="empty-icon">' + icon('download', 's24') + '</span><span>' +
-    esc(t('В папке Download нет копий nfqws2-backup-*.tar.')) + '</span></div>');
+    esc(t('В памяти устройства нет копий nfqws2-backup-*.tar. Выберите файл вручную.')) + '</span></div>');
 }
-async function restoreBackup(name){
-  if(!await mdConfirm(t('Восстановить копию?'), t('Конфиг, пользовательские списки, стратегии и оформление будут заменены содержимым «{0}».', name),
-    {ok: t('Восстановить'), danger: true})) return;
-  closeSheet();
-  const r = await withBusy(['backup-restore', name], 90000);
-  if(r.code){ toast(errText(r, 'Не удалось восстановить копию')); return; }
-  const raw = r.out.trim().split('\n')[0];
-  if(raw){
+function applyRestoredUi(raw){
+  const line = (raw || '').trim().split('\n')[0];
+  if(line){
     try {
-      const ui = JSON.parse(unb64(raw));
+      const ui = JSON.parse(unb64(line));
       UI_KEYS.forEach(k => { if(ui[k] != null) store.set(k, String(ui[k])); });
       LANG = store.get('nfq_lang') === 'en' ? 'en' : 'ru';
       devMode = store.get('nfq_dev') === '1';
@@ -240,8 +245,33 @@ async function restoreBackup(name){
       applyTheme();
     } catch(e) {}
   }
-  await stat();
-  await initStrategySelector();
+  stat();
+  initStrategySelector();
   rerenderAll();
+}
+async function restoreBackupFromFile(file){
+  if(!file) return;
+  if($('backupFile')) $('backupFile').value = '';
+  if(!await mdConfirm(t('Восстановить копию?'),
+    t('Конфиг, пользовательские списки, стратегии и оформление будут заменены содержимым «{0}».', file.name),
+    {ok: t('Восстановить'), danger: true})) return;
+  closeSheet();
+  try {
+    const b64Data = await blobToB64(file);
+    const r = await withBusy(['backup-restore-b64', b64Data], 90000);
+    if(r.code){ toast(errText(r, 'Не удалось восстановить копию')); return; }
+    applyRestoredUi(r.out);
+    toast(t('Копия восстановлена'));
+  } catch(e){
+    toast(t('Ошибка чтения файла: {0}', (e && e.message) || String(e)));
+  }
+}
+async function restoreBackup(name){
+  if(!await mdConfirm(t('Восстановить копию?'), t('Конфиг, пользовательские списки, стратегии и оформление будут заменены содержимым «{0}».', name),
+    {ok: t('Восстановить'), danger: true})) return;
+  closeSheet();
+  const r = await withBusy(['backup-restore', name], 90000);
+  if(r.code){ toast(errText(r, 'Не удалось восстановить копию')); return; }
+  applyRestoredUi(r.out);
   toast(t('Копия восстановлена'));
 }

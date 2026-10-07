@@ -160,6 +160,7 @@ if [ -z "$NODE_BIN" ]; then
   queue_skip "webui: app filter" "node not found"
   queue_skip "webui: monet palette" "node not found"
   queue_skip "webui: dpi detector" "node not found"
+  queue_skip "webui: export & backup" "node not found"
   queue_skip "webui: ctl contract" "node not found"
   queue_skip "webui: rendered geometry" "node not found"
 else
@@ -167,6 +168,7 @@ else
   queue_suite "webui: app filter" "$NODE_BIN" "$HERE/webui/test_apps.js"
   queue_suite "webui: monet palette" "$NODE_BIN" "$HERE/webui/test_monet.js"
   queue_suite "webui: dpi detector" "$NODE_BIN" "$HERE/webui/test_dpi.js"
+  queue_suite "webui: export & backup" "$NODE_BIN" "$HERE/webui/test_export.js"
 
   # The contract test compares index.html against the real ctl, so the ctl
   # output is produced here and handed over as files.

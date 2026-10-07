@@ -178,6 +178,7 @@ svc() { # args...
 }
 
 b64() { printf '%s' "$1" | base64 | tr -d '\n'; }
+b64d() { printf '%s' "$1" | base64 -d 2>/dev/null || printf '%s' "$1" | openssl base64 -d 2>/dev/null; }
 
 conf_reset() { cp -f "$MODDIR/defaults/nfqws2.conf" "$CONFDIR/nfqws2.conf"; }
 

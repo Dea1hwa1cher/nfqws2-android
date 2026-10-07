@@ -62,7 +62,17 @@ async function loadLog(){
 }
 async function exportLogs(){
   const r = await withBusy(['export-logs'], 30000);
-  toast(r.code ? errText(r, 'Не удалось сохранить журналы') : t('Журналы сохранены в {0}', r.out.trim().replace(/^.* в /, '')));
+  if(r.code){ toast(errText(r, 'Не удалось экспортировать журналы')); return; }
+  const parts = r.out.trim().split('\n')[0].split('\t');
+  const filename = parts[0] || ('nfqws2-logs-' + Date.now() + '.tar');
+  const filePath = parts[1] || '';
+  const b64Data = parts[2] || '';
+  if(b64Data){
+    const blob = b64toBlob(b64Data, 'application/x-tar');
+    await exportBlobFile(blob, filename, 'application/x-tar', filePath);
+  } else {
+    toast(t('Журналы сохранены: {0}', filename));
+  }
 }
 async function clearLogs(){
   if(!await mdConfirm(t('Очистить журналы?'), t('service.log, nfqws2.log, отладочный и журнал автообучения будут обнулены.'),

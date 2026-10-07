@@ -434,12 +434,12 @@ cmd_log_summary() {
 }
 
 cmd_export_logs() {
-  local d="/sdcard/Download/nfqws2-logs"
-  mkdir -p "$d" 2>/dev/null || { echo "Нет доступа к $d" >&2; return 1; }
-  cp -f "$LOG_DIR"/* "$d"/ 2>/dev/null
-  cp -f "$ARGS_FILE" "$d/last.args" 2>/dev/null
-  cmd_doctor > "$d/doctor.txt" 2>&1
-  iptables-save -t mangle 2>/dev/null | grep -i nfqws > "$d/iptables-nfqws.txt"
+  local tmp="$STATE_DIR/export_logs.$$" name="nfqws2-logs-$(date '+%Y%m%d-%H%M%S').tar"
+  rm -rf "$tmp"; mkdir -p "$tmp" 2>/dev/null || return 1
+  cp -f "$LOG_DIR"/* "$tmp"/ 2>/dev/null
+  cp -f "$ARGS_FILE" "$tmp/last.args" 2>/dev/null
+  cmd_doctor > "$tmp/doctor.txt" 2>&1
+  iptables-save -t mangle 2>/dev/null | grep -i nfqws > "$tmp/iptables-nfqws.txt"
   # Счётчики пакетов по правилам и состояние очереди: по ним видно, доходит ли
   # трафик до правил и до nfqws2, даже когда журнал самого nfqws2 молчит.
   {
@@ -449,8 +449,21 @@ cmd_export_logs() {
     echo "== ip6tables -t mangle -L $IPT_GROUP_POST -v -n"; ip6tables -w -t mangle -L $IPT_GROUP_POST -v -n -x 2>&1
     echo "== /proc/net/netfilter/nfnetlink_queue"; cat /proc/net/netfilter/nfnetlink_queue 2>&1
     echo "== ip route"; ip route 2>&1; ip -6 route 2>&1 | head -n 20
-  } > "$d/counters.txt" 2>&1
-  echo "Логи сохранены в $d"
+  } > "$tmp/counters.txt" 2>&1
+
+  mkdir -p "$BACKUP_DIR" 2>/dev/null
+  local out_file="$BACKUP_DIR/$name"
+  if (cd "$tmp" && tar_cmd -cf "$out_file" .) 2>/dev/null; then
+    local b64_data
+    b64_data=$(b64e < "$out_file" | tr -d '\n')
+    printf '%s\t%s\t%s\n' "$name" "$out_file" "$b64_data"
+  else
+    local d="$BACKUP_DIR/nfqws2-logs"
+    mkdir -p "$d" 2>/dev/null
+    cp -f "$tmp"/* "$d"/ 2>/dev/null
+    echo "Логи сохранены в $d"
+  fi
+  rm -rf "$tmp"
 }
 
 cmd_list_apps() {
@@ -521,22 +534,17 @@ cmd_backup_create() { # [ui.json в base64]
     return 1
   fi
   rm -rf "$tmp"
-  echo "$BACKUP_DIR/$name"
+  local b64_data
+  b64_data=$(b64e < "$BACKUP_DIR/$name" | tr -d '\n')
+  printf '%s\t%s\t%s\n' "$name" "$BACKUP_DIR/$name" "$b64_data"
 }
 cmd_backup_list() {
   ls -1t "$BACKUP_DIR"/nfqws2-backup-*.tar 2>/dev/null | while IFS= read -r f; do
     printf '%s\t%s\n' "${f##*/}" "$(wc -c < "$f" 2>/dev/null | tr -d ' ')"
   done
 }
-cmd_backup_restore() { # <имя файла в Download>  -> stdout: ui.json в base64 (если был)
-  local name="$1" tmp="$STATE_DIR/restore.$$" f
-  case "$name" in nfqws2-backup-*.tar) ;; *) echo "Некорректное имя архива" >&2; return 1 ;; esac
-  case "$name" in */*) echo "Некорректное имя архива" >&2; return 1 ;; esac
-  [ -f "$BACKUP_DIR/$name" ] || { echo "Архив не найден" >&2; return 1; }
-  rm -rf "$tmp"; mkdir -p "$tmp" || return 1
-  if ! (cd "$tmp" && tar_cmd -xf "$BACKUP_DIR/$name") 2>/dev/null || ! grep -q '^nfqws2-backup ' "$tmp/BACKUP" 2>/dev/null; then
-    rm -rf "$tmp"; echo "Это не резервная копия nfqws2" >&2; return 1
-  fi
+_apply_restored_backup() { # <tmp dir>
+  local tmp="$1" f
   if [ -f "$tmp/nfqws2.conf" ]; then
     if ! validate_conf "$tmp/nfqws2.conf" >/dev/null 2>&1; then
       rm -rf "$tmp"; echo "Конфиг в архиве не прошёл проверку" >&2; return 1
@@ -559,6 +567,26 @@ cmd_backup_restore() { # <имя файла в Download>  -> stdout: ui.json в 
   app_mode_active && printf '%s\n' "$(resolve_app_uids)" > "$APP_UIDS_FILE"
   if is_running; then sh "$SERVICE" restart >/dev/null 2>&1 || echo "Копия восстановлена, но служба не перезапустилась" >&2; fi
   return 0
+}
+cmd_backup_restore() { # <имя файла в Download>  -> stdout: ui.json в base64 (если был)
+  local name="$1" tmp="$STATE_DIR/restore.$$"
+  case "$name" in nfqws2-backup-*.tar) ;; *) echo "Некорректное имя архива" >&2; return 1 ;; esac
+  case "$name" in */*) echo "Некорректное имя архива" >&2; return 1 ;; esac
+  [ -f "$BACKUP_DIR/$name" ] || { echo "Архив не найден" >&2; return 1; }
+  rm -rf "$tmp"; mkdir -p "$tmp" || return 1
+  if ! (cd "$tmp" && tar_cmd -xf "$BACKUP_DIR/$name") 2>/dev/null || ! grep -q '^nfqws2-backup ' "$tmp/BACKUP" 2>/dev/null; then
+    rm -rf "$tmp"; echo "Это не резервная копия nfqws2" >&2; return 1
+  fi
+  _apply_restored_backup "$tmp"
+}
+cmd_backup_restore_b64() { # <base64 tar data> -> stdout: ui.json в base64 (если был)
+  local tmp="$STATE_DIR/restore.$$"
+  [ -n "$1" ] || { echo "Пустые данные архива" >&2; return 1; }
+  rm -rf "$tmp"; mkdir -p "$tmp" || return 1
+  if ! (b64d "$1" | (cd "$tmp" && tar_cmd -xf -)) 2>/dev/null || ! grep -q '^nfqws2-backup ' "$tmp/BACKUP" 2>/dev/null; then
+    rm -rf "$tmp"; echo "Это не резервная копия nfqws2" >&2; return 1
+  fi
+  _apply_restored_backup "$tmp"
 }
 
 # ---------------------------------------------------------------- проверка доступности
@@ -1047,6 +1075,7 @@ case "$1" in
   backup-create) cmd_backup_create "$2" ;;
   backup-list) cmd_backup_list ;;
   backup-restore) cmd_backup_restore "$2" ;;
+  backup-restore-b64) cmd_backup_restore_b64 "$2" ;;
   net-info) cmd_net_info ;;
   probe-dpi) cmd_probe_dpi "${2:-all}" ;;
   probe-cancel) cmd_probe_cancel ;;
@@ -1056,6 +1085,6 @@ case "$1" in
     echo "         list-strategies get-strategy set-strategy strategy-get-b64 strategy-save-b64 strategy-reset" >&2
     echo "         import-add-b64 list-imports get-import-merged-b64 rename-import delete-import" >&2
     echo "         get-list save-list-b64 list-update add-domain clear-auto reset-lists set set-mode list-apps" >&2
-    echo "         get-logs export-logs clear-logs wifi-ssid backup-create backup-list backup-restore probe-dpi probe-cancel net-info" >&2
+    echo "         get-logs export-logs clear-logs wifi-ssid backup-create backup-list backup-restore backup-restore-b64 probe-dpi probe-cancel net-info" >&2
     exit 1 ;;
 esac

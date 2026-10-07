@@ -326,6 +326,27 @@ ctl clear-logs
 assert_rc 0 "$ctl_rc" "clear-logs works"
 assert_eq "0" "$(wc -c < "$CONFDIR/logs/service.log" | tr -d ' ')" "service.log is truncated"
 
+# ── backup & export ───────────────────────────────────────────────────────────
+section "backup and export"
+
+ctl backup-create "$(b64 '{"m3_monochrome":"true"}')"
+assert_rc 0 "$ctl_rc" "backup-create works"
+b64_bak="$(printf '%s' "$ctl_out" | cut -f3)"
+assert_match "$ctl_out" "nfqws2-backup-.*\.tar" "backup-create outputs archive name"
+
+ctl backup-list
+assert_rc 0 "$ctl_rc" "backup-list works"
+assert_match "$ctl_out" "nfqws2-backup-.*\.tar" "backup-list lists created archive"
+
+if [ -n "$b64_bak" ]; then
+  ctl backup-restore-b64 "$b64_bak"
+  assert_rc 0 "$ctl_rc" "backup-restore-b64 works"
+  assert_contains "$ctl_out" "$(b64 '{"m3_monochrome":"true"}')" "backup-restore-b64 returns ui state"
+fi
+
+ctl export-logs
+assert_rc 0 "$ctl_rc" "export-logs works"
+
 # ── doctor / status ───────────────────────────────────────────────────────────
 section "doctor"
 

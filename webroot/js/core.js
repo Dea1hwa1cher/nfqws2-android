@@ -12,6 +12,73 @@ let S = {}, seq = 0, pkgs = [], currentEditorTarget = '';
 const q = s => "'" + String(s).replace(/'/g, "'\\''") + "'";
 const b64 = s => btoa(unescape(encodeURIComponent(s)));
 const unb64 = s => { try { return decodeURIComponent(escape(atob(s))); } catch(e) { return atob(s); } };
+function b64toBlob(b64Data, contentType){
+  contentType = contentType || 'application/x-tar';
+  const bin = atob(String(b64Data || '').replace(/\s+/g, ''));
+  const len = bin.length;
+  const bytes = new Uint8Array(len);
+  for(let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type: contentType });
+}
+function blobToB64(blob){
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => {
+      const s = String(r.result || '');
+      resolve(s.includes(',') ? s.split(',')[1] : s);
+    };
+    r.onerror = reject;
+    r.readAsDataURL(blob);
+  });
+}
+async function exportBlobFile(blob, filename, mimeType, localFilePath){
+  mimeType = mimeType || 'application/x-tar';
+  if(typeof navigator !== 'undefined' && navigator.canShare && typeof File !== 'undefined'){
+    try {
+      const file = new File([blob], filename, { type: mimeType });
+      if(navigator.canShare({ files: [file] })){
+        await navigator.share({ files: [file], title: filename });
+        toast(t('Экспорт завершён: {0}', filename));
+        return true;
+      }
+    } catch(e){
+      if(e && e.name === 'AbortError') return false;
+    }
+  }
+  if(typeof window !== 'undefined' && window.showSaveFilePicker){
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: filename,
+        types: [{ description: filename, accept: { [mimeType]: ['.tar'] } }]
+      });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      toast(t('Файл сохранён: {0}', filename));
+      return true;
+    } catch(e){
+      if(e && e.name === 'AbortError') return false;
+    }
+  }
+  try {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 2000);
+  } catch(e) {}
+  if(localFilePath && typeof window !== 'undefined' && window.ksu){
+    try {
+      await sh('am start -a android.intent.action.SEND -t ' + q(mimeType) +
+               ' --eu android.intent.extra.STREAM ' + q('file://' + localFilePath) +
+               ' --es android.intent.extra.SUBJECT ' + q(filename) + ' >/dev/null 2>&1');
+    } catch(e) {}
+  }
+  toast(t('Экспорт завершён: {0}', filename));
+  return true;
+}
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
 /* Значение внутрь JS-строки в HTML-атрибуте, например onclick="f('ИМЯ')".
    Одного esc() здесь мало: HTML-декодер вернёт &#39; обратно в кавычку ДО того,
