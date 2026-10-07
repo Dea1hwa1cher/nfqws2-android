@@ -484,9 +484,11 @@ const VIEWPORTS = [
     await ctx.addInitScript(`(function(){
       var runs = ${JSON.stringify(RUNS)}, n = 0, base = window.ksu.exec;
       window.ksu.exec = function(cmd, opts, cb){
-        if (cmd.indexOf('probe-dpi') < 0) return base.apply(this, arguments);
+        var net = cmd.indexOf('net-info') >= 0;
+        if (cmd.indexOf('probe-dpi') < 0 && !net) return base.apply(this, arguments);
         var id = typeof cb === 'string' ? cb : opts;
-        var out = runs[Math.min(n++, runs.length - 1)].join('\\n');
+        var out = net ? 'NET\\t5.18.158.84\\tRU\\tZ-Telecom\\tAS41733\\twlan0\\t192.168.1.1\\t8.8.8.8\\trunning\\talt13'
+                      : runs[Math.min(n++, runs.length - 1)].join('\\n');
         setTimeout(function(){ if (window[id]) window[id](0, out, ''); }, 0);
         return 'job';
       };
@@ -516,6 +518,9 @@ const VIEWPORTS = [
     eq('Quad9 (9.9.9.9),Yandex (77.88.8.8)', second.dns.join(','), 'DNS rows are replaced');
     truthy(second.rec && second.rec.length > 0, 'strategy recommendation badge is displayed on completion');
     eq('2/2', second.report, 'the report holds only the second run');
+    const card = await page.evaluate(() => [document.getElementById('net-ip').textContent, document.getElementById('net-isp').textContent]);
+    eq('5.18.158.84 (RU)', card[0], 'the network card shows the IP');
+    eq('Z-Telecom · AS41733 · DNS: 8.8.8.8', card[1], 'the network card shows provider, AS and DNS');
     eq(0, pageErrors.length, 'no page errors' + (pageErrors.length ? ': ' + pageErrors.join('; ') : ''));
     await ctx.close();
   }

@@ -141,6 +141,25 @@ const recDnsHijack = sandbox.analyzeProbeResults(
 );
 truthy(recDnsHijack.dnsWarning.length > 0, 'hijacked DNS emits dnsWarning');
 
+// ── net-info ──────────────────────────────────────────────────────────────
+sect('net-info parsing');
+const net = vm.runInContext(`parseNetInfo('NET\\t5.18.158.84\\tRU\\tZ-Telecom\\tAS41733 Z-Telecom\\twlan0\\t192.168.1.1\\t8.8.8.8,1.1.1.1\\trunning\\talt13\\n')`, sandbox);
+eq('5.18.158.84', net.ip, 'the IP is read from the NET line');
+eq('Z-Telecom', net.isp, 'the provider is read');
+eq('8.8.8.8,1.1.1.1', net.dns, 'DNS servers are read');
+eq('running', net.status, 'the service state is read');
+eq('alt13', net.strategy, 'the strategy is read');
+const netEmpty = vm.runInContext(`parseNetInfo('NET\\t—\\t—\\t—\\t—\\twlan0\\t—\\t—\\tstopped\\t—')`, sandbox);
+eq(undefined, netEmpty.ip, 'a dash means no value');
+eq('stopped', netEmpty.status, 'known fields survive next to dashes');
+eq(0, Object.keys(vm.runInContext(`parseNetInfo('')`, sandbox)).length, 'an empty answer gives an empty object');
+// The line comes from cmd_net_info in nfqws2-ctl: one %s per NET_FIELDS entry.
+const ctlSrc = fs.readFileSync(path.join(REPO, 'bin', 'nfqws2-ctl'), 'utf8');
+const fmt = /printf 'NET((?:\\t%s)+)\\n'/.exec(ctlSrc);
+truthy(!!fmt, 'nfqws2-ctl prints the NET line');
+eq(vm.runInContext('NET_FIELDS.length', sandbox), fmt ? fmt[1].split('%s').length - 1 : -1,
+  'the WebUI reads as many fields as nfqws2-ctl prints');
+
 // ── 4. Report generation ───────────────────────────────────────────────────
 sect('report formatting');
 vm.runInContext(`

@@ -63,6 +63,22 @@ function selectTestTab(tab){
   updateTestDesc();
 }
 
+/* net-info отвечает одной строкой: NET <TAB> ip loc isp asn iface gw dns status strategy,
+   неизвестное значение — «—». Раньше её разбирали как пары «ключ<TAB>значение»,
+   и карточка сети всегда показывала «Локальная сеть». */
+const NET_FIELDS = ['ip', 'loc', 'isp', 'asn', 'iface', 'gw', 'dns', 'status', 'strategy'];
+function parseNetInfo(out){
+  const data = {};
+  const line = (out || '').split('\n').find(l => l.startsWith('NET\t'));
+  if(!line) return data;
+  const p = line.split('\t');
+  NET_FIELDS.forEach((k, i) => {
+    const v = (p[i + 1] || '').trim();
+    if(v && v !== '—') data[k] = v;
+  });
+  return data;
+}
+
 async function refreshNetInfo(){
   const ipEl = $('net-ip'), ispEl = $('net-isp'), badgeEl = $('net-badge');
   if(!ipEl || !ispEl) return;
@@ -72,21 +88,10 @@ async function refreshNetInfo(){
     ispEl.textContent = t('Сетевые данные недоступны');
     return;
   }
-  const lines = (r.out || '').split('\n');
-  const data = {};
-  for(const l of lines){
-    const p = l.split('\t');
-    if(p.length >= 2) data[p[0]] = p[1];
-  }
+  const data = parseNetInfo(r.out);
   netInfoData = data;
-  ipEl.textContent = (data.ip && data.ip !== '—' && data.ip !== 'unknown')
-    ? `${data.ip} (${data.loc || '?'})`
-    : t('Локальная сеть');
-  const ispText = [
-    data.isp && data.isp !== 'unknown' ? data.isp : '',
-    data.asn && data.asn !== 'unknown' ? data.asn : '',
-    data.dns && data.dns !== 'none' ? `DNS: ${data.dns}` : ''
-  ].filter(Boolean).join(' · ');
+  ipEl.textContent = data.ip ? `${data.ip} (${data.loc || '?'})` : t('Локальная сеть');
+  const ispText = [data.isp, data.asn, data.dns ? `DNS: ${data.dns}` : ''].filter(Boolean).join(' · ');
   ispEl.textContent = ispText || t('Информация о провайдере отсутствует');
 
   if(badgeEl){
