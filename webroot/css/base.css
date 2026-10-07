@@ -15,9 +15,6 @@
   /* ── Type ── */
   --md-font: 'Roboto', system-ui, -apple-system, 'Segoe UI', 'Noto Sans', sans-serif;
   --md-font-code: 'Roboto Mono', ui-monospace, 'Cascadia Mono', Menlo, Consolas, monospace;
-  --ts-display-large: 57px;   --lh-display-large: 64px;   --tr-display-large: -.25px;
-  --ts-headline-large: 32px;  --lh-headline-large: 40px;
-  --ts-headline-medium: 28px; --lh-headline-medium: 36px;
   --ts-headline-small: 24px;  --lh-headline-small: 32px;
   --ts-title-large: 22px;     --lh-title-large: 28px;
   --ts-title-medium: 16px;    --lh-title-medium: 24px;
@@ -28,9 +25,8 @@
   --ts-label-large: 14px;     --lh-label-large: 20px;
   --ts-label-medium: 12px;    --lh-label-medium: 16px;
   --ts-label-small: 11px;     --lh-label-small: 16px;
-  --ts-metric: 13px;          --lh-metric: 18px;
   /* Трекинг M3: без него шкала «на глаз» ближе, чем надо */
-  --tr-headline-large: -.25px; --tr-title-medium: .15px; --tr-title-small: .1px;
+  --tr-title-small: .1px;
   --tr-body-large: .5px;       --tr-body-medium: .25px;  --tr-body-small: .4px;
   /* Emphasized weights M3 Expressive */
   --w-regular: 400; --w-medium: 500; --w-emph: 600; --w-bold: 700;
@@ -43,43 +39,6 @@
   --shape-extra-large: 28px;
   --shape-card: 12px;          /* M3: радиус карточек 12dp */
   --shape-full: 9999px;
-  --shape-inner: 8px;          /* split button / stacked list inner corners */
-  /* Алиасы старых имён: инлайновые стили из JS их тоже используют */
-  --md-sys-shape-corner-extra-small: var(--shape-extra-small);
-  --md-sys-shape-corner-small: var(--shape-small);
-  --md-sys-shape-corner-medium: var(--shape-medium);
-  --md-sys-shape-corner-large: var(--shape-large);
-  --md-sys-shape-corner-extra-large: var(--shape-extra-large);
-  --md-sys-shape-full: var(--shape-full);
-  /* Публичные имена M3: с ними к странице можно подключить компоненты Material Web,
-     которые читают --md-sys-typescale / --md-sys-motion / --md-sys-state, а не наши --ts- / --dur-. */
-  --md-sys-typescale-display-large-size: var(--ts-display-large);
-  --md-sys-typescale-headline-large-size: var(--ts-headline-large);
-  --md-sys-typescale-headline-medium-size: var(--ts-headline-medium);
-  --md-sys-typescale-headline-small-size: var(--ts-headline-small);
-  --md-sys-typescale-title-large-size: var(--ts-title-large);
-  --md-sys-typescale-title-medium-size: var(--ts-title-medium);
-  --md-sys-typescale-title-small-size: var(--ts-title-small);
-  --md-sys-typescale-body-large-size: var(--ts-body-large);
-  --md-sys-typescale-body-medium-size: var(--ts-body-medium);
-  --md-sys-typescale-body-small-size: var(--ts-body-small);
-  --md-sys-typescale-label-large-size: var(--ts-label-large);
-  --md-sys-typescale-label-medium-size: var(--ts-label-medium);
-  --md-sys-typescale-label-small-size: var(--ts-label-small);
-  --md-sys-motion-duration-short1: var(--dur-extra-short);
-  --md-sys-motion-duration-short2: var(--dur-short);
-  --md-sys-motion-duration-medium1: var(--dur-medium);
-  --md-sys-motion-duration-medium3: var(--dur-medium-long);
-  --md-sys-motion-duration-long1: var(--dur-long);
-  --md-sys-motion-easing-emphasized: var(--standard);
-  --md-sys-motion-easing-emphasized-decelerate: var(--emphasized-decelerate);
-  --md-sys-motion-easing-emphasized-accelerate: var(--emphasized-accelerate);
-  --md-sys-motion-easing-standard: var(--standard);
-  --md-sys-state-hover-opacity: var(--state-hover);
-  --md-sys-state-focus-opacity: var(--state-focus);
-  --md-sys-state-pressed-opacity: var(--state-pressed);
-  --md-sys-state-disabled-content-opacity: var(--state-disabled-content);
-  --md-sys-state-disabled-container-opacity: var(--state-disabled-container);
 
   /* ── Motion: MotionScheme.expressive() ── */
   --spring: cubic-bezier(.34, 1.41, .64, 1);
@@ -93,15 +52,6 @@
   --dur-medium: 250ms;       /* duration-medium1 */
   --dur-medium-long: 350ms;  /* duration-medium3 */
   --dur-long: 450ms;         /* duration-long1 */
-  --md-ease-standard: var(--standard);
-  --md-ease-emphasized: var(--standard);
-  --md-ease-emphasized-decelerate: var(--emphasized-decelerate);
-  --md-ease-emphasized-accelerate: var(--emphasized-accelerate);
-  --md-dur-extra-short: var(--dur-extra-short);
-  --md-dur-short: var(--dur-short);
-  --md-dur-medium: var(--dur-medium);
-  --md-dur-medium-long: var(--dur-medium-long);
-  --md-dur-long: var(--dur-long);
 
   /* ── State layers ── */
   --state-hover: .08;
@@ -109,18 +59,11 @@
   --state-pressed: .12;
   --state-disabled-content: .38;
   --state-disabled-container: .12;
-  --md-state-hover: var(--state-hover);
-  --md-state-focus: var(--state-focus);
-  --md-state-pressed: var(--state-pressed);
-  --md-state-disabled-content: var(--state-disabled-content);
-  --md-state-disabled-container: var(--state-disabled-container);
 
   /* ── Elevation: key + ambient light ── */
   --md-elev-1: 0 1px 2px 0 rgba(0,0,0,.30), 0 1px 3px 1px rgba(0,0,0,.15);
   --md-elev-2: 0 1px 2px 0 rgba(0,0,0,.30), 0 2px 6px 2px rgba(0,0,0,.15);
   --md-elev-3: 0 1px 3px 0 rgba(0,0,0,.30), 0 4px 8px 3px rgba(0,0,0,.15);
-  --md-elev-4: 0 2px 3px 0 rgba(0,0,0,.30), 0 6px 10px 4px rgba(0,0,0,.15);
-  --md-elev-5: 0 4px 4px 0 rgba(0,0,0,.30), 0 8px 12px 6px rgba(0,0,0,.15);
 
   /* ── Layout ── */
   --top-inset: var(--window-inset-top, env(safe-area-inset-top, 0px));
@@ -128,11 +71,8 @@
   --appbar-height: 64px;
   --navbar-height: 80px;
   --content-max: 760px;
-  --gutter: 16px;
   --screen-margin: 16px;
   --gap: 12px;
-
-  /* M3 не задаёт семантических success/info: тонированные значения около error */
 
   /* ── Color roles: светлая схема (fallback Purple) ── */
   /* fixed-роли не зависят от темы: tone 90/80/30/10 от той же палитры */
@@ -404,7 +344,6 @@ body.nav-hidden .content { padding-bottom: calc(var(--bottom-inset) + 24px); }
    Без overflow:visible Blink обрезает псевдоэлемент по box кнопки, и он не ловит pointer. */
 .chip::before { content: ""; position: absolute; inset: -8px -4px; }
 .chip { overflow: visible; }
-.chip.mono { font-family: var(--md-font-code); font-size: 12px; }
 .chip.selected { background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container);
   border-color: transparent; }
 /* горизонтальная прокрутка вместо переноса */
@@ -907,7 +846,7 @@ body.kb-open .snackbar { bottom: 16px; }
 #layer > * { pointer-events: auto; }
 
 @media (min-width: 720px) {
-  :root { --gutter: 24px; --screen-margin: 24px; }
+  :root { --screen-margin: 24px; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; }
