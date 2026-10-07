@@ -40,7 +40,8 @@ WebUI разложен по файлам, чтобы правки разных �
 
 1. Поднимите `version` и `versionCode` в `module.prop`, опишите изменения в `changelog.md`.
 2. Закоммитьте в `main` и дождитесь зелёной проверки `check`.
-3. Поставьте тег с той же версией: `git tag v1.6.3 && git push origin v1.6.3`.
+3. Поставьте тег с той же версией (`git tag v1.6.3 && git push origin v1.6.3`)
+   или запустите вручную Actions → **release** → *Run workflow* с этой версией.
 
 Workflow `release` сам соберёт `nfqws2-android-<версия>.zip`, опубликует релиз с
 текстом из `changelog.md` и обновит `update.json` — менеджеры предложат обновление.
