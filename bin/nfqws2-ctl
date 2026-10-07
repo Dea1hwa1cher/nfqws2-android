@@ -1045,6 +1045,7 @@ case "$1" in
     esac ;;
   set-mode)
     case "$2" in list|auto|all) set_conf_param NFQWS_EXTRA_ARGS "\$MODE_$(printf '%s' "$2" | tr a-z A-Z)"; echo OK; need_restart_note ;;
+      *) echo "list|auto|all" >&2; exit 1 ;; esac ;;
   list-apps) cmd_list_apps "$2" ;;
   get-logs) cmd_get_logs "$2" "$3" "$4" ;;
   export-logs) cmd_export_logs ;;
