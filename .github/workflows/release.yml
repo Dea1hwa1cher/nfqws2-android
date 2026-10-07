@@ -51,21 +51,23 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # Релиз уже создан вручную через сайт (это тоже пуш тега): только
-          # докладываем zip, если его там нет. При ручном повторном запуске
-          # заодно обновляем текст релиза из changelog.md.
+          python3 -c "
+          import sys, re
+          text = open('changelog.md', encoding='utf-8').read()
+          m = re.search(r'### [^\n]*' + re.escape(sys.argv[1]) + r':\s*([\s\S]*?)(?=### |\Z)', text)
+          notes = m.group(1).strip() if m else text
+          open('release-notes.md', 'w', encoding='utf-8').write(notes + '\n')
+          " "$TAG"
+
           if gh release view "$TAG" >/dev/null 2>&1; then
             if gh release view "$TAG" --json assets -q '.assets[].name' | grep -q '\.zip$'; then
               echo "zip уже приложен"
             else
               gh release upload "$TAG" "$ZIP"
             fi
-            if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
-              gh release edit "$TAG" --notes-file changelog.md
-            fi
+            gh release edit "$TAG" --notes-file release-notes.md
           else
-            # По тегу — тег уже есть; при ручном запуске gh создаст его на этом коммите
-            gh release create "$TAG" "$ZIP" --title "$TAG" --notes-file changelog.md --target "$GITHUB_SHA"
+            gh release create "$TAG" "$ZIP" --title "$TAG" --notes-file release-notes.md --target "$GITHUB_SHA"
           fi
 
       - name: Обновить update.json в main
