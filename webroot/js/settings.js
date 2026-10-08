@@ -34,9 +34,11 @@ function renderSettings(){
     ['Инструменты', [
       {icon: 'apps', title: 'Фильтр приложений', sub: t('Обход только для выбранных приложений или для всех, кроме них'), on: "navigate('apps')", chevron: true},
       {icon: 'test', title: 'Проверка доступности', sub: t('Открывает адреса из probe_hosts.list через обход'), on: "navigate('test')", chevron: true},
-      {icon: 'medical', title: 'Диагностика', sub: t('Ядро, правила iptables и аргументы запуска'), on: "navigate('diag')", chevron: true},
+      {icon: 'medical', title: 'Диагностика', sub: t('Ядро, правила iptables и аргументы запуска'), on: "navigate('diag')", chevron: true}
+    ].concat(S.dns_available == 1 ? [
+      // только в сборке extended — в обычной нет dnsproxy
       {icon: 'dns', title: 'DNS по профилям', sub: t('Свои DoH, DoT и DNS-серверы для выбранных доменов'), on: "navigate('dns')", chevron: true}
-    ]],
+    ] : [])],
     ['Резервная копия', [
       {icon: 'download', title: 'Создать копию', sub: t('Конфиг, списки, стратегии и оформление — в архив .tar'), on: 'createBackup()'},
       {icon: 'upload', title: 'Восстановить из копии', sub: t('Выбрать архив .tar или из списка'), on: 'openBackupSheet()'}

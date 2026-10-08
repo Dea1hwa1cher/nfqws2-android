@@ -36,33 +36,37 @@ WebUI разложен по файлам, чтобы правки разных �
 4. Держите PR небольшими и короткоживущими: чем дольше ветка живёт отдельно
    от main, тем больше конфликтов при слиянии.
 
-## Ветка extended
+## Две сборки: обычная и extended
 
-Версия Extended (DNS по профилям) живёт в ветке `extended`: это `main` плюс
-`lib/dns.sh`, `webroot/js/dns.js`, пресеты в `defaults/dns-presets/`, тесты
-`test_dns.*` и короткие вызовы `dns_*` в общих файлах. Новое в `main` переносится
-туда слиянием, не перебазированием:
+Ветка одна — `main`, и весь код, включая DNS по профилям (`lib/dns.sh`,
+`webroot/js/dns.js`, пресеты в `defaults/dns-presets/`), лежит в ней. Отдельно
+под extended ничего коммитить не нужно: обе сборки делает `release.yml` из
+одного коммита.
 
-```sh
-git checkout extended && git merge main
-```
+* **Обычная** — файлы модуля как есть. В ней нет `bin/dnsproxy`, поэтому DNS
+  считается выключенным (`dns_enabled` в `lib/dns.sh`), а WebUI не показывает
+  пункт «DNS по профилям» (`dns_available` в json-status).
+* **Extended** — те же файлы плюс AdGuard dnsproxy (версия и контрольные суммы
+  архивов — в `.github/dnsproxy.lock`), а в `module.prop` к имени дописывается
+  «Extended», к версии — `-extended`, `updateJson` ведёт на
+  `update-extended.json`.
 
-Конфликты обычно только в `module.prop` (у extended своё имя, версия
-`vX.Y.Z-extended` и `updateJson` из ветки extended), `changelog.md`,
-`update.json` и `.github/workflows/release.yml` (extended скачивает dnsproxy и
-пишет update.json в свою ветку) — в них оставляйте вариант extended и
-переносите изменения main руками. Релиз extended — тегом `vX.Y.Z-extended` на
-коммите ветки extended или Actions → **release** → *Run workflow* с веткой
-`extended`.
+Правя общие файлы, помните, что DNS встроен в жизненный цикл службы короткими
+вызовами `dns_*` (`service.sh`, `nfqws2-ctl`): их не трогайте, без dnsproxy они
+ничего не делают. Тесты DNS (`test_dns.sh`, `test_dns.js`) идут вместе со всеми.
 
 ## Выпуск релиза
 
-1. Поднимите `version` и `versionCode` в `module.prop`, опишите изменения в `changelog.md`.
+1. Поднимите `version` и `versionCode` в `module.prop`, опишите изменения в `changelog.md`
+   под заголовком `### Изменения в vX.Y.Z:` (накопленное под «в следующей версии» —
+   переименуйте): по нему `release` берёт текст релиза.
 2. Закоммитьте в `main` и дождитесь зелёной проверки `check`.
 3. Поставьте тег с той же версией (`git tag v1.6.3 && git push origin v1.6.3`)
    или запустите вручную Actions → **release** → *Run workflow* с этой версией.
 
-Workflow `release` сам соберёт `nfqws2-android-<версия>.zip`, опубликует релиз с
-текстом из `changelog.md` и обновит `update.json` — менеджеры предложат обновление.
+Workflow `release` сам соберёт `nfqws2-android-<версия>.zip` и
+`nfqws2-android-<версия>-extended.zip`, опубликует их одним релизом с текстом из
+`changelog.md` и обновит `update.json` и `update-extended.json` — менеджеры
+предложат обновление каждой сборке.
 Релиз можно выпустить и вручную через сайт: тогда `update-json` обновит
 `update.json` при публикации.

@@ -32,6 +32,23 @@ load_common
 conf_reset
 printf 'WATCHDOG=0\nIPV6_ENABLED=0\n' >> "$CONFFILE"
 
+# ── обычная сборка ────────────────────────────────────────────────────────────
+section "regular build: no dnsproxy, no DNS"
+
+mv "$MODDIR/bin/dnsproxy" "$SANDBOX/dnsproxy.off"
+mkdir -p "$CONFDIR/dns"; : > "$CONFDIR/dns/enabled"
+dns_enabled; assert_rc 1 $? "an enabled flag left from extended is ignored without dnsproxy"
+ctl json-status
+assert_contains "$ctl_out" '"dns_available":0' "json-status tells the WebUI there is no DNS"
+assert_eq "" "$(row() { printf '%s\n' "$*"; }; dns_doctor)" "the diagnostics say nothing about DNS"
+svc start; svc stop
+assert_no_file "$CONFDIR/state/dnsproxy.pid" "the service starts and stops without touching DNS"
+assert_eq "" "$(ipt_rules OUTPUT nat | grep nfqws_dns)" "no interception"
+rm -rf "$CONFDIR/dns"
+mv "$SANDBOX/dnsproxy.off" "$MODDIR/bin/dnsproxy"
+ctl json-status
+assert_contains "$ctl_out" '"dns_available":1' "with dnsproxy (extended) json-status offers DNS"
+
 # ── первый запуск ─────────────────────────────────────────────────────────────
 section "presets are seeded as disabled profiles"
 

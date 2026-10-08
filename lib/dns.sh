@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# nfqws2-android extended · lib/dns.sh — DNS по профилям.
+# nfqws2-android · lib/dns.sh — DNS по профилям (работает в сборке extended).
 #
 # Как в Keenetic: у профиля есть DNS-серверы (обычный, TCP, DoH, DoH3, DoT, DoQ,
 # DNSCrypt) и домены, запросы к этим доменам (и их поддоменам) уходят на его
@@ -8,7 +8,10 @@
 # в таблице nat.
 #
 # Подключается из конца lib/common.sh. Служба зовёт dns_start / dns_stop /
-# dns_check, nfqws2-ctl — команды dns-* (dns_ctl).
+# dns_check, nfqws2-ctl — команды dns-* (dns_ctl). Обе сборки — из одной
+# ветки: обычная отличается только тем, что в ней нет bin/dnsproxy, и тогда
+# функция считается выключенной, что бы ни лежало в $CONFDIR/dns (например,
+# после перехода с extended на обычную).
 #
 # Почему без зацикливания. Системный резолвер Android (netd) ставит на свои
 # DNS-сокеты fwmark с номером сети в младших 16 битах. dnsproxy — статический
@@ -40,7 +43,7 @@ DNS_MAX_DOMAINS=1000
 # вариант, когда DNS сети не определился или не отвечает.
 DNS_PUBLIC="77.88.8.8 1.1.1.1 8.8.8.8"
 
-dns_enabled() { [ -f "$DNS_ENABLED_FILE" ]; }
+dns_enabled() { [ -f "$DNS_ENABLED_FILE" ] && [ -f "$DNS_BIN" ]; }
 # Независимо от службы: тогда остановка службы (вручную, паузой в домашней
 # Wi‑Fi, кнопкой в менеджере) DNS не трогает — выключить его можно только
 # главным переключателем на экране DNS.
@@ -499,9 +502,9 @@ dns_test() { # <домен>
   printf '%s\t%s\n' "${ip:-—}" "$prof"
 }
 
-dns_doctor() { # строки для «Диагностики»
+dns_doctor() { # строки для «Диагностики»; в обычной сборке — ничего
+  [ -f "$DNS_BIN" ] || return 0
   dns_enabled || { row info dns "$(M 'DNS по профилям выключен' 'DNS profiles are off')"; return 0; }
-  if [ ! -f "$DNS_BIN" ]; then row fail dns "$(M 'нет bin/dnsproxy — нужна версия extended' 'bin/dnsproxy is missing — extended build required')"; return 0; fi
   if dns_pid >/dev/null && dns_rules_ok; then
     row ok dns "$(M "dnsproxy работает, перехвачено запросов: $(dns_hits)" "dnsproxy running, queries intercepted: $(dns_hits)")"
   elif dns_wanted; then

@@ -80,7 +80,7 @@ PROP="$REPO_DIR/module.prop"
 for key in id name version versionCode author description; do
   assert_match "$(cat "$PROP")" "^$key=" "module.prop declares $key"
 done
-assert_match "$(sed -n 's/^version=//p' "$PROP")" '^v[0-9]+\.[0-9]+\.[0-9]+(-extended)?$' "version looks like vX.Y.Z (or vX.Y.Z-extended)"
+assert_match "$(sed -n 's/^version=//p' "$PROP")" '^v[0-9]+\.[0-9]+\.[0-9]+$' "version looks like vX.Y.Z"
 assert_match "$(sed -n 's/^versionCode=//p' "$PROP")" '^[0-9]+$' "versionCode is numeric"
 assert_eq "$(sed -n 's/^id=//p' "$PROP")" "nfqws2-android" "id matches the module directory name"
 
