@@ -19,6 +19,8 @@ permissions:
 
 jobs:
   update:
+    # Релизы extended обновляют свой update.json в ветке extended (release.yml там)
+    if: ${{ !endsWith(github.event.release.tag_name || inputs.tag, '-extended') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

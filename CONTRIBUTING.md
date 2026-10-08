@@ -36,6 +36,25 @@ WebUI разложен по файлам, чтобы правки разных �
 4. Держите PR небольшими и короткоживущими: чем дольше ветка живёт отдельно
    от main, тем больше конфликтов при слиянии.
 
+## Ветка extended
+
+Версия Extended (DNS по профилям) живёт в ветке `extended`: это `main` плюс
+`lib/dns.sh`, `webroot/js/dns.js`, пресеты в `defaults/dns-presets/`, тесты
+`test_dns.*` и короткие вызовы `dns_*` в общих файлах. Новое в `main` переносится
+туда слиянием, не перебазированием:
+
+```sh
+git checkout extended && git merge main
+```
+
+Конфликты обычно только в `module.prop` (у extended своё имя, версия
+`vX.Y.Z-extended` и `updateJson` из ветки extended), `changelog.md`,
+`update.json` и `.github/workflows/release.yml` (extended скачивает dnsproxy и
+пишет update.json в свою ветку) — в них оставляйте вариант extended и
+переносите изменения main руками. Релиз extended — тегом `vX.Y.Z-extended` на
+коммите ветки extended или Actions → **release** → *Run workflow* с веткой
+`extended`.
+
 ## Выпуск релиза
 
 1. Поднимите `version` и `versionCode` в `module.prop`, опишите изменения в `changelog.md`.
