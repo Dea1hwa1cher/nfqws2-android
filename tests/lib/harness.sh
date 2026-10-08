@@ -84,6 +84,12 @@ sandbox_init() {
   cp "$REPO_DIR/bin/nfqws2-ctl"        "$MODDIR/bin/nfqws2-ctl"
   cp "$REPO_DIR/bin"/pkglist.*         "$MODDIR/bin/" 2>/dev/null || true
   cp "$REPO_DIR/lib/common.sh"         "$MODDIR/lib/common.sh"
+  # extended: DNS по профилям
+  if [ -f "$REPO_DIR/lib/dns.sh" ]; then
+    cp "$REPO_DIR/lib/dns.sh" "$MODDIR/lib/dns.sh"
+    mkdir -p "$MODDIR/defaults/dns-presets"
+    cp -R "$REPO_DIR"/defaults/dns-presets/. "$MODDIR/defaults/dns-presets/"
+  fi
   cp "$REPO_DIR/service.sh"            "$MODDIR/service.sh"
   cp "$REPO_DIR/module.prop"           "$MODDIR/module.prop"
   cp "$REPO_DIR/defaults/nfqws2.conf"  "$MODDIR/defaults/nfqws2.conf"

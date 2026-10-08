@@ -25,7 +25,7 @@ esac
 for f in \
   service.sh action.sh uninstall.sh lib/common.sh bin/nfqws2-ctl \
   defaults/nfqws2.conf \
-  "binaries/$BIN/nfqws2"
+  "binaries/$BIN/nfqws2" "binaries/$BIN/dnsproxy"
 do
   [ -s "$MODPATH/$f" ] || abort "! Missing or empty module file: $f"
 done
@@ -33,6 +33,10 @@ done
 cp -f "$MODPATH/binaries/$BIN/nfqws2" "$MODPATH/bin/nfqws2" ||
   abort "! Failed to install nfqws2 binary"
 [ -s "$MODPATH/bin/nfqws2" ] || abort "! Installed nfqws2 binary is empty"
+# extended: AdGuard dnsproxy for DNS profiles
+cp -f "$MODPATH/binaries/$BIN/dnsproxy" "$MODPATH/bin/dnsproxy" ||
+  abort "! Failed to install dnsproxy"
+[ -s "$MODPATH/bin/dnsproxy" ] || abort "! Installed dnsproxy binary is empty"
 rm -rf "$MODPATH/binaries"
 
 CONF=/data/adb/nfqws2
@@ -105,5 +109,6 @@ fi
 # set perms to nfwqws2
 busybox chmod +x "$MODPATH/bin/nfqws2"
 busybox chmod +x "$MODPATH/bin/nfqws2-ctl"
+busybox chmod +x "$MODPATH/bin/dnsproxy"
 
 ui_print "- Installation complete! Reboot your device."

@@ -149,6 +149,7 @@ for s in $SHELLS; do
 done
 
 queue_suite "module: nfqws2-ctl" sh "$HERE/module/test_ctl.sh"
+[ -f "$REPO_DIR/lib/dns.sh" ] && queue_suite "module: DNS profiles (extended)" sh "$HERE/module/test_dns.sh"
 
 if [ "$FAST" = 1 ]; then
   queue_skip "module: service and firewall" "--fast"

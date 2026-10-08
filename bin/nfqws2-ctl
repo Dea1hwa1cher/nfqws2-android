@@ -321,6 +321,7 @@ cmd_doctor() {
     fi
   fi
   if [ "$LOG_LEVEL" = "1" ]; then row warn debug "$(M 'включён подробный журнал — обработка заметно медленнее' 'verbose log is on — processing is noticeably slower')"; fi
+  dns_doctor
 }
 
 cmd_apply_apps() {
@@ -560,6 +561,7 @@ cmd_backup_create() { # [ui.json в base64]
   cp -f "$ACTIVE_FILE" "$tmp/" 2>/dev/null
   cp -f "$USER_STRATEGIES_DIR"/*.conf "$tmp/strategies/" 2>/dev/null
   cp -f "$IMPORTS_DIR"/*.conf "$tmp/imports/" 2>/dev/null
+  dns_backup_add "$tmp/dns"
   [ -n "$1" ] && b64d "$1" > "$tmp/ui.json"
   if ! (cd "$tmp" && tar_cmd -cf "$BACKUP_DIR/$name" .) 2>/dev/null; then
     rm -rf "$tmp" "$BACKUP_DIR/$name"
@@ -593,6 +595,7 @@ _apply_restored_backup() { # <tmp dir>
   [ -f "$tmp/active_strategy" ] && cp -f "$tmp/active_strategy" "$ACTIVE_FILE"
   for f in "$tmp"/strategies/*.conf; do [ -f "$f" ] && validate_conf "$f" >/dev/null 2>&1 && cp -f "$f" "$USER_STRATEGIES_DIR/"; done
   for f in "$tmp"/imports/*.conf; do [ -f "$f" ] && validate_conf "$f" >/dev/null 2>&1 && cp -f "$f" "$IMPORTS_DIR/"; done
+  dns_backup_restore "$tmp/dns"
   [ -s "$tmp/ui.json" ] && b64e < "$tmp/ui.json" | tr -d '\n'
   echo
   rm -rf "$tmp"
@@ -1116,6 +1119,7 @@ case "$1" in
   net-info) cmd_net_info ;;
   probe-dpi) cmd_probe_dpi "${2:-all}" ;;
   probe-cancel) cmd_probe_cancel ;;
+  dns-*) dns_ctl "$@" ;;
   clear-logs) : > "$SERVICE_LOG"; : > "$NFQWS_LOG"; rm -f "$LOG_DIR/nfqws2-debug.log" "$LOG_DIR/auto.log"; echo OK ;;
   *)
     echo "Команды: status json-status is-running start stop restart reload doctor get-conf save-conf-b64 reset-conf conf-modified" >&2

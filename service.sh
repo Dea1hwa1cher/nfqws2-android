@@ -17,7 +17,7 @@ start_failed() {
 }
 
 # watchdog/netwatch: auto-restart, home Wi-Fi pause, per-network strategies
-watchers_wanted() { [ "$WATCHDOG" = "1" ] || [ "$HOME_WIFI" = "1" ] || [ "$NET_STRATEGY" = "1" ]; }
+watchers_wanted() { [ "$WATCHDOG" = "1" ] || [ "$HOME_WIFI" = "1" ] || [ "$NET_STRATEGY" = "1" ] || dns_enabled; }
 
 start() {
   if is_running; then
@@ -85,11 +85,13 @@ start() {
   log_msg "nfqws2 запущен (PID $pid, Native Daemon)"
   update_description running
   ensure_watchdog
+  dns_start
   return 0
 }
 
 stop() {
   rm -f "$DESIRED_FILE" "$STARTED_FILE"
+  dns_stop
   release_wakelock
   firewall_stop
   if [ -f "$PIDFILE" ]; then
@@ -198,6 +200,7 @@ netwatch() {
         if [ -f "$DESIRED_FILE" ] && is_running; then
           log_msg "netwatch: сеть изменилась (ip monitor) — пересобираю правила"
           firewall_start
+          dns_enabled && dns_start
         fi
         home_check
         network_strategy_check
@@ -224,6 +227,9 @@ watchdog() {
     # once a minute: cmd wifi is the expensive part
     [ "$HOME_WIFI" = "1" ] && [ $((tick % 3)) -eq 0 ] && home_check
     [ "$NET_STRATEGY" = "1" ] && [ $((tick % 3)) -eq 0 ] && network_strategy_check
+    # DNS — до проверки WATCHDOG: упавший dnsproxy с правилами перехвата
+    # оставил бы телефон совсем без DNS
+    dns_enabled && dns_check
     [ "$WATCHDOG" = "1" ] || continue
     [ -f "$DESIRED_FILE" ] || continue
 
@@ -336,6 +342,7 @@ case "$1" in
   netwatch)           netwatch ;;
   firewall_apply)     firewall_start ;;
   firewall_stop)      firewall_stop ;;
+  dns_apply)          dns_start ;;
   *)
     until [ "$(getprop sys.boot_completed 2>/dev/null)" = "1" ]; do sleep 3; done
     sleep 4

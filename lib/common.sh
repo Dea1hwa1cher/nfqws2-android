@@ -998,3 +998,5 @@ clear_net_strategies() {
   rm -rf "$NET_STRATEGIES_DIR"/* 2>/dev/null
 }
 
+# extended: DNS по профилям (lib/dns.sh есть только в версии extended)
+[ -f "$MODDIR/lib/dns.sh" ] && . "$MODDIR/lib/dns.sh"
