@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# nfqws2-android — управление службой (C-Level Native Daemon)
+
 MODDIR="${0%/*}"
 case "$MODDIR" in /*) ;; *) MODDIR="$(cd "$MODDIR" 2>/dev/null && pwd)" ;; esac
 umask 077
@@ -8,17 +8,15 @@ load_conf
 
 STARTED_FILE="$STATE_DIR/started_at"
 
-# Обе ветки отказа в start() кончаются одинаково — причиной и хвостом лога
-# запуска, — поэтому хвост живёт здесь, а не копией в каждой ветке.
-start_failed() { # <причина>
+# both start() failures end with the log tail; keep it in one place
+start_failed() {
   log_msg "$1"
   log_msg "Последние строки лога:"
   tail -n 8 "$NFQWS_LOG" 2>/dev/null | while IFS= read -r l; do log_msg "  $l"; done
   update_description stopped
 }
 
-# Наблюдатели (watchdog и netwatch) нужны для автоперезапуска, паузы в
-# домашней Wi-Fi и автопереключения стратегий по сетям.
+# watchdog/netwatch: auto-restart, home Wi-Fi pause, per-network strategies
 watchers_wanted() { [ "$WATCHDOG" = "1" ] || [ "$HOME_WIFI" = "1" ] || [ "$NET_STRATEGY" = "1" ]; }
 
 start() {
@@ -44,8 +42,7 @@ start() {
   cd "$MODDIR/bin" || return 1
   set -f
 
-  # Запуск со встроенным --daemon: nfqws2 сам отрывается от родителя под init (PID 1)
-  # и пишет свой настоящий PID в $PIDFILE
+  # built-in --daemon: nfqws2 reparents to init and writes its PID to $PIDFILE
   rm -f "$PIDFILE"
   "$NFQWS_BIN" --daemon --pidfile="$PIDFILE" $args >> "$NFQWS_LOG" 2>&1
   local res=$?
@@ -55,7 +52,6 @@ start() {
     start_failed "Ошибка: nfqws2 завершился с кодом $res."
     return 1
   fi
-
 
   sleep 1.2
   local pid=""
@@ -71,14 +67,12 @@ start() {
   protect_process "$pid"
   date +%s > "$STARTED_FILE"
 
-  # Проверяем результат, а не только код возврата firewall_start(): без правила
-  # в POSTROUTING демон работает вхолостую — пакеты не уходят в NFQUEUE и не
-  # перехватываются. Снаружи это выглядело как успешный запуск.
+  # firewall_start can return 0 with no rule in place; without the POSTROUTING
+  # jump the daemon runs but nothing reaches NFQUEUE
   firewall_start
   if ! firewall_ok; then
     log_msg "Ошибка: правила iptables не применились — трафик не перехватывается"
-    # Откат: демон без правил бесполезен, а оставленный pidfile показывал бы
-    # «служба работает» — ровно то, чего не произошло.
+    # a daemon without rules is useless and a stale pidfile would claim it runs
     kill -TERM "$pid" 2>/dev/null
     rm -f "$PIDFILE"
     update_description stopped
@@ -110,9 +104,8 @@ stop() {
   fi
   pidof nfqws2 >/dev/null 2>&1 && killall -9 nfqws2 2>/dev/null
 
-  # Снятие правил проверяем отдельно: оставленная цепочка хуже работающей. В ней
-  # остаётся прыжок в NFQUEUE, слушателя уже нет, и ядро роняет эти пакеты —
-  # то есть «остановлено» с оставшимися правилами означает сломанную сеть.
+  # a leftover chain still jumps to NFQUEUE with no listener, so the kernel
+  # drops that traffic: stopped must mean rules gone
   if firewall_ok; then
     log_msg "Ошибка: правила iptables остались на месте — трафик в NFQUEUE без слушателя"
     return 1
@@ -129,18 +122,12 @@ reload_lists() {
   log_msg "Списки перечитаны (SIGHUP)"
 }
 
-# Поднимает помощника, если он ещё не работает.
-#
-#   ensure_helper <pidfile> <подкоманда> [команда-предусловие…]
-#
-# Возвращает 0, если помощник **только что запущен**, и 1, если запускать нечего:
-# уже работает или не выполнено предусловие. Такой знак выбран не для красоты —
-# вызывающему нужно отличать эти случаи: ensure_watchdog поднимает netwatch ровно
-# в тот момент, когда поднял watchdog, а не при каждом вызове.
+# Start a helper unless it already runs. Returns 0 when it was just started,
+# 1 when it is running or the precondition failed. ensure_watchdog uses this
+# to raise netwatch only alongside the watchdog.
 ensure_helper() {
   local pf="$1" sub="$2"; shift 2
-  # [ $# -eq 0 ] явно, хотя голое `"$@"` без аргументов — тоже no-op (проверено
-  # в dash): опираться на это молча не стоит.
+  # bare "$@" is a no-op with no args in dash, but be explicit about it
   [ $# -eq 0 ] || { "$@" || return 1; }
   if [ -f "$pf" ] && kill -0 "$(cat "$pf" 2>/dev/null)" 2>/dev/null; then
     return 1
@@ -159,11 +146,9 @@ ensure_watchdog() {
   ensure_netwatch
 }
 
-# Правила нужно перестраивать по событию, а не по таймеру: на роутере за это отвечает хук
-# прошивки (netfilter.d), который вызывается каждый раз при перестройке mangle/nat. У Android
-# аналогичного хука для сторонних модулей нет, но netlink-поток `ip monitor` даёт почти то же
-# самое — события интерфейсов и маршрутов в реальном времени. Watchdog остаётся подстраховкой
-# (и единственным механизмом там, где ip monitor не поддерживается прошивкой).
+# Rebuild rules on events, not on a timer. Routers use a netfilter.d firmware
+# hook for this; ip monitor is the Android equivalent. Watchdog is the
+# fallback where ip monitor is unsupported.
 ensure_netwatch() {
   watchers_wanted || return 0
   ensure_helper "$WN_PIDFILE" netwatch command -v ip || return 0
@@ -177,10 +162,10 @@ netwatch() {
   EVFILE="$STATE_DIR/netwatch_events"
   rm -f "$EVFILE"
   local prev="" acted="" backoff=2 saw=0 sz mon
-  # Монитор пишет события прямо в файл, реакция — на изменение его размера. Никакого пайпа со
-  # вспомогательным циклом: в таком виде kill -TERM снимает именно ip monitor, а не обёртку,
-  # за которой остаётся сирота, и не нужны ни `read -t` (нет в dash), ни `date +%s%N` (нет в
-  # toybox). Опрос 2 с, а не 1: лишняя пробудка CPU каждый телефон держит на весу всю ночь.
+  # The monitor writes events to a file, reaction is on its size changing.
+  # A file, not a pipe, so kill -TERM reaps ip monitor itself instead of a
+  # wrapper that would leave an orphan. Poll every 2s to spare battery
+  # through the night.
   while :; do
     ip monitor route link 2>/dev/null >> "$EVFILE" &
     mon=$!
@@ -190,8 +175,8 @@ netwatch() {
       load_conf >/dev/null 2>&1
       watchers_wanted || break 2
       if ! kill -0 "$mon" 2>/dev/null; then
-        # монитор умер сам. Если он не написал ни байта с момента запуска — на этой прошивке
-        # ip monitor, похоже, не работает: растущая пауза вместо бесконечного рестарта.
+        # died on its own. If it never wrote a byte, ip monitor is unsupported
+        # here: grow the pause instead of restarting it in a loop.
         if [ "$saw" = 0 ]; then
           sleep "$backoff"
           [ "$backoff" -lt 60 ] && backoff=$((backoff * 2))
@@ -203,8 +188,8 @@ netwatch() {
       sz=$(wc -c < "$EVFILE" 2>/dev/null)
       case "$sz" in ''|*[!0-9]*) sz=0 ;; esac
       if [ "$sz" != "$prev" ]; then
-        # событие только что пришло: ждём ещё один тик тишины, чтобы не пересобирать правила
-        # на каждый пакет из пачки событий одной смены сети
+        # events still arriving; wait one quiet tick so a burst from a single
+        # network change does not rebuild the rules per packet
         prev="$sz"
         saw=1
         continue
@@ -236,7 +221,7 @@ watchdog() {
     load_conf >/dev/null 2>&1
     watchers_wanted || break
     tick=$((tick + 1))
-    # Домашняя сеть и стратегия сети проверяются раз в минуту (`cmd wifi` дороже остального)
+    # once a minute: cmd wifi is the expensive part
     [ "$HOME_WIFI" = "1" ] && [ $((tick % 3)) -eq 0 ] && home_check
     [ "$NET_STRATEGY" = "1" ] && [ $((tick % 3)) -eq 0 ] && network_strategy_check
     [ "$WATCHDOG" = "1" ] || continue
@@ -251,10 +236,10 @@ watchdog() {
       continue
     fi
 
-    # Если процесс проработал стабильно хотя бы один цикл, сбрасываем счетчик сбоев
+    # survived a full cycle: reset the fail counter
     fails=0
 
-    # Быстрое восстановление iptables при смене сети (Wi-Fi <-> 4G)
+    # fast iptables recovery after a network switch
     if ! firewall_ok; then
       log_msg "watchdog: правила iptables сброшены системой — восстановление"
       firewall_start
@@ -264,14 +249,11 @@ watchdog() {
   rm -f "$WD_PIDFILE"
 }
 
-# ---------------------------------------------------------------- домашняя Wi-Fi
-# В сети из home_wifi.list служба останавливается и сама поднимается, когда
-# телефон из неё уходит. Ручной запуск в домашней сети запоминается
-# (home_override) и действует, пока телефон в этой же сети.
+# home Wi-Fi: networks from home_wifi.list pause the service; leaving resumes.
+# A manual start there is remembered in home_override while that SSID stays.
 home_check() {
-  # Два наблюдателя могут прийти сюда одновременно: каталог-замок не даёт им
-  # остановить и запустить службу дважды.
-  # Замок старше двух минут — след убитого процесса, а не идущая проверка.
+  # the lock dir keeps the two watchers from stop/starting twice; a lock older
+  # than two minutes is residue from a killed process
   [ -n "$(find "$STATE_DIR/home.lock" -maxdepth 0 -mmin +2 2>/dev/null)" ] && rmdir "$STATE_DIR/home.lock" 2>/dev/null
   mkdir "$STATE_DIR/home.lock" 2>/dev/null || return 0
   local ssid=""
@@ -297,13 +279,11 @@ home_check() {
   return 0
 }
 
-# ---------------------------------------------------------------- авто-стратегии по сетям
-# При смене сети (Wi-Fi <-> 4G или между разными Wi-Fi) переключает стратегию на ту,
-# которая была сохранена для этой сети.
+# On a network change apply the strategy saved for that network.
 network_strategy_check() {
   [ "$NET_STRATEGY" = "1" ] || return 0
   is_running || return 0
-  [ -f "$HOME_PAUSED_FILE" ] && return 0 # во время домашней паузы стратегию не меняем
+  [ -f "$HOME_PAUSED_FILE" ] && return 0 # keep the strategy during a home pause
 
   local cur_net last_net saved cur_strat
   cur_net=$(current_network_key 2>/dev/null)
@@ -325,8 +305,8 @@ network_strategy_check() {
   return 0
 }
 
-# Ручной запуск: снимает паузу и, если телефон сейчас в домашней сети,
-# запоминает, что в ней пользователь хочет работать с обходом.
+# Manual start clears the pause; on a home network it also records the SSID as
+# an override so the bypass keeps running there.
 manual_start() {
   local ssid
   rm -f "$HOME_PAUSED_FILE"
@@ -377,11 +357,6 @@ case "$1" in
     ensure_watchdog
     ;;
 esac
-# Наружу уходит статус выполненной команды, а не безусловный ноль. С `exit 0`
-# провал выглядел успехом везде: nfqws2-ctl просто пробрасывает этот статус,
-# поэтому «start не поднял демона» и «firewall_apply не принял правила» были
-# неотличимы от удачи — и `|| { ...; return 1; }` в cmd_firewall_apply не
-# срабатывал ни разу за всё время. Ветка автозапуска (`*`) выходит через
-# ensure_watchdog, её статус тоже уходит наружу; при загрузке его никто не
-# проверяет, а вызывать service.sh руками с ожиданием кода — нормальный сценарий.
+# Exit with the command status, not always 0: nfqws2-ctl passes it through,
+# so a failed start is not read as success.
 exit $?
