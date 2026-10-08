@@ -316,15 +316,19 @@ assert_eq "" "$(printf '%s' "$malformed" | sed 's/^ *//')" "every list entry is 
 section "installer covers the shipped binaries"
 
 # binaries/ is built by CI, not committed; the files themselves are checked
-# when present, the customize.sh ABI mapping always.
+# when present, the customize.sh ABI mapping always. customize.sh maps the
+# manager-provided $ARCH (Magisk/KernelSU/APatch API), so run its real case
+# block against each value instead of grepping for patterns.
+abi_case=$(sed -n '/^case "$ARCH" in/,/^esac/p' "$REPO_DIR/customize.sh")
+[ -n "$abi_case" ] || abi_case='echo BAD'
+for pair in "arm64 android-arm64" "arm android-arm" "x86_64 android-x86_64" "x86 android-x86"; do
+  set -- $pair
+  got=$(BIN=; ARCH=$1; eval "$abi_case"; printf '%s' "${BIN:-none}")
+  assert_eq "$2" "$got" "customize.sh maps ARCH $1 to $2"
+done
+got=$(BIN=; ARCH=mips; eval "$abi_case" >/dev/null 2>&1; printf '%s' "${BIN:-unset}")
+assert_eq "unset" "$got" "customize.sh rejects an unknown ARCH"
 for b in android-arm android-arm64 android-x86 android-x86_64; do
-  case "$b" in
-    android-arm64)  pat='arm64\*|aarch64\*' ;;
-    android-arm)    pat='armeabi\*|arm\*' ;;
-    android-x86_64) pat='x86_64\*' ;;
-    android-x86)    pat='x86\*' ;;
-  esac
-  assert_match "$(cat "$REPO_DIR/customize.sh")" "$pat" "customize.sh maps ABI $b"
   [ -d "$REPO_DIR/binaries" ] && assert_file "$REPO_DIR/binaries/$b/nfqws2" "binaries/$b/nfqws2 exists"
 done
 
