@@ -217,9 +217,9 @@ function renderDns(){
   setHTML('dns-general',
     settingsRow({icon: 'globe', title: 'DNS по умолчанию', sub: dnsDefaultLabel() + ' · ' + t('для доменов вне профилей'),
       on: 'pickDnsDefault(this)', menu: true}) +
-    settingsRow({icon: 'shield', title: 'Без службы обхода', sw: true, checked: s.standalone === '1', id: 'dns-standalone',
+    settingsRow({icon: 'shield', title: 'Без службы обхода', sw: true, checked: s.standalone === '1',
       sub: t('DNS работает, даже когда служба остановлена или на паузе. Выключить его тогда можно только переключателем выше.'),
-      on: 'setDnsStandalone(this.checked)'}) +
+      on: 'setDnsStandalone(this.checked, this)'}) +
     (dnsLoaded && on ? dnsStateRow() : '') +
     settingsRow({icon: 'search', title: 'Проверить домен', sub: t('Через какой профиль он резолвится и в какой адрес'), on: 'testDnsDomain()'}),
     false);
@@ -246,9 +246,9 @@ async function setDnsEnabled(on){
   renderDns();
 }
 
-async function setDnsStandalone(on){
+async function setDnsStandalone(on, el){
   const r = await withBusy(['dns-set-standalone', on ? '1' : '0'], 40000);
-  if(r.code){ toast(errText(r, 'Не удалось сохранить')); $('dns-standalone').checked = !on; return; }
+  if(r.code){ toast(errText(r, 'Не удалось сохранить')); if(el) el.checked = !on; return; }
   await loadDnsState();
   renderDns();
 }
