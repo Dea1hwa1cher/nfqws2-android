@@ -188,6 +188,7 @@ else
     queue_skip "webui: rendered geometry" "--fast"
   else
     queue_suite "webui: rendered geometry" "$NODE_BIN" "$HERE/webui/test_layout.js"
+    [ -f "$REPO_DIR/webroot/js/dns.js" ] && queue_suite "webui: DNS profiles (extended)" "$NODE_BIN" "$HERE/webui/test_dns.js"
   fi
 fi
 

@@ -308,6 +308,18 @@ $('panel-save-btn').onclick = async () => {
   const o = editorCtx;
   if(!o) return;
   const val = $('panel-editor-text').value;
+  // Свой обработчик (например, домены профиля DNS): вернул текст — это ошибка
+  if(o.onSave){
+    const err = await o.onSave(val);
+    if(err){
+      $('panel-hint').textContent = err;
+      $('panel-hint').className = 'helper err';
+      toast(err);
+      return;
+    }
+    closeSlideEditor(true);
+    return;
+  }
   if(o.target === 'import-new'){
     if(!val.trim()){ toast(t('Вставьте текст конфига')); return; }
     const name = await mdPrompt(t('Имя конфига'), t('Можно по-русски. Слэши, кавычки и $ будут убраны.'), 'import', t('Имя'));

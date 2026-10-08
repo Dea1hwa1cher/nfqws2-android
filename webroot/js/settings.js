@@ -34,7 +34,8 @@ function renderSettings(){
     ['Инструменты', [
       {icon: 'apps', title: 'Фильтр приложений', sub: t('Обход только для выбранных приложений или для всех, кроме них'), on: "navigate('apps')", chevron: true},
       {icon: 'test', title: 'Проверка доступности', sub: t('Открывает адреса из probe_hosts.list через обход'), on: "navigate('test')", chevron: true},
-      {icon: 'medical', title: 'Диагностика', sub: t('Ядро, правила iptables и аргументы запуска'), on: "navigate('diag')", chevron: true}
+      {icon: 'medical', title: 'Диагностика', sub: t('Ядро, правила iptables и аргументы запуска'), on: "navigate('diag')", chevron: true},
+      {icon: 'dns', title: 'DNS по профилям', sub: t('Свои DoH, DoT и DNS-серверы для выбранных доменов'), on: "navigate('dns')", chevron: true}
     ]],
     ['Резервная копия', [
       {icon: 'download', title: 'Создать копию', sub: t('Конфиг, списки, стратегии и оформление — в архив .tar'), on: 'createBackup()'},
@@ -131,6 +132,8 @@ function rerenderAll(){
   if(currentPage === 'wifi') renderWifi();
   if(currentPage === 'test') testInit();
   if(currentPage === 'diag') diagInit();
+  if(currentPage === 'dns') renderDns();
+  if(currentPage === 'dnsprof') renderDnsProfile();
   if(currentPage === 'logs') loadLog();
   if(currentPage === 'config'){ loadImports(); checkConfModified(); }
 }
