@@ -148,7 +148,7 @@ function truthy(cond, msg) { cond ? ok(msg) : fail(msg); }
       return r && r.closest('.stack').querySelector('.subhead').textContent;
     });
     eq('Инструменты', group, 'in the Tools group');
-    truthy((await page.textContent('#settings-body')).includes('Версия v1.9.6 extended'), 'the version reads "v1.9.6 extended", with a space');
+    truthy((await page.textContent('#settings-body')).includes('Версия v1.9.6-extended'), 'the version reads "v1.9.6-extended", as on GitHub');
     await row.click(); await idle();
     eq('dns', await page.evaluate(() => currentPage), 'it opens the DNS screen');
     eq(true, await page.evaluate(() => $('dns-body').classList.contains('is-disabled')), 'the body is greyed out while the feature is off');

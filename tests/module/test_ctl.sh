@@ -38,6 +38,15 @@ for key in user auto exclude ipset ipset_exclude apps; do
   assert_contains "$ctl_out" "\"$key\":" "counts exposes $key"
 done
 
+section "json-status: strings keep their hyphens"
+
+# The extended build has «v1.9.6-extended»; tr from toybox used to eat the «-».
+cp "$MODDIR/module.prop" "$SANDBOX/module.prop.keep"
+sed -i 's/^version=.*/version=v9.9.9-extended/' "$MODDIR/module.prop"
+ctl json-status
+assert_contains "$ctl_out" '"version":"v9.9.9-extended"' "the version keeps its hyphen"
+cp "$SANDBOX/module.prop.keep" "$MODDIR/module.prop"
+
 section "json-status: numeric fields stay numeric"
 
 # These are spliced into the JSON without quotes; a non-numeric value would make

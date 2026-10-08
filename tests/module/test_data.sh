@@ -365,4 +365,12 @@ for cmd in start stop restart reload status firewall_apply firewall_stop; do
   assert_contains "$(cat "$REPO_DIR/service.sh")" "$cmd)" "service.sh handles $cmd"
 done
 
+section "tr works the same on Android"
+
+# toybox tr (Android) does not take ranges written as octal codes: '\000-\037'
+# deletes the two end bytes and the «-» itself. Character classes behave the same
+# in toybox and GNU tr, so the module uses [:cntrl:] and friends instead.
+assert_eq "" "$(grep -rnE "tr [^|]*'[^']*\\\\[0-7]{3}-\\\\[0-7]{3}" "$REPO_DIR/bin" "$REPO_DIR/lib" "$REPO_DIR"/*.sh 2>/dev/null)" \
+  "no tr range written as octal codes"
+
 harness_finish
