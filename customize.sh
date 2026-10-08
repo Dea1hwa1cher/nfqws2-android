@@ -1,103 +1,107 @@
 #!/system/bin/sh
-# Установщик модуля (Magisk / KernelSU / APatch)
-SKIPUNZIP=1
-umask 022
+
+# grab own info (version)
+version=$(grep version "$MODPATH/module.prop" | sed 's/version=//g' )
 
 ui_print "*******************************************"
-ui_print " nfqws2 for Android "
-ui_print " порт nfqws/nfqws2-keenetic + bol-van/zapret2"
+ui_print "- nfqws2-android"
+ui_print "- $version "
 ui_print "*******************************************"
 
-ABI=$(getprop ro.product.cpu.abi 2>/dev/null)
-case "$ABI" in
-  arm64*|aarch64*) BIN=android-arm64 ;;
-  armeabi*|arm*)   BIN=android-arm ;;
-  x86_64*)         BIN=android-x86_64 ;;
-  x86*)            BIN=android-x86 ;;
-  *) abort "! Неподдерживаемая архитектура: $ABI" ;;
+case "$ARCH" in
+  arm64) BIN=android-arm64 ;;
+  arm) BIN=android-arm ;;
+  x86_64) BIN=android-x86_64 ;;
+  x86) BIN=android-x86 ;;
+  *) abort "! Unsupported architecture: ${ARCH:-unknown}" ;;
 esac
-ui_print "- Архитектура: $ABI -> $BIN"
+ui_print "- Architecture: $ARCH -> $BIN"
 
-ui_print "- Распаковка..."
-unzip -o "$ZIPFILE" -x 'META-INF/*' -d "$MODPATH" >&2 || abort "! Не удалось распаковать модуль"
+case "$BIN" in
+  android-arm64|android-arm|android-x86_64|android-x86) ;;
+  *) abort "! Invalid binary target: $BIN" ;;
+esac
 
-# Разработческие каталоги не должны оставаться на устройстве, даже если архив
-# собран вручную — например, простым zip из корня репозитория, куда попадают и
-# tests/, и tools/, и логи работы. Штатная сборка (workflow release) их не кладёт
-# вовсе, а здесь — вторая линия защиты.
-#
-# Именно удаление, а не `unzip -x`: в unzip '*' не пересекает '/', поэтому
-# шаблон 'tests/*' отсекает только файлы верхнего уровня, а вложенные
-# (tests/module/*, .workbuddy-ai/memory/*) распаковываются как обычно —
-# проверено на Info-ZIP 6.00. Удаляем целиком, до set_perm_recursive.
-rm -rf "$MODPATH/tests" "$MODPATH/tools" "$MODPATH/.workbuddy-ai" \
-       "$MODPATH/.git" "$MODPATH/.github" "$MODPATH/.gitattributes" \
-       "$MODPATH/CONTRIBUTING.md" \
-       "$MODPATH/docs" "$MODPATH/update.json" "$MODPATH/changelog.md"
-rm -f "$MODPATH"/*.zip
+for f in \
+  service.sh action.sh uninstall.sh lib/common.sh bin/nfqws2-ctl \
+  defaults/nfqws2.conf \
+  "binaries/$BIN/nfqws2"
+do
+  [ -s "$MODPATH/$f" ] || abort "! Missing or empty module file: $f"
+done
 
-[ -f "$MODPATH/binaries/$BIN/nfqws2" ] || abort "! Нет бинарника $BIN"
-cp -f "$MODPATH/binaries/$BIN/nfqws2" "$MODPATH/bin/nfqws2" || abort "! Не удалось скопировать nfqws2"
+cp -f "$MODPATH/binaries/$BIN/nfqws2" "$MODPATH/bin/nfqws2" ||
+  abort "! Failed to install nfqws2 binary"
+[ -s "$MODPATH/bin/nfqws2" ] || abort "! Installed nfqws2 binary is empty"
 rm -rf "$MODPATH/binaries"
 
 CONF=/data/adb/nfqws2
-# Каталоги и конфиг проверяем: без них модуль не заработает, а раньше провал
-# проходил молча — установка сообщала «Готово» на пустом месте. Остальные шаги
-# ниже самовосстанавливающиеся (load_conf допишет конфиг и списки сам), эти два —
-# нет: если /data/adb недоступен, дальше писать некуда.
-mkdir -p "$CONF/lists" "$CONF/state" "$CONF/logs" "$CONF/imports" "$CONF/strategies" \
-  || abort "! Не удалось создать $CONF — проверьте доступ к /data/adb"
+mkdir -p "$CONF/lists" "$CONF/state" "$CONF/logs" "$CONF/imports" "$CONF/strategies" ||
+  abort "! Cannot create $CONF; check /data/adb access"
 
 if [ -f "$CONF/nfqws2.conf" ]; then
-  ui_print "- Конфиг сохранён: $CONF/nfqws2.conf"
-  cp -f "$MODPATH/defaults/nfqws2.conf" "$CONF/nfqws2.conf.dist" \
-    || abort "! Не удалось положить $CONF/nfqws2.conf.dist"
+  ui_print "- Keeping existing config: $CONF/nfqws2.conf"
+  cp -f "$MODPATH/defaults/nfqws2.conf" "$CONF/nfqws2.conf.dist" ||
+    abort "! Failed to save the default config"
 else
-  cp -f "$MODPATH/defaults/nfqws2.conf" "$CONF/nfqws2.conf" \
-    || abort "! Не удалось создать $CONF/nfqws2.conf"
-  ui_print "- Создан конфиг: $CONF/nfqws2.conf"
+  cp -f "$MODPATH/defaults/nfqws2.conf" "$CONF/nfqws2.conf" ||
+    abort "! Failed to create $CONF/nfqws2.conf"
+  ui_print "- Created config: $CONF/nfqws2.conf"
 fi
-# Списки из релиза. Правки пользователя при обновлении не затираются:
-#   - списка ещё нет                       → кладём новый;
-#   - список не трогали (= прошлый релиз)  → тихо обновляем;
-#   - список правили, а в релизе он новый  → новая версия ждёт в .pending,
-#     WebUI отмечает такой список «!» и предлагает заменить его вручную.
-# .dist хранит версию последнего релиза — по ней и видно, правил ли пользователь.
-# auto.list — исключение: он выученный, его всегда оставляем как есть.
-# Сервисные списки (google, youtube, ipset_* …) WebUI не редактирует: без
-# истории в .dist (обновление с версии, где её не было) их просто заменяем.
-# reset-lists в nfqws2-ctl намеренно НЕ трогает auto.list — сброс стёр бы
-# наработку. Списки обязаны различаться ровно на auto, это проверяет test_data.sh.
-DIST="$CONF/lists/.dist"; PEND="$CONF/lists/.pending"
-mkdir -p "$DIST" "$PEND"
+
+DIST="$CONF/lists/.dist"
+PEND="$CONF/lists/.pending"
+mkdir -p "$DIST" "$PEND" || abort "! Cannot create list update directories"
+
 for src in "$MODPATH"/lists/*.list; do
   [ -f "$src" ] || continue
-  f="${src##*/}"; dst="$CONF/lists/$f"
-  if [ "$f" = "auto.list" ]; then
-    [ -f "$dst" ] || cp -f "$src" "$dst"
+  f=${src##*/}
+  dst="$CONF/lists/$f"
+
+  if [ "$f" = auto.list ]; then
+    if [ ! -f "$dst" ]; then
+      cp -f "$src" "$dst" || abort "! Failed to install $f"
+    fi
+    cp -f "$src" "$DIST/$f" || abort "! Failed to save release copy of $f"
     continue
   fi
+
   if [ ! -f "$dst" ] || cmp -s "$src" "$dst"; then
-    cp -f "$src" "$dst"; rm -f "$PEND/$f"
-  elif [ -f "$DIST/$f" ] && cmp -s "$dst" "$DIST/$f"; then
-    cp -f "$src" "$dst"; rm -f "$PEND/$f"
-  elif [ ! -f "$DIST/$f" ] && case " user exclude ipset ipset_exclude probe_hosts " in *" ${f%.list} "*) false ;; *) true ;; esac; then
-    cp -f "$src" "$dst"; rm -f "$PEND/$f"
+    cp -f "$src" "$dst" || abort "! Failed to install $f"
+    rm -f "$PEND/$f"
   elif [ -f "$DIST/$f" ] && cmp -s "$src" "$DIST/$f"; then
-    :   # в релизе список не менялся — правкам пользователя предлагать нечего
+    :
+  elif [ -f "$DIST/$f" ] && cmp -s "$dst" "$DIST/$f"; then
+    cp -f "$src" "$dst" || abort "! Failed to update $f"
+    rm -f "$PEND/$f"
+  elif [ ! -f "$DIST/$f" ]; then
+    case " user exclude ipset ipset_exclude probe_hosts " in
+      *" ${f%.list} "*)
+        cp -f "$src" "$PEND/$f" || abort "! Failed to save pending update for $f"
+        ui_print "- $f has local changes; the release version is available in the WebUI"
+        ;;
+      *)
+        cp -f "$src" "$dst" || abort "! Failed to migrate $f"
+        rm -f "$PEND/$f"
+        ;;
+    esac
   else
-    cp -f "$src" "$PEND/$f"
-    ui_print "- $f изменён вами: новая версия ждёт подтверждения в WebUI"
+    cp -f "$src" "$PEND/$f" || abort "! Failed to save pending update for $f"
+    ui_print "- $f has local changes; the release version is available in the WebUI"
   fi
-  cp -f "$src" "$DIST/$f"
-done
-[ -f "$CONF/apps.list" ] || echo "# Пакеты для фильтра приложений (APP_MODE=include|exclude), по одному на строку" > "$CONF/apps.list"
-[ -f "$CONF/home_wifi.list" ] || echo "# Домашние сети Wi-Fi (SSID по одному на строку): в них обход ставится на паузу" > "$CONF/home_wifi.list"
 
-set_perm_recursive "$MODPATH" 0 0 0755 0644
-for x in service.sh action.sh uninstall.sh bin/nfqws2 bin/nfqws2-ctl; do
-  set_perm "$MODPATH/$x" 0 0 0755
+  cp -f "$src" "$DIST/$f" || abort "! Failed to save release copy of $f"
 done
-chmod 0700 "$CONF" 2>/dev/null
 
-ui_print "- Готово. Перезагрузите устройство."
+if [ ! -f "$CONF/apps.list" ]; then
+  printf '%s\n' "# App packages (APP_MODE=include|exclude), one per line" > "$CONF/apps.list" ||
+    abort "! Failed to create $CONF/apps.list"
+fi
+if [ ! -f "$CONF/home_wifi.list" ]; then
+  printf '%s\n' "# Home Wi-Fi SSIDs, one per line" > "$CONF/home_wifi.list" ||
+    abort "! Failed to create $CONF/home_wifi.list"
+fi
+
+# set perms to nfwqws2
+busybox chmod +x "$MODPATH/bin/nfqws2"
+busybox chmod +x "$MODPATH/bin/nfqws2-ctl"
