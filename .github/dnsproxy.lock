@@ -1,0 +1,9 @@
+# AdGuard dnsproxy для версии extended: релиз https://github.com/AdguardTeam/dnsproxy
+# Строка: ABI модуля, архив релиза dnsproxy, sha256 архива.
+# Обновление: поменять VERSION и суммы (sha256sum скачанных архивов), проверить
+# на устройстве DNS по профилям, затем выпускать релиз.
+VERSION v0.86.0
+android-arm64  linux-arm64  eda840d39da0c2777ea2431d3d73407e813e3fc0e411bfe256a9fb4b97d08247
+android-arm    linux-arm7   927ead9df72528d6f54bac14e6eb07873a712d0d5deee14d4770bf9d64661102
+android-x86    linux-386    29942608cc9af1583c64f5e7ce6c3b9cfd762c351f10981e2f0655d93d78eeea
+android-x86_64 linux-amd64  17ac43f76ebfcedf547c663f6f31aa70e68b8eb6fc41d2fc37d3bfe21a2ced66
