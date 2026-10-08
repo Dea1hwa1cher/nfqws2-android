@@ -56,4 +56,5 @@ Telegram-чат: **[t.me/nfqws2android](https://t.me/nfqws2android)** — пом
 * [nfqws2-keenetic](https://github.com/nfqws/nfqws2-keenetic) — за идеи адаптации конфигов и логику авто-стратегий.
 * [dpi-detector](https://github.com/Runnin4ik/dpi-detector) — за алгоритмы детекции и классификации блокировок DPI.
 * [nfqws-menu](https://github.com/rndnaame/nfqws-menu) — за стратегии, блобы и списки адресов хостингов.
+* [bindhosts](https://github.com/bindhosts/bindhosts) — за множество референсов и идей.
 * Разработчикам [KernelSU](https://github.com/tiann/kernelSU), [Magisk](https://github.com/topjohnwu/magisk) и [APatch](https://github.com/bmax121/APatch).
