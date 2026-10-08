@@ -325,7 +325,6 @@ function drawThemeUI(){
   $('amoled-toggle').disabled = !dark;
   if($('monochrome-toggle')) $('monochrome-toggle').checked = mono;
   if($('containers-toggle')) $('containers-toggle').checked = store.get('m3_containers') !== 'false';
-  if($('animations-toggle')) $('animations-toggle').checked = isAnimationsDisabled();
   syncPicker(true);
 }
 /* Круг, ползунок и HEX отражают текущий seed. fromSeed=false — когда seed

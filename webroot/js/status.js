@@ -159,7 +159,8 @@ async function resetStrategy(name){
 const SW = [
   ['AUTOSTART', 'Автозапуск при загрузке', 'autostart'],
   ['IPV6_ENABLED', 'Обрабатывать IPv6', 'ipv6'],
-  ['BLOCK_QUIC', 'Блокировать QUIC', 'block_quic']
+  ['BLOCK_QUIC', 'Блокировать QUIC', 'block_quic'],
+  ['ENABLE_HOTSPOT', 'Точка доступа с nfqws2', 'enable_hotspot']
 ];
 const DEV_SW = [
   ['WATCHDOG', 'Watchdog', 'watchdog'],

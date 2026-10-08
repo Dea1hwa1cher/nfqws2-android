@@ -271,7 +271,8 @@ truthy(/html\[data-animations="false"\]\s*\*:not\(\.spinner\)[^}]*transition-dur
   'data-animations="false" zeroes transition durations');
 truthy(/\.sheet-title\s*\{[^}]*font-weight:\s*var\(--w-regular\)/s.test(styleBlock),
   'sheet-title uses regular weight conforming to M3 guidelines');
-truthy(html.includes('id="animations-toggle"'), 'index.html contains animations-toggle');
+const settingsJs = fs.readFileSync(path.join(REPO, 'webroot', 'js', 'settings.js'), 'utf8');
+truthy(settingsJs.includes('animations-toggle'), 'settings.js contains animations-toggle');
 
 // ── summary ───────────────────────────────────────────────────────────────────
 process.stdout.write('\n----------------------------------------\n');

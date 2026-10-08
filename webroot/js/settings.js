@@ -5,24 +5,31 @@
 /* ══ НАСТРОЙКИ ═══════════════════════════════════════════════════════════
    Как настройки Android: группы с заголовком, у каждой строки — пояснение. */
 function settingsRow(o){
-  return '<div class="list-item two-line' + (o.on ? ' clickable state" role="button" tabindex="0"' +
+  if(o.sw){
+    return '<label class="list-item' + (o.sub ? ' two-line' : '') + ' clickable state">' +
+      '<span class="li-icon">' + icon(o.icon, 's24') + '</span>' +
+      '<span class="li-text"><span class="li-primary">' + esc(t(o.title)) + '</span>' +
+        (o.sub ? '<span class="li-secondary">' + esc(o.sub) + '</span>' : '') + '</span>' +
+      '<span class="li-trail"><input type="checkbox" class="switch" role="switch" aria-label="' + esc(t(o.title)) + '"' +
+        (o.checked ? ' checked' : '') + (o.id ? ' id="' + esc(o.id) + '"' : '') +
+        ' onchange="' + o.on + '"></span>' +
+    '</label>';
+  }
+  return '<div class="list-item' + (o.sub ? ' two-line' : '') + (o.on ? ' clickable state" role="button" tabindex="0"' +
       (o.menu ? ' aria-haspopup="menu"' : '') + ' onclick="' + o.on + '"' : '"') + '>' +
     '<span class="li-icon">' + icon(o.icon, 's24') + '</span>' +
     '<span class="li-text"><span class="li-primary">' + esc(t(o.title)) + '</span>' +
-      '<span class="li-secondary">' + esc(o.sub) + '</span></span>' +
+      (o.sub ? '<span class="li-secondary">' + esc(o.sub) + '</span>' : '') + '</span>' +
     (o.value ? '<span class="li-trail li-value">' + esc(o.value) + '</span>' : '') +
     (o.chevron ? '<span class="li-trail">' + icon('chevron-right', 's24') + '</span>' : '') +
   '</div>';
 }
 function renderSettings(){
   const homeN = S.home_wifi == 1 ? t('Включено') : t('Выключено');
-  const hotN = S.enable_hotspot == 1 ? t('Включено') : t('Выключено');
-  const netN = S.net_strategy == 1 ? t('Включено') : t('Выключено');
   const groups = [
     ['Работа', [
       {icon: 'home', title: 'Домашняя Wi‑Fi', sub: t('Пауза обхода в домашних сетях') + ' · ' + homeN, on: "navigate('wifi')", chevron: true},
-      {icon: 'wifi', title: 'Раздача интернета', sub: t('Обход DPI для устройств точки доступа и USB'), on: 'toggleHotspot()', value: hotN},
-      {icon: 'refresh', title: 'Стратегии по сетям', sub: t('Запоминать стратегию отдельно для каждой сети'), on: 'toggleNetStrategy()', value: netN}
+      {icon: 'refresh', title: 'Стратегии по сетям', sub: t('Запоминать стратегию отдельно для каждой сети'), sw: true, checked: S.net_strategy == 1, on: 'toggleNetStrategy(this.checked)'}
     ]],
     ['Инструменты', [
       {icon: 'apps', title: 'Фильтр приложений', sub: t('Обход только для выбранных приложений или для всех, кроме них'), on: "navigate('apps')", chevron: true},
@@ -35,7 +42,7 @@ function renderSettings(){
     ]],
     ['Оформление', [
       {icon: 'palette', title: 'Тема оформления', sub: t('Светлая, тёмная, AMOLED и цвет акцента'), on: 'openMonetModal()'},
-      {icon: 'motion', title: 'Отключение анимаций', sub: t('Мгновенные переходы и отключение эффектов'), on: 'toggleAnimations(!isAnimationsDisabled()); renderSettings()', value: isAnimationsDisabled() ? t('Включено') : t('Выключено')},
+      {icon: 'motion', title: 'Отключение анимаций', sw: true, checked: isAnimationsDisabled(), id: 'animations-toggle', on: 'toggleAnimations(this.checked); renderSettings()'},
       {icon: 'apps', title: 'Ярлык на рабочий стол', sub: t('Добавить на главный экран телефона'), on: 'addDesktopShortcut()'},
       {icon: 'translate', title: 'Язык', sub: LANG === 'en' ? 'English' : 'Русский', on: 'pickLanguage(this)', menu: true}
     ]],
@@ -281,15 +288,15 @@ async function restoreBackup(name){
   toast(t('Копия восстановлена'));
 }
 
-async function toggleHotspot(){
-  const on = S.enable_hotspot != 1;
+async function toggleHotspot(checked){
+  const on = typeof checked === 'boolean' ? checked : (S.enable_hotspot != 1);
   const r = await withBusy(['set', 'ENABLE_HOTSPOT', on ? '1' : '0'], 40000);
-  if(r.code) toast(errText(r, 'Не удалось переключить раздачу интернета'));
-  else { S.enable_hotspot = on ? 1 : 0; renderSettings(); stat(); }
+  if(r.code) toast(errText(r, 'Не удалось переключить точку доступа'));
+  else { S.enable_hotspot = on ? 1 : 0; if(typeof renderStatus === 'function') renderStatus(); stat(); }
 }
 
-async function toggleNetStrategy(){
-  const on = S.net_strategy != 1;
+async function toggleNetStrategy(checked){
+  const on = typeof checked === 'boolean' ? checked : (S.net_strategy != 1);
   const r = await withBusy(['set', 'NET_STRATEGY', on ? '1' : '0'], 40000);
   if(r.code) toast(errText(r, 'Не удалось переключить привязку стратегий'));
   else { S.net_strategy = on ? 1 : 0; renderSettings(); stat(); }

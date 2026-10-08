@@ -220,3 +220,37 @@ html[data-containers="true"] #pk .list-item.selected + .list-item:not(.selected)
   border-end-end-radius: 20px;
 }
 
+/* ── Настройки: единый Expressive-контейнер для групп ──────────────────
+   Пункты настроек объединяются в сплошной M3-контейнер для каждой группы:
+   скруглены только внешние углы (16dp), внутренние углы без зазоров. */
+html[data-containers="true"] .settings-grid .list {
+  gap: 0;
+}
+html[data-containers="true"] .settings-grid .list > .list-item {
+  border-radius: 0;
+}
+html[data-containers="true"] .settings-grid .list > .list-item:first-child {
+  border-radius: var(--shape-large) var(--shape-large) 0 0;
+  border-start-start-radius: var(--shape-large);
+  border-start-end-radius: var(--shape-large);
+  border-end-start-radius: 0;
+  border-end-end-radius: 0;
+}
+html[data-containers="true"] .settings-grid .list > .list-item:last-child {
+  border-radius: 0 0 var(--shape-large) var(--shape-large);
+  border-start-start-radius: 0;
+  border-start-end-radius: 0;
+  border-end-start-radius: var(--shape-large);
+  border-end-end-radius: var(--shape-large);
+}
+html[data-containers="true"] .settings-grid .list > .list-item:only-child {
+  border-radius: var(--shape-large);
+}
+html[data-containers="true"] .settings-grid .list > .list-item:active {
+  border-radius: 20px;
+  border-start-start-radius: 20px;
+  border-start-end-radius: 20px;
+  border-end-start-radius: 20px;
+  border-end-end-radius: 20px;
+}
+

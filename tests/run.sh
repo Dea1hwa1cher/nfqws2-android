@@ -121,8 +121,10 @@ NODE_BIN="${NFQWS_TEST_NODE:-}"
 if [ -z "$NODE_BIN" ]; then
   if command -v node >/dev/null 2>&1; then
     NODE_BIN=node
-  elif [ -x "$HOME/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe" ]; then
-    NODE_BIN="$HOME/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe"
+  else
+    for _n in "$HOME"/.workbuddy-ai/binaries/node/versions/*/node.exe; do
+      if [ -x "$_n" ]; then NODE_BIN="$_n"; break; fi
+    done
   fi
 fi
 
