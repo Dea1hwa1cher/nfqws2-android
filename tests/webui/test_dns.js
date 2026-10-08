@@ -40,7 +40,7 @@ const STATUS = JSON.stringify({
 
 // Заглушка модуля: ksu.exec разбирает команду nfqws2-ctl и отвечает из памяти.
 const STUB = `
-window.__dns = { enabled: false, def: 'net', priv: 'off', privHost: '', profiles: {}, calls: [] };
+window.__dns = { enabled: false, def: 'net', priv: 'off', privHost: '', standalone: false, service: true, profiles: {}, calls: [] };
 window.__presets = ${JSON.stringify(PRESETS)};
 (function(){
   const st = window.__dns;
@@ -62,8 +62,9 @@ window.__presets = ${JSON.stringify(PRESETS)};
   }
   function state(){
     const any = Object.values(st.profiles).some(t => /ENABLED=1/.test(t) && /DOMAIN=/.test(t) && /SERVER=/.test(t));
-    const on = st.enabled && (any || st.def !== 'net');
-    let out = ['#status', 'enabled=' + (st.enabled ? 1 : 0), 'default=' + st.def, 'service=running',
+    const on = st.enabled && (st.service || st.standalone) && (any || st.def !== 'net');
+    let out = ['#status', 'enabled=' + (st.enabled ? 1 : 0), 'default=' + st.def,
+      'service=' + (st.service ? 'running' : 'stopped'), 'standalone=' + (st.standalone ? 1 : 0),
       'proxy=' + (on ? 'running' : 'stopped'), 'rules=' + (on ? 'on' : 'off'), 'ipv6=redirect',
       'private=' + st.priv, 'private_host=' + st.privHost, 'net_dns=192.168.1.1', 'hits=' + (on ? 1234 : 0), 'error=',
       'max_profiles=32', 'max_servers=8', 'max_domains=1000'];
@@ -76,6 +77,7 @@ window.__presets = ${JSON.stringify(PRESETS)};
     switch (a[0]) {
       case 'dns-state': return [0, state()];
       case 'dns-set-enabled': st.enabled = a[1] === '1'; return [0, 'OK'];
+      case 'dns-set-standalone': st.standalone = a[1] === '1'; return [0, 'OK'];
       case 'dns-set-default': if (a[1] !== 'net' && !st.profiles[a[1]]) return [1, '', 'Профиль не найден'];
         st.def = a[1]; return [0, 'OK'];
       case 'dns-save-b64': try { st.profiles[a[1]] = norm(dec(a[2])); return [0, 'OK']; } catch (e) { return [1, '', String(e)]; }
@@ -142,6 +144,7 @@ function truthy(cond, msg) { cond ? ok(msg) : fail(msg); }
       return r && r.closest('.stack').querySelector('.subhead').textContent;
     });
     eq('Инструменты', group, 'in the Tools group');
+    truthy((await page.textContent('#settings-body')).includes('Версия v1.9.6 extended'), 'the version reads "v1.9.6 extended", with a space');
     await row.click(); await idle();
     eq('dns', await page.evaluate(() => currentPage), 'it opens the DNS screen');
     eq(true, await page.evaluate(() => $('dns-body').classList.contains('is-disabled')), 'the body is greyed out while the feature is off');
@@ -157,14 +160,18 @@ function truthy(cond, msg) { cond ? ok(msg) : fail(msg); }
     sect(`${mode}: a preset`);
     await page.click('#dns-add'); await menuPick('Из пресетов');
     await page.waitForSelector('#dns-preset-sheet.open');
-    eq(9, await page.$$eval('#dns-preset-list .list-item', l => l.length), 'the preset sheet lists every preset');
+    eq(['Comss.one DNS', 'GeoHide DNS', 'XBox DNS'],
+      await page.$$eval('#dns-preset-list .li-primary', l => l.map(e => e.textContent)), 'exactly the three presets');
     await shot('presets');
-    await page.click('#dns-preset-list .list-item:has-text("Instagram и Facebook")'); await idle();
-    const meta = await page.evaluate(() => window.__dns.profiles.meta || '');
-    truthy(meta.includes('SERVER=https://ns2.opennameserver.org/dns-query') && meta.includes('DOMAIN=cdninstagram.com'), 'the preset is saved as a profile');
-    truthy(meta.includes('ENABLED=1'), 'a preset with domains is added enabled');
-    truthy((await page.textContent('#dns-general')).includes('Перехвачено запросов'), 'the state shows interception working');
-    await shot('main');
+    await page.click('#dns-preset-list .list-item:has-text("XBox DNS")'); await idle();
+    const xbox = await page.evaluate(() => window.__dns.profiles.xbox || '');
+    eq(['https://xbox-dns.ru/dns-query', 'tls://xbox-dns.ru', '111.88.96.54', '111.88.96.55'],
+      xbox.split('\n').filter(l => l.startsWith('SERVER=')).map(l => l.slice(7)), 'the preset is saved with DoH, DoT and both IPs');
+    truthy(xbox.includes('ENABLED=0'), 'a preset without domains is added switched off');
+    await page.click('#dns-profiles .list-item:has-text("XBox DNS")'); await idle();
+    eq(['DoH (HTTPS)', 'DoT (TLS)', 'Обычный DNS', 'Обычный DNS'],
+      await page.$$eval('#dnsp-servers .li-secondary', l => l.map(e => e.textContent)), 'plain IPs are shown as one plain DNS type');
+    await page.evaluate(() => goBack()); await idle();
 
     sect(`${mode}: a new profile`);
     await page.click('#dns-add'); await menuPick('Новый профиль');
@@ -179,18 +186,23 @@ function truthy(cond, msg) { cond ? ok(msg) : fail(msg); }
     await page.click('#dnsp-add-server'); await menuPick('DoH (HTTPS)');
     await answer('dns.comss.one');
     // неверный адрес — повторный запрос, затем отмена
-    await page.click('#dnsp-add-server'); await menuPick('Обычный DNS (UDP)');
+    const types = await page.evaluate(async () => { addDnsServer($('dnsp-add-server')); await new Promise(r => setTimeout(r, 200));
+      const l = [...document.querySelectorAll('.menu .mi-text')].map(e => e.textContent); closeMenu(); return l; });
+    await idle();
+    truthy(types.includes('Обычный DNS') && !types.some(x => /UDP|TCP/.test(x)), 'one plain DNS type, no UDP/TCP split');
+    await page.click('#dnsp-add-server'); await menuPick('Обычный DNS');
     await answer('dns.google');
     truthy(await page.isVisible('#dialog-wrap.open'), 'a plain DNS server by name is refused and asked again');
     await page.click('#d-cancel'); await idle();
-    let prof = await page.evaluate(() => window.__dns.profiles.p || window.__dns.profiles[Object.keys(window.__dns.profiles).find(k => k !== 'meta')]);
+    const gid = () => Object.keys(window.__dns.profiles).find(k => k !== 'xbox');
+    let prof = await page.evaluate(`window.__dns.profiles[(${gid})()]`);
     truthy(prof.includes('SERVER=tls://dns.google'), 'DoT is stored as tls://');
     truthy(prof.includes('SERVER=https://dns.comss.one/dns-query'), 'DoH gets /dns-query');
     eq(2, await page.$$eval('#dnsp-servers .list-item', l => l.length), 'two servers are listed');
     // домены: несколько за раз, мусор отбрасывается, кириллица -> punycode
     await page.click('#dnsp-add-domain');
     await answer('https://www.Roblox.com/games, *.rbxcdn.com пример.рф bad..name');
-    prof = await page.evaluate(() => window.__dns.profiles[Object.keys(window.__dns.profiles).find(k => k !== 'meta')]);
+    prof = await page.evaluate(`window.__dns.profiles[(${gid})()]`);
     truthy(prof.includes('DOMAIN=www.roblox.com') && prof.includes('DOMAIN=rbxcdn.com'), 'URLs and wildcards become plain domains');
     truthy(prof.includes('DOMAIN=xn--e1afmkfd.xn--p1ai'), 'a Cyrillic domain is stored in punycode');
     truthy(!prof.includes('bad..name'), 'an invalid domain is skipped');
@@ -212,12 +224,32 @@ function truthy(cond, msg) { cond ? ok(msg) : fail(msg); }
     sect(`${mode}: back and delete`);
     await page.evaluate(() => goBack()); await idle();
     eq('dns', await page.evaluate(() => currentPage), 'back returns to the DNS screen');
-    truthy((await page.textContent('#dns-general')).includes('Игры'), 'the default DNS row names the profile');
+    truthy((await page.textContent('#dns-general .list-item')).includes('Игры'), 'the default DNS row names the profile');
+    let state = await page.textContent('#dns-general');
+    truthy(state.includes('Перехвачено запросов'), 'the state shows interception working');
+    truthy(state.includes('остальное — через «Игры»'), 'and names the profile everything else goes to');
+    truthy(!state.includes('192.168.1.1'), 'the network DNS is not shown while it is not used');
+    await shot('main');
     await page.click('#dns-profiles .list-item:has-text("Игры")'); await idle();
     await page.click('button:has-text("Удалить профиль")');
     await answer();
     eq('dns', await page.evaluate(() => currentPage), 'deleting returns to the list');
     eq('net', await page.evaluate(() => window.__dns.def), 'the default falls back to the network DNS');
+
+    sect(`${mode}: standalone`);
+    // профиль с доменами, чтобы было что применять
+    await page.evaluate(() => { window.__dns.profiles.xbox = window.__dns.profiles.xbox.replace('ENABLED=0', 'ENABLED=1') + '\nDOMAIN=chatgpt.com'; });
+    await page.evaluate(() => { window.__dns.service = false; }); await page.evaluate(() => dnsInit()); await idle();
+    truthy((await page.textContent('#dns-warn')).includes('Без службы обхода'), 'with the service stopped the screen points at the standalone switch');
+    truthy((await page.textContent('#dns-general')).includes('Ожидает запуска службы'), 'and waits for the service');
+    await page.click('#dns-general label:has-text("Без службы обхода")'); await idle();
+    eq(true, await page.evaluate(() => window.__dns.standalone), 'the standalone switch is saved');
+    state = await page.textContent('#dns-general');
+    truthy(state.includes('Работает без службы обхода'), 'DNS works with the service stopped');
+    truthy(state.includes('остальное — через DNS сети (192.168.1.1)'), 'the network DNS is shown when it is the default');
+    truthy(!(await page.textContent('#dns-warn')).includes('Служба не запущена'), 'no "service stopped" warning in standalone mode');
+    await shot('standalone');
+    await page.evaluate(() => { window.__dns.service = true; });
 
     sect(`${mode}: Private DNS`);
     await page.evaluate(() => { window.__dns.priv = 'hostname'; window.__dns.privHost = 'dns.google'; });
@@ -232,7 +264,7 @@ function truthy(cond, msg) { cond ? ok(msg) : fail(msg); }
     sect(`${mode}: English`);
     await page.evaluate(() => setLanguage('en')); await idle();
     const txt = await page.textContent('[data-page="dns"]');
-    truthy(!/[А-Яа-яЁё]/.test(txt.replace(/Instagram и Facebook/g, '')), 'no Russian text left on the screen in English');
+    truthy(!/[А-Яа-яЁё]/.test(txt), 'no Russian text left on the screen in English');
     await page.evaluate(() => setLanguage('ru')); await idle();
 
     eq([], errors, 'no page errors');

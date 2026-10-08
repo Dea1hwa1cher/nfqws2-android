@@ -16,7 +16,9 @@ if [ -n "$wnpid" ]; then kill "$wnpid" 2>/dev/null; fi
 sh "$MODDIR/service.sh" stop >/dev/null 2>&1
 sh "$MODDIR/service.sh" firewall_stop >/dev/null 2>&1
 killall -9 nfqws2 2>/dev/null
-# extended: stop() снимает перехват DNS и dnsproxy; это — на случай, если служба уже не работала
+# extended: DNS «без службы» stop() не трогает — снимаем перехват отдельно,
+# иначе после удаления DNS-запросы уходили бы в несуществующий dnsproxy
+sh "$MODDIR/service.sh" dns_stop >/dev/null 2>&1
 killall -9 dnsproxy 2>/dev/null
 # Настройки и списки в /data/adb/nfqws2 сохраняются. Полное удаление: rm -rf /data/adb/nfqws2
 rm -rf /data/adb/nfqws2/state

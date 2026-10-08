@@ -18,9 +18,12 @@ const DNS_TYPES = [
    hint: 'Имя или IP DoQ-сервера, порт по умолчанию 853.'},
   {k: 'doh3', label: 'DoH3 (HTTP/3)',        short: 'DoH3', enc: true,  ph: 'https://dns.google/dns-query',
    hint: 'DoH поверх HTTP/3 (QUIC). Сервер должен его поддерживать.'},
-  {k: 'udp',  label: 'Обычный DNS (UDP)',    short: 'UDP',  enc: false, ph: '1.1.1.1',
-   hint: 'IP-адрес, при необходимости с портом: 1.1.1.1:53 или [2606:4700::1111]:53.'},
-  {k: 'tcp',  label: 'Обычный DNS (TCP)',    short: 'TCP',  enc: false, ph: '1.1.1.1',
+  // Как «DNS-сервер» в Keenetic: запрос по UDP, ответ, который в UDP не влез, —
+  // повтором по TCP (так делает dnsproxy). Отдельный «только TCP» в меню не
+  // предлагается, но адрес tcp:// из старых профилей и файлов показывается.
+  {k: 'udp',  label: 'Обычный DNS',          short: 'DNS',  enc: false, ph: '1.1.1.1',
+   hint: 'IP-адрес сервера, при необходимости с портом: 1.1.1.1:53 или [2606:4700::1111]:53. Длинные ответы сервер сам отдаёт по TCP.'},
+  {k: 'tcp',  label: 'Обычный DNS (только TCP)', short: 'TCP', enc: false, ph: '1.1.1.1', hidden: true,
    hint: 'IP-адрес или имя, при необходимости с портом.'},
   {k: 'sdns', label: 'DNS-штамп (sdns://)',  short: 'sdns', enc: true,  ph: 'sdns://…',
    hint: 'Штамп DNSCrypt или DoH целиком, начиная с sdns://.'}
@@ -169,8 +172,8 @@ function dnsWarnings(){
     w.push(banner('danger', 'error', t('В этой сборке нет dnsproxy. Установите версию модуля extended.')));
   else if(s.error)
     w.push(banner('danger', 'error', t('Ошибка: {0}', s.error)));
-  if(s.service !== 'running')
-    w.push(banner('', 'info', t('Служба не запущена: профили применятся при её запуске.')));
+  if(s.service !== 'running' && s.standalone !== '1')
+    w.push(banner('', 'info', t('Служба не запущена: профили применятся при её запуске. Чтобы DNS работал и без неё, включите «Без службы обхода».')));
   if(s.ipv6 === 'none' && s.rules === 'on')
     w.push(banner('warn', 'warn', t('Запросы к IPv6-серверам DNS идут мимо: в ядре нет ip6tables nat, а у сети нет IPv4-серверов.')));
   return w.join('');
@@ -179,15 +182,22 @@ function dnsWarnings(){
 function dnsStateRow(){
   const s = dnsSt.status;
   let title, sub = '';
+  const working = s.rules === 'on' && s.proxy === 'running';
   if(s.private === 'hostname') title = t('Не применяется: включён «Частный DNS»');
-  else if(s.rules === 'on' && s.proxy === 'running'){
-    title = t('Работает');
+  else if(working){
+    title = s.service === 'running' ? t('Работает') : t('Работает без службы обхода');
     sub = t('Перехвачено запросов: {0}', fmtCount(+s.hits || 0));
-  } else if(s.service !== 'running') title = t('Ожидает запуска службы');
+  } else if(s.service !== 'running' && s.standalone !== '1') title = t('Ожидает запуска службы');
   else if(!dnsSt.profiles.some(p => p.enabled && p.servers.length && p.domains.length) && (s.default || 'net') === 'net')
     title = t('Не активно: нет включённых профилей с доменами');
   else title = t('Не работает — см. журнал службы');
-  if(s.net_dns) sub += (sub ? ' · ' : '') + t('DNS сети: {0}', s.net_dns.replace(/,/g, ', '));
+  // Куда сейчас уходит всё, что не попало в профили: выбранный профиль или
+  // DNS сети. Адреса сети — только когда они и правда используются.
+  if(working){
+    const d = s.default || 'net', p = d !== 'net' && dnsProfile(d);
+    sub += ' · ' + (p ? t('остальное — через «{0}»', p.name)
+      : t('остальное — через DNS сети{0}', s.net_dns ? ' (' + s.net_dns.replace(/,/g, ', ') + ')' : ''));
+  }
   return '<div class="list-item' + (sub ? ' two-line' : '') + '">' +
     '<span class="li-icon">' + icon('status', 's24') + '</span>' +
     '<span class="li-text"><span class="li-primary">' + esc(title) + '</span>' +
@@ -200,13 +210,16 @@ function renderDns(){
   $('dns-main').classList.toggle('on', on);
   $('dns-body').classList.toggle('is-disabled', !on || !dnsLoaded);
   $('dns-body').inert = !on || !dnsLoaded;
-  setHTML('dns-warn', dnsLoaded ? dnsWarnings() : '', false);
-  if(dnsLoaded && s.private === 'opportunistic' && on)
-    $('dns-warn').insertAdjacentHTML('beforeend', '<div class="helper">' +
-      esc(t('«Частный DNS» в Android — «Автоматически»: если DNS сети поддерживает DoT, часть запросов может пройти мимо модуля. Надёжнее выбрать «Отключено».')) + '</div>');
+  // одной строкой через setHTML: дописанное мимо него он не видит и повторял бы
+  setHTML('dns-warn', !dnsLoaded ? '' : dnsWarnings() + (s.private === 'opportunistic' && on
+    ? '<div class="helper">' + esc(t('«Частный DNS» в Android — «Автоматически»: если DNS сети поддерживает DoT, часть запросов может пройти мимо модуля. Надёжнее выбрать «Отключено».')) + '</div>'
+    : ''), false);
   setHTML('dns-general',
     settingsRow({icon: 'globe', title: 'DNS по умолчанию', sub: dnsDefaultLabel() + ' · ' + t('для доменов вне профилей'),
       on: 'pickDnsDefault(this)', menu: true}) +
+    settingsRow({icon: 'shield', title: 'Без службы обхода', sw: true, checked: s.standalone === '1', id: 'dns-standalone',
+      sub: t('DNS работает, даже когда служба остановлена или на паузе. Выключить его тогда можно только переключателем выше.'),
+      on: 'setDnsStandalone(this.checked)'}) +
     (dnsLoaded && on ? dnsStateRow() : '') +
     settingsRow({icon: 'search', title: 'Проверить домен', sub: t('Через какой профиль он резолвится и в какой адрес'), on: 'testDnsDomain()'}),
     false);
@@ -229,6 +242,13 @@ function renderDns(){
 async function setDnsEnabled(on){
   const r = await withBusy(['dns-set-enabled', on ? '1' : '0'], 40000);
   if(r.code){ toast(errText(r, 'Не удалось сохранить')); $('dns-toggle').checked = !on; return; }
+  await loadDnsState();
+  renderDns();
+}
+
+async function setDnsStandalone(on){
+  const r = await withBusy(['dns-set-standalone', on ? '1' : '0'], 40000);
+  if(r.code){ toast(errText(r, 'Не удалось сохранить')); $('dns-standalone').checked = !on; return; }
   await loadDnsState();
   renderDns();
 }
@@ -436,7 +456,8 @@ function toggleDnsDefaultHere(){
 
 /* Добавление сервера: сначала тип (меню), затем адрес */
 function addDnsServer(anchor){
-  openMenu(anchor, DNS_TYPES.map(m => ({label: t(m.label), icon: m.enc ? 'shield' : 'globe', onClick: () => promptDnsServer(m.k, '', -1)})));
+  openMenu(anchor, DNS_TYPES.filter(m => !m.hidden)
+    .map(m => ({label: t(m.label), icon: m.enc ? 'shield' : 'globe', onClick: () => promptDnsServer(m.k, '', -1)})));
 }
 function editDnsServer(i){
   const p = dnsProfile(dnsCur), s = p && p.servers[i];

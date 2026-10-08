@@ -91,7 +91,8 @@ start() {
 
 stop() {
   rm -f "$DESIRED_FILE" "$STARTED_FILE"
-  dns_stop
+  # DNS «без службы» переживает остановку обхода
+  dns_standalone || dns_stop
   release_wakelock
   firewall_stop
   if [ -f "$PIDFILE" ]; then
@@ -200,10 +201,11 @@ netwatch() {
         if [ -f "$DESIRED_FILE" ] && is_running; then
           log_msg "netwatch: сеть изменилась (ip monitor) — пересобираю правила"
           firewall_start
-          dns_enabled && dns_start
         fi
         home_check
         network_strategy_check
+        # DNS сети сменился вместе с сетью; работает и без службы
+        dns_enabled && dns_start
         acted="$sz"
       fi
       [ "$sz" -gt 262144 ] && { kill -TERM "$mon" 2>/dev/null; : > "$EVFILE"; prev=""; acted=""; }
@@ -343,12 +345,14 @@ case "$1" in
   firewall_apply)     firewall_start ;;
   firewall_stop)      firewall_stop ;;
   dns_apply)          dns_start ;;
+  dns_stop)           dns_stop ;;
   *)
     until [ "$(getprop sys.boot_completed 2>/dev/null)" = "1" ]; do sleep 3; done
     sleep 4
     [ -f "$CONFDIR/disable" ] && { log_msg "Найден $CONFDIR/disable — автозапуск пропущен"; exit 0; }
     rm -f "$HOME_PAUSED_FILE" "$HOME_OVERRIDE_FILE"
     rmdir "$STATE_DIR/home.lock" 2>/dev/null
+    dns_boot_reset
     if [ "$AUTOSTART" = "1" ]; then
       ssid=$(current_ssid)
       if [ "$HOME_WIFI" = "1" ] && ssid_is_home "$ssid"; then
@@ -361,6 +365,8 @@ case "$1" in
     else
       update_description stopped
     fi
+    # DNS «без службы» поднимается и когда служба не стартовала
+    dns_start
     ensure_watchdog
     ;;
 esac

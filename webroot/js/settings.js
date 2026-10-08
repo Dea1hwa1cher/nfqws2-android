@@ -48,7 +48,7 @@ function renderSettings(){
       {icon: 'translate', title: 'Язык', sub: LANG === 'en' ? 'English' : 'Русский', on: 'pickLanguage(this)', menu: true}
     ]],
     ['О модуле', [
-      {icon: 'info', title: 'nfqws2 for Android', sub: t('Версия {0}', S.version || '—'), on: 'openUrl(' + jsArg(GITHUB_URL) + ')', chevron: true}
+      {icon: 'info', title: 'nfqws2 for Android', sub: t('Версия {0}', (S.version || '—').replace(/-extended$/, ' extended')), on: 'openUrl(' + jsArg(GITHUB_URL) + ')', chevron: true}
     ]]
   ];
   let devHtml = '';
