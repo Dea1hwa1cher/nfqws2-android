@@ -286,6 +286,16 @@ assert_rc 1 "$ctl_rc" "an unknown default is refused"
 ctl dns-delete new1
 assert_no_file "$DNS_PROFILES_DIR/new1.conf" "a profile is deleted"
 assert_eq "net" "$(dns_default)" "deleting the default profile falls back to the network DNS"
+ctl dns-save-b64 m1 "$(b64 'NAME=Один')"; ctl dns-save-b64 m2 "$(b64 'NAME=Два')"
+ctl dns-delete m1 m2 nosuch
+assert_rc 1 "$ctl_rc" "a batch delete with an unknown id is refused"
+assert_file "$DNS_PROFILES_DIR/m1.conf" "and deletes nothing"
+ctl dns-set-default m2
+ctl dns-delete m1 m2
+assert_rc 0 "$ctl_rc" "several profiles are deleted at once"
+[ -f "$DNS_PROFILES_DIR/m1.conf" ] || [ -f "$DNS_PROFILES_DIR/m2.conf" ]
+assert_rc 1 $? "both of them"
+assert_eq "net" "$(dns_default)" "the default falls back when it was among them"
 ctl dns-set-enabled 1
 assert_file "$DNS_ENABLED_FILE" "the feature is switched on"
 ctl dns-set-enabled 0

@@ -29,7 +29,7 @@ assert_contains "$ctl_out" '"running":false' "reports running=false"
 assert_contains "$ctl_out" '"pid":""' "reports an empty pid"
 assert_contains "$ctl_out" '"uptime":0' "reports uptime 0"
 
-for key in running pid uptime strategy version mode limiter pkt_limit_out pkt_limit_in \
+for key in running pid uptime strategy version mode pkt_limit_out pkt_limit_in \
            block_quic app_mode autostart watchdog ipv6 log_level qdrop queue \
            app_uids counts; do
   assert_contains "$ctl_out" "\"$key\":" "json-status exposes $key"

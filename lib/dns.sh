@@ -683,10 +683,17 @@ dns_ctl() {
       b64d "$2" | dns_profile_save "$1" || return 1
       dns_apply_now; echo OK ;;
     dns-profile-enable) dns_profile_set_enabled "$1" "$2" || return 1; dns_apply_now; echo OK ;;
-    dns-delete)
-      dns_id_ok "$1" && [ -f "$DNS_PROFILES_DIR/$1.conf" ] || { echo "Профиль не найден" >&2; return 1; }
-      rm -f "$DNS_PROFILES_DIR/$1.conf"
-      [ "$(dns_default)" = "$1" ] && echo net > "$DNS_DEFAULT_FILE"
+    dns-delete) # <id>… — несколько сразу (выбор в WebUI), применяется один раз
+      local id def
+      [ $# -gt 0 ] || { echo "Профиль не найден" >&2; return 1; }
+      for id in "$@"; do
+        dns_id_ok "$id" && [ -f "$DNS_PROFILES_DIR/$id.conf" ] || { echo "Профиль не найден: $id" >&2; return 1; }
+      done
+      def=$(dns_default)
+      for id in "$@"; do
+        rm -f "$DNS_PROFILES_DIR/$id.conf"
+        [ "$def" = "$id" ] && echo net > "$DNS_DEFAULT_FILE"
+      done
       dns_apply_now; echo OK ;;
     dns-test) dns_test "$1" ;;
     dns-log) tail -n "${1:-100}" "$DNS_LOG" 2>/dev/null ;;

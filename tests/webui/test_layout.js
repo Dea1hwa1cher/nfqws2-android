@@ -34,7 +34,7 @@ const HOSTILE_IMPORT = "x');window.__pwned=1;//";
 
 const STATUS = JSON.stringify({
   running: true, pid: '4710', uptime: 52, strategy: 'alt13', version: 'v1.3.6', mode: 'auto',
-  limiter: 'connmark_out', pkt_limit_out: 2, pkt_limit_in: 2, block_quic: 0, app_mode: 'off',
+  pkt_limit_out: 2, pkt_limit_in: 2, block_quic: 0, app_mode: 'off',
   autostart: 1, watchdog: 1, ipv6: 1, log_level: 0, qdrop: 0, queue: 300,
   app_uids: 1,
   counts: { user: 381, auto: 25, exclude: 2839, ipset: 28420, ipset_exclude: 637, apps: 1 },
@@ -460,6 +460,63 @@ const VIEWPORTS = [
     eq('8,8,8,8', containerToggle.offRadius.join(','), 'disabling containers flattens list items to 8dp');
     eq('16,16,4,4', containerToggle.onRadius.join(','), 're-enabling containers restores stacked corners');
 
+    await ctx.close();
+  }
+
+  // ── strategy sheet: blurred background, swipe down from the list ────────
+  {
+    sect('strategy sheet swipe');
+    const ctx = await browser.newContext({ viewport: { width: 400, height: 700 }, isMobile: true, hasTouch: true });
+    await ctx.addInitScript(STUB);
+    const page = await ctx.newPage();
+    const pageErrors = [];
+    page.on('pageerror', e => pageErrors.push(e.message));
+    await page.goto(INDEX, { waitUntil: 'load' });
+    await page.waitForTimeout(600);
+    // Палец по списку: синтетические TouchEvent, как их шлёт WebView
+    const swipe = (from, to, opts = {}) => page.evaluate(async ([from, to, opts]) => {
+      const list = document.querySelector('#strategy-list');
+      if (opts.scroll != null) list.scrollTop = opts.scroll;
+      const el = list.querySelector('.list-item') || list, r = el.getBoundingClientRect(), x = r.left + 20;
+      const touch = y => new Touch({ identifier: 1, target: el, clientX: x, clientY: y });
+      const fire = (type, y) => {
+        const t = touch(y);
+        const ev = new TouchEvent(type, { bubbles: true, cancelable: true, touches: type === 'touchend' ? [] : [t], changedTouches: [t] });
+        el.dispatchEvent(ev);
+        return ev.defaultPrevented;
+      };
+      const y0 = r.top + 10;
+      fire('touchstart', y0);
+      let prevented = false;
+      const steps = 8;
+      for (let i = 1; i <= steps; i++) {
+        prevented = fire('touchmove', y0 + (to - from) * i / steps) || prevented;
+        await new Promise(r => setTimeout(r, opts.slow ? 40 : 8));
+      }
+      const mid = document.querySelector('#strategy-sheet').style.transform;
+      fire('touchend', y0 + (to - from));
+      await new Promise(r => setTimeout(r, 120));
+      return { prevented, mid, open: document.querySelector('#strategy-sheet').classList.contains('open') };
+    }, [from, to, opts]);
+
+    await page.evaluate(() => openStrategySheet()); await page.waitForTimeout(500);
+    const blur = await page.evaluate(() => getComputedStyle(document.querySelector('#sheet-scrim')).backdropFilter);
+    truthy(/blur\(\d/.test(blur) && blur !== 'blur(0px)', 'the background under the sheet is blurred: ' + blur);
+    const canScroll = await page.evaluate(() => { const l = document.querySelector('#strategy-list'); return l.scrollHeight > l.clientHeight + 40; });
+    truthy(canScroll, 'the strategy list is long enough to scroll');
+    let r = await swipe(0, 300, { scroll: 40 });
+    truthy(r.open && !r.prevented && !r.mid, 'with the list scrolled, a swipe down scrolls the list and leaves the sheet');
+    r = await swipe(0, -200, { scroll: 0 });
+    truthy(r.open && !r.prevented, 'a swipe up from the top scrolls the list');
+    r = await swipe(0, 40, { scroll: 0, slow: true });
+    truthy(r.open && r.prevented && /translateY\(\d/.test(r.mid), 'a short slow pull from the top moves the sheet and lets it spring back');
+    truthy(await page.evaluate(() => !document.querySelector('#strategy-sheet').style.transform), 'the sheet returns to place');
+    r = await swipe(0, 300, { scroll: 0 });
+    truthy(!r.open, 'a swipe down from the top of the list closes the sheet');
+    await page.waitForTimeout(500);
+    const blurOff = await page.evaluate(() => getComputedStyle(document.querySelector('#sheet-scrim')).backdropFilter);
+    truthy(blurOff === 'none' || blurOff === 'blur(0px)', 'and the blur goes away with it: ' + blurOff);
+    eq('', pageErrors.join(' | '), 'no script errors');
     await ctx.close();
   }
 

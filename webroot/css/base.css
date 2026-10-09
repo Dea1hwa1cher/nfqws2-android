@@ -201,12 +201,15 @@ svg.icon.s24 { width: 24px; height: 24px; }
 .icon-btn.sm { width: 40px; height: 40px; }
 
 /* ── Scrim ───────────────────────────────────────────────────────────── */
+/* Фон под листом ещё и размывается — нарастает вместе с выездом листа */
 .scrim {
   position: fixed; inset: 0; z-index: 40; background: var(--md-sys-color-scrim);
   opacity: 0; pointer-events: none;
-  transition: opacity var(--dur-medium) var(--standard);
+  -webkit-backdrop-filter: blur(0); backdrop-filter: blur(0);
+  transition: opacity var(--dur-medium) var(--standard),
+    -webkit-backdrop-filter var(--dur-long) var(--standard), backdrop-filter var(--dur-long) var(--standard);
 }
-.scrim.show { opacity: 1; pointer-events: auto; }
+.scrim.show { opacity: 1; pointer-events: auto; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
 
 /* ── App bar: действия текущего экрана + overflow ─────────────────────── */
 .bar-actions { display: flex; align-items: center; flex: none; }

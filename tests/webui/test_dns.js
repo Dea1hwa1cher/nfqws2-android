@@ -33,7 +33,7 @@ const SHOTS = process.env.NFQWS_SHOTS || '';
 
 const STATUS = JSON.stringify({
   running: true, pid: '4710', uptime: 52, strategy: 'alt13', version: 'v1.9.6-extended', mode: 'auto',
-  limiter: 'connbytes', pkt_limit_out: 15, pkt_limit_in: 15, block_quic: 0, app_mode: 'off',
+  pkt_limit_out: 15, pkt_limit_in: 15, block_quic: 0, app_mode: 'off',
   autostart: 1, watchdog: 1, ipv6: 1, log_level: 0, qdrop: 0, queue: 300, app_uids: 0, dns_available: 1,
   counts: { user: 381, auto: 25, exclude: 2839, ipset: 28420, ipset_exclude: 637, apps: 0 },
 });
@@ -82,7 +82,7 @@ window.__presets = ${JSON.stringify(PRESETS)};
         st.def = a[1]; return [0, 'OK'];
       case 'dns-save-b64': try { st.profiles[a[1]] = norm(dec(a[2])); return [0, 'OK']; } catch (e) { return [1, '', String(e)]; }
       case 'dns-profile-enable': st.profiles[a[1]] = st.profiles[a[1]].replace(/ENABLED=\\d/, 'ENABLED=' + a[2]); return [0, 'OK'];
-      case 'dns-delete': delete st.profiles[a[1]]; if (st.def === a[1]) st.def = 'net'; return [0, 'OK'];
+      case 'dns-delete': a.slice(1).forEach(id => { delete st.profiles[id]; if (st.def === id) st.def = 'net'; }); return [0, 'OK'];
       case 'dns-test': return [0, '57.144.154.34\\t' + (Object.keys(st.profiles).find(id => st.profiles[id].includes('DOMAIN=' + a[1])) || '')];
     }
     return [1, '', 'unknown'];
@@ -240,6 +240,57 @@ function truthy(cond, msg) { cond ? ok(msg) : fail(msg); }
     eq('dns', await page.evaluate(() => currentPage), 'deleting returns to the list');
     eq('net', await page.evaluate(() => window.__dns.def), 'the default falls back to the network DNS');
 
+    sect(`${mode}: selecting several profiles`);
+    await page.evaluate(() => { Object.assign(window.__dns.profiles, { s1: 'NAME=Alpha\nENABLED=0', s2: 'NAME=Beta\nENABLED=0', s3: 'NAME=Gamma\nENABLED=0' }); });
+    await page.evaluate(() => dnsInit()); await idle();
+    const total = await page.$$eval('#dns-profiles .list-item', r => r.length);
+    const longPress = async sel => { const b = await page.$eval(sel, e => { e.scrollIntoView({ block: "center" }); const r = e.getBoundingClientRect(); return [r.x + r.width / 3, r.y + r.height / 2]; });
+      await page.mouse.move(b[0], b[1]); await page.mouse.down(); await page.waitForTimeout(650); await page.mouse.up(); await idle(); };
+    await longPress('#dns-profiles .list-item:has-text("Alpha")');
+    eq('dns', await page.evaluate(() => currentPage), 'a long press does not open the profile');
+    eq(total, await page.$$eval('#dns-profiles .list-item .checkbox', r => r.length), 'it turns every switch into a checkbox');
+    eq(0, await page.$$eval('#dns-profiles .switch', r => r.length), 'no switches are left');
+    eq(['Alpha'], await page.$$eval('#dns-profiles .list-item.selected .li-primary', r => r.map(e => e.textContent)), 'the pressed profile is selected');
+    truthy((await page.textContent('#app-title')).includes('1'), 'the title counts the selection');
+    eq(3, await page.$$eval('#bar-actions .icon-btn', r => r.length), 'the top bar has select all, cancel and delete');
+    await shot('select');
+    await page.click('#dns-profiles .list-item:has-text("Beta")'); await idle();
+    eq(2, await page.$$eval('#dns-profiles .list-item.selected', r => r.length), 'a tap adds a profile to the selection');
+    await page.click('#bar-actions .icon-btn:nth-child(2)'); await idle();
+    eq(0, await page.$$eval('#dns-profiles .checkbox', r => r.length), 'cancel brings the switches back');
+    eq('DNS по профилям', await page.textContent('#app-title'), 'and the title');
+    await longPress('#dns-profiles .list-item:has-text("Alpha")');
+    await page.click('#bar-actions .icon-btn:nth-child(1)'); await idle();
+    eq(total, await page.$$eval('#dns-profiles .list-item.selected', r => r.length), 'select all selects every profile');
+    await page.click('#dns-profiles .list-item:has-text("Alpha")'); await idle();
+    await page.click('#dns-profiles .list-item[data-id="xbox"]'); await idle();
+    const keep = await page.$$eval('#dns-profiles .list-item:not(.selected) .li-primary', r => r.map(e => e.textContent));
+    await page.click('#bar-actions .icon-btn:nth-child(3)');
+    await page.waitForSelector('#dialog-wrap.open');
+    truthy((await page.textContent('#dialog-wrap')).includes('Удалить'), 'delete asks first');
+    await page.click('#d-ok'); await idle();
+    const left = Object.keys(await page.evaluate(() => window.__dns.profiles));
+    eq(2, left.length, 'the selected profiles are deleted in one call');
+    truthy(await page.evaluate(() => window.__dns.calls.some(c => /^dns-delete \S+ \S+/.test(c))), 'with several ids');
+    eq(keep.sort(), (await page.$$eval('#dns-profiles .li-primary', r => r.map(e => e.textContent))).sort(), 'only the unselected ones are left');
+    eq(0, await page.$$eval('#dns-profiles .checkbox', r => r.length), 'and the list is back to normal');
+    await longPress('#dns-profiles .list-item:has-text("Alpha")');
+    await page.evaluate(() => handleBack(true)); await idle();
+    eq('dns', await page.evaluate(() => currentPage), 'back leaves the selection, not the screen');
+    eq(0, await page.$$eval('#dns-profiles .checkbox', r => r.length), 'and restores the switches');
+
+    sect(`${mode}: scroll position`);
+    await page.evaluate(() => scrollTo(0, document.documentElement.scrollHeight)); await idle();
+    const y0 = await page.evaluate(() => scrollY);
+    truthy(y0 > 0, 'the DNS screen is scrolled down');
+    await page.evaluate(() => openDnsProfile(dnsSt.profiles[0].id)); await page.waitForTimeout(900);
+    eq(0, await page.evaluate(() => scrollY), 'a profile opens from the top');
+    await page.evaluate(() => goBack()); await page.waitForTimeout(900);
+    eq(y0, await page.evaluate(() => scrollY), 'back returns to the same place in the list');
+    await page.evaluate(() => goBack()); await page.waitForTimeout(900);
+    eq('settings', await page.evaluate(() => currentPage), 'back to settings');
+    await page.evaluate(() => navigate('dns')); await page.waitForTimeout(900);
+
     sect(`${mode}: standalone`);
     // профиль с доменами, чтобы было что применять
     await page.evaluate(() => { window.__dns.profiles.xbox = window.__dns.profiles.xbox.replace('ENABLED=0', 'ENABLED=1') + '\nDOMAIN=chatgpt.com'; });
@@ -268,7 +319,7 @@ function truthy(cond, msg) { cond ? ok(msg) : fail(msg); }
     sect(`${mode}: English`);
     await page.evaluate(() => setLanguage('en')); await idle();
     const txt = await page.textContent('[data-page="dns"]');
-    truthy(!/[А-Яа-яЁё]/.test(txt), 'no Russian text left on the screen in English');
+    truthy(!/[А-Яа-яЁё]/.test(txt), 'no Russian text left on the screen in English' + ((txt.match(/[^.\n]*[А-Яа-яЁё][^.\n]*/g) || []).slice(0, 3).join(' | ') ? ': ' + (txt.match(/[А-Яа-яЁё][^\n]{0,40}/g) || []).slice(0, 3).join(' | ') : ''));
     await page.evaluate(() => setLanguage('ru')); await idle();
 
     eq([], errors, 'no page errors');

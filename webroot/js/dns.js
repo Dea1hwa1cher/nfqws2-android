@@ -85,6 +85,8 @@ function dnsParseDomains(text){
 
 /* ── Состояние ──────────────────────────────────────────────────────────── */
 let dnsSt = {status: {}, profiles: [], presets: []}, dnsLoaded = false, dnsCur = null;
+/* Выбор профилей (долгое нажатие): null — обычный список, иначе Set id */
+let dnsSel = null;
 
 /* Ответ dns-state: #status (ключ=значение), затем #profile/#preset с содержимым файлов */
 function parseDnsState(out){
@@ -148,6 +150,7 @@ function dnsProfileSummary(p){
 
 /* ══ ЭКРАН «DNS по профилям» ════════════════════════════════════════════ */
 async function dnsInit(){
+  if(dnsSel) dnsSelExit(true);
   if(!dnsLoaded) renderDns();
   if(await loadDnsState()) renderDns();
 }
@@ -226,19 +229,95 @@ function renderDns(){
     false);
   const max = dnsMax('profiles', 32);
   $('dns-count').textContent = dnsSt.profiles.length ? dnsSt.profiles.length + ' / ' + max : '';
-  setHTML('dns-profiles', dnsSt.profiles.length ? dnsSt.profiles.map(p =>
-    '<div class="list-item two-line clickable state" role="button" tabindex="0" onclick="openDnsProfile(' + jsArg(p.id) + ')">' +
+  setHTML('dns-profiles', dnsSt.profiles.length ? dnsSt.profiles.map(p => {
+    const sel = dnsSel && dnsSel.has(p.id);
+    return '<div class="list-item two-line clickable state' + (sel ? ' selected' : '') + '" role="button" tabindex="0" data-id="' + esc(p.id) + '"' +
+        (dnsSel ? ' aria-pressed="' + !!sel + '"' : '') + ' onclick="dnsRowClick(' + jsArg(p.id) + ')">' +
       '<span class="li-icon">' + icon('dns', 's24') + '</span>' +
       '<span class="li-text"><span class="li-primary truncate">' + esc(p.name) + '</span>' +
         '<span class="li-secondary truncate">' + esc(dnsProfileSummary(p)) + '</span></span>' +
-      '<span class="li-trail"><input type="checkbox" class="switch" role="switch"' + (p.enabled ? ' checked' : '') +
-        ' aria-label="' + esc(t('Профиль «{0}» включён', p.name)) + '" onclick="event.stopPropagation()"' +
-        ' onchange="toggleDnsProfile(' + jsArg(p.id) + ', this.checked, this)"></span>' +
-    '</div>').join('')
+      '<span class="li-trail">' + (dnsSel
+        ? '<input type="checkbox" class="checkbox" tabindex="-1" aria-hidden="true"' + (sel ? ' checked' : '') + ' onclick="event.preventDefault()">'
+        : '<input type="checkbox" class="switch" role="switch"' + (p.enabled ? ' checked' : '') +
+          ' aria-label="' + esc(t('Профиль «{0}» включён', p.name)) + '" onclick="event.stopPropagation()"' +
+          ' onchange="toggleDnsProfile(' + jsArg(p.id) + ', this.checked, this)">') + '</span>' +
+    '</div>';
+  }).join('')
     : '<div class="empty"><span class="empty-icon">' + icon('dns', 's24') + '</span><span>' +
       esc(t('Профилей пока нет. Добавьте свой или возьмите готовый из пресетов.')) + '</span></div>', false);
   $('dns-add').disabled = dnsSt.profiles.length >= max;
 }
+
+/* ── Выбор нескольких профилей ─────────────────────────────────────────
+   Долгое нажатие на профиль включает выбор: переключатели становятся
+   флажками, в верхней панели — «выбрать все», «отмена» и «удалить».
+   «Назад» и «отмена» возвращают обычный список. */
+function dnsRowClick(id){
+  if(dnsLongFired){ dnsLongFired = false; return; }
+  if(!dnsSel) return openDnsProfile(id);
+  if(dnsSel.has(id)) dnsSel.delete(id); else dnsSel.add(id);
+  if(!dnsSel.size) return dnsSelExit();
+  dnsSelRender();
+}
+function dnsSelEnter(id){
+  dnsSel = new Set([id]);
+  dnsSelRender();
+  scheduleSync();
+}
+function dnsSelExit(quiet){
+  dnsSel = null;
+  if(quiet || currentPage !== 'dns') return;
+  renderAppBar('dns', false);
+  renderDns();
+  scheduleSync();
+}
+function dnsSelRender(){
+  $('app-title').textContent = t('Выбрано: {0}', dnsSel.size);
+  const all = dnsSt.profiles.length && dnsSt.profiles.every(p => dnsSel.has(p.id));
+  fillBarActions([
+    {icon: 'select-all', label: all ? 'Снять выбор' : 'Выбрать все', fn: dnsSelAll},
+    {icon: 'close', label: 'Отменить выбор', fn: () => dnsSelExit()},
+    {icon: 'trash', label: 'Удалить выбранные', fn: dnsSelDelete}
+  ]);
+  renderDns();
+}
+function dnsSelAll(){
+  if(dnsSt.profiles.every(p => dnsSel.has(p.id))) return dnsSelExit();
+  dnsSt.profiles.forEach(p => dnsSel.add(p.id));
+  dnsSelRender();
+}
+async function dnsSelDelete(){
+  const ps = dnsSt.profiles.filter(p => dnsSel.has(p.id));
+  if(!ps.length) return;
+  const one = ps.length === 1;
+  const yes = await mdConfirm(one ? t('Удалить профиль?') : t('Удалить профили: {0}?', ps.length),
+    one ? t('Профиль «{0}» со всеми серверами и доменами будет удалён.', ps[0].name)
+        : t('Будут удалены со всеми серверами и доменами: {0}.', ps.map(p => '«' + p.name + '»').join(', ')),
+    {ok: t('Удалить'), danger: true});
+  if(!yes) return;
+  const r = await withBusy(['dns-delete'].concat(ps.map(p => p.id)), 40000);
+  if(r.code){ toast(errText(r, 'Не удалось удалить')); return; }
+  await loadDnsState();
+  dnsSelExit();
+  toast(one ? t('Профиль «{0}» удалён', ps[0].name) : t('Удалено профилей: {0}', ps.length));
+}
+/* Долгое нажатие: 500 мс без сдвига пальца; click после него гасится */
+let dnsLongFired = false;
+(function bindDnsLongPress(){
+  const box = $('dns-profiles');
+  let tm = 0, x0 = 0, y0 = 0;
+  const cancel = () => { clearTimeout(tm); tm = 0; };
+  box.addEventListener('pointerdown', e => {
+    const row = e.target.closest('.list-item[data-id]');
+    cancel(); dnsLongFired = false;
+    if(!row || dnsSel || e.target.closest('.switch')) return;
+    x0 = e.clientX; y0 = e.clientY;
+    tm = setTimeout(() => { tm = 0; dnsLongFired = true; dnsSelEnter(row.dataset.id); }, 500);
+  });
+  box.addEventListener('pointermove', e => { if(tm && Math.hypot(e.clientX - x0, e.clientY - y0) > 10) cancel(); });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => box.addEventListener(ev, cancel));
+  box.addEventListener('contextmenu', e => { if(e.target.closest('.list-item[data-id]')) e.preventDefault(); });
+})();
 
 function openDnsLog(){ logSource = 'dns'; store.set('nfq_log_src', 'dns'); navigate('logs'); }
 

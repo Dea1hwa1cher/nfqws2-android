@@ -451,9 +451,13 @@ function renderAppBar(page, animate){
   const tEl = $('app-title');
   tEl.textContent = t(m.title);
   if(animate !== false && !isAnimationsDisabled()){ tEl.classList.remove('swap'); void tEl.offsetWidth; tEl.classList.add('swap'); }
+  fillBarActions(m.actions);
+}
+/* Кнопки справа в верхней панели; экран может подменить их на время (выбор профилей DNS) */
+function fillBarActions(actions){
   const box = $('bar-actions');
   box.innerHTML = '';
-  (m.actions || []).forEach(a => {
+  (actions || []).forEach(a => {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'icon-btn state';
@@ -461,6 +465,7 @@ function renderAppBar(page, animate){
     b.setAttribute('aria-label', t(a.label));
     b.innerHTML = icon(a.icon, 's24');
     b.onclick = a.fn;
+    if(a.disabled) b.disabled = true;
     box.append(b);
   });
 }
@@ -475,6 +480,9 @@ function renderNavBar(page){
    поток занят (exec-фолбэк), таймер успевал сработать раньше первого кадра
    и срезал анимацию — экран появлялся рывком. Запасной таймер остаётся на
    случай, когда событие не придёт (reduced motion, скрытая вкладка). */
+/* Прокрутка экранов: уходя, экран запоминает её; вперёд (в дочерний экран)
+   открываем с начала, а назад и по вкладкам — там, где пользователь был. */
+const pageScroll = {};
 function showPage(page, mode){
   if(transitionCleanup) transitionCleanup();
   const from = document.querySelector('.page.active');
@@ -491,8 +499,9 @@ function showPage(page, mode){
   }
   to.classList.add('active');
   if(animate) to.classList.add('enter-' + mode);
-  scrollTo(0, 0);
-  $('app-bar').classList.remove('scrolled');
+  const y = mode === 'forward' ? 0 : (pageScroll[page] || 0);
+  scrollTo(0, y);
+  $('app-bar').classList.toggle('scrolled', scrollY > 8);
   let timer = 0;
   const onEnd = e => { if(e.target === to && e.animationName === 'fade-in') cleanup(); };
   const cleanup = () => {
@@ -520,16 +529,29 @@ function navigate(page){
   closeMenu();
   const d0 = pageDepth(currentPage), d1 = pageDepth(page);
   const mode = d1 > d0 ? 'forward' : (d1 < d0 ? 'back' : 'fade');
+  pageScroll[currentPage] = scrollY;
+  if(mode === 'forward') delete pageScroll[page];
   currentPage = page;
   if(!PAGE_META[page].child) lastTop = page;
   renderNavBar(page);
   renderAppBar(page);
   showPage(page, mode);
   const target = page;
-  afterTransition(() => { if(currentPage === target) PAGE_META[target].init(); });
+  afterTransition(() => {
+    if(currentPage !== target) return;
+    // Экран мог быть короче до загрузки данных — тогда прокрутка упёрлась
+    // в его конец; дотягиваем, если пользователь за это время не листал.
+    const want = pageScroll[target] || 0, had = scrollY;
+    Promise.resolve(PAGE_META[target].init()).then(() => {
+      if(currentPage === target && want > had && scrollY === had) scrollTo(0, want);
+    }).catch(() => {});
+  });
   scheduleSync();
 }
-function goBack(){ navigate(PAGE_META[currentPage].parent || lastTop); }
+function goBack(){
+  if(dnsSel && currentPage === 'dns') return dnsSelExit();
+  navigate(PAGE_META[currentPage].parent || lastTop);
+}
 document.querySelectorAll('.nav-dest').forEach(b => { b.onclick = () => navigate(b.dataset.page); });
 
 /* ── Режим разработчика: долгое нажатие на кнопку настроек ───────────────
@@ -604,6 +626,7 @@ function handleBack(allowExit){
   if($('dialog-wrap').classList.contains('open')){ dialogResolve(false); return true; }
   if($('editor-panel').classList.contains('open')){ closeSlideEditor(); return true; }
   if(openSheetId){ closeSheet(); return true; }
+  if(dnsSel && currentPage === 'dns'){ dnsSelExit(); return true; }
   if(PAGE_META[currentPage].child){ goBack(); return true; }
   if(allowExit && currentPage !== 'control'){ navigate('control'); return true; }
   return false;
@@ -636,6 +659,7 @@ let histDepth = (history.state && history.state.nfq) || 0, histPending = false, 
 function uiLayers(){
   let n = pageDepth(currentPage) + (PAGE_META[currentPage].child ? (lastTop !== 'control' ? 1 : 0) : (currentPage !== 'control' ? 1 : 0));
   if(openSheetId) n++;
+  if(dnsSel && currentPage === 'dns') n++;
   if(editorCtx) n++;
   if($('dialog-wrap').classList.contains('open')) n++;
   if(openMenuEntry) n++;
@@ -730,3 +754,46 @@ function initSheetDrag(sheet){
   zone.addEventListener('click', () => { if(dragged){ dragged = false; return; } closeSheet(); });
 }
 document.querySelectorAll('.sheet').forEach(initSheetDrag);
+
+/* ── Лист со списком: смахивание вниз с любого места, как ящик приложений Pixel ──
+   Список в начале и палец пошёл вниз — тянется сам лист, и отпущенный ниже
+   порога (или брошенный вниз) он закрывается. Список прокручен или жест
+   начался вверх — обычная прокрутка до конца касания. */
+function initSheetSwipe(sheet){
+  const list = sheet.querySelector('.sheet-scroll');
+  if(!list) return;
+  let y0 = 0, t0 = 0, lastY = 0, lastT = 0, v = 0, state = '';   // '' | 'wait' | 'drag' | 'scroll'
+  sheet.addEventListener('touchstart', e => {
+    state = '';
+    if(e.touches.length !== 1 || e.target.closest('.sheet-drag')) return;
+    y0 = lastY = e.touches[0].clientY; t0 = lastT = e.timeStamp; v = 0;
+    state = list.scrollTop <= 0 ? 'wait' : 'scroll';
+  }, {passive: true});
+  sheet.addEventListener('touchmove', e => {
+    if(!state || state === 'scroll') return;
+    const y = e.touches[0].clientY, dy = y - y0;
+    if(state === 'wait'){
+      if(dy < 0 || list.scrollTop > 0){ state = 'scroll'; return; }
+      // Вниз от начала списка прокручивать некуда: забираем жест сразу, пока
+      // браузер не начал свою прокрутку (после неё touchmove не отменить)
+      if(e.cancelable) e.preventDefault();
+      if(dy < 8) return;
+      state = 'drag'; y0 = y; sheet.style.transition = 'none';
+    }
+    if(e.cancelable) e.preventDefault();
+    if(e.timeStamp > lastT){ v = (y - lastY) / (e.timeStamp - lastT); lastY = y; lastT = e.timeStamp; }
+    sheet.style.transform = 'translateY(' + Math.max(0, y - y0) + 'px)';
+  }, {passive: false});
+  const end = e => {
+    if(state !== 'drag'){ state = ''; return; }
+    state = '';
+    if(e.cancelable) e.preventDefault();                 // отпущенный жест — не нажатие
+    const dy = Math.max(0, lastY - y0);
+    sheet.style.transition = '';
+    if(e.type === 'touchend' && (dy > Math.min(120, sheet.offsetHeight * .25) || (v > .5 && dy > 24))) requestAnimationFrame(() => closeSheet());
+    else sheet.style.transform = '';
+  };
+  sheet.addEventListener('touchend', end, {passive: false});
+  sheet.addEventListener('touchcancel', end);
+}
+document.querySelectorAll('.sheet.list-sheet').forEach(initSheetSwipe);

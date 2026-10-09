@@ -536,5 +536,13 @@ EN = {
  "DNS включён": "DNS on",
  "DNS выключен": "DNS off",
  "Журнал DNS": "DNS log",
- "Запуски, перезапуски и ошибки dnsproxy": "dnsproxy starts, restarts and errors"
+ "Запуски, перезапуски и ошибки dnsproxy": "dnsproxy starts, restarts and errors",
+ "Выбрано: {0}": "Selected: {0}",
+ "Снять выбор": "Deselect all",
+ "Выбрать все": "Select all",
+ "Отменить выбор": "Cancel selection",
+ "Удалить выбранные": "Delete selected",
+ "Удалить профили: {0}?": "Delete {0} profiles?",
+ "Будут удалены со всеми серверами и доменами: {0}.": "These will be deleted with all their servers and domains: {0}.",
+ "Удалено профилей: {0}": "Profiles deleted: {0}"
 };
