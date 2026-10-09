@@ -75,7 +75,6 @@ set_defaults() {
   : "${LOG_MAX_KB:=512}"
   : "${PKT_LIMIT_OUT:=15}"
   : "${PKT_LIMIT_IN:=15}"
-  : "${WAKELOCK:=0}"
   : "${HOME_WIFI:=0}"
   : "${ENABLE_HOTSPOT:=1}"
   : "${NET_STRATEGY:=0}"
@@ -115,7 +114,7 @@ rotate_file() {
 
 rotate_logs() {
   local max=$(( ${LOG_MAX_KB:-512} * 1024 )) f
-  for f in "$SERVICE_LOG" "$NFQWS_LOG" "$LOG_DIR/auto.log"; do rotate_file "$f" "$max"; done
+  for f in "$SERVICE_LOG" "$NFQWS_LOG" "$LOG_DIR/auto.log" "$LOG_DIR/dns.log"; do rotate_file "$f" "$max"; done
   if [ "$1" = "start" ]; then
     f="$LOG_DIR/nfqws2-debug.log"
     # truncate when debug on, rotate when off; && ... || would rotate on failed truncate
@@ -627,15 +626,10 @@ protect_process() {   # $1 - PID; default: current process
   return 0
 }
 
-# Partition wakelock blocks deep sleep while the service runs; costs battery, so
-# opt-in only (WAKELOCK=1). The name must match the module.prop id exactly or the
-# lock is never released (checked by test_data.sh).
-acquire_wakelock() {
-  [ "$WAKELOCK" = "1" ] || return 0
-  [ -w /sys/power/wake_lock ] 2>/dev/null && echo "nfqws2-android" > /sys/power/wake_lock 2>/dev/null
-  return 0
-}
-# release regardless of WAKELOCK: a stale lock is never freed otherwise
+# Параметр (partial wakelock на время работы) убран в v1.9.7. Лок в
+# ядре не привязан к процессу и пережил бы обновление у тех, у кого он был
+# включён, поэтому остановка службы и удаление модуля его по-прежнему снимают.
+# Имя — id из module.prop (проверяет test_data.sh).
 release_wakelock() {
   [ -w /sys/power/wake_unlock ] 2>/dev/null || return 0
   echo "nfqws2-android" > /sys/power/wake_unlock 2>/dev/null
@@ -656,10 +650,8 @@ system_config() {
   # Values proven stable on the reference router (1200 / 16384). Android defaults
   # can expire idle long-lived connections; their packets then look INVALID and
   # are silently dropped.
-  local cur_est cur_max
-  cur_est=$(sysctl -n net.netfilter.nf_conntrack_tcp_timeout_established 2>/dev/null)
+  local cur_max
   cur_max=$(sysctl -n net.netfilter.nf_conntrack_max 2>/dev/null)
-  [ -n "$cur_est" ] && log_msg "conntrack: nf_conntrack_tcp_timeout_established было $cur_est, ставим 1200 (как на эталонном роутере)"
   sysctl -w net.netfilter.nf_conntrack_tcp_timeout_established=1200 >/dev/null 2>&1
   if [ -n "$cur_max" ] && [ "$cur_max" -lt 16384 ] 2>/dev/null; then
     log_msg "conntrack: nf_conntrack_max было $cur_max, поднимаем до 16384 (как на эталонном роутере)"
@@ -875,7 +867,7 @@ render_strategy() {
 
 # Module settings (same across strategies) are carried over whole from the live
 # config on strategy change/reset. NFQWS_EXTRA_ARGS only for standard $MODE_* refs.
-USER_KEYS="IPV6_ENABLED TCP_PORTS UDP_PORTS NFQUEUE_NUM PKT_LIMIT_OUT PKT_LIMIT_IN BLOCK_QUIC NAT_FIX APP_MODE AUTOSTART WATCHDOG NFQWS_USER LOG_LEVEL LOG_MAX_KB WAKELOCK HOME_WIFI ENABLE_HOTSPOT NET_STRATEGY NFQWS_EXTRA_ARGS"
+USER_KEYS="IPV6_ENABLED TCP_PORTS UDP_PORTS NFQUEUE_NUM PKT_LIMIT_OUT PKT_LIMIT_IN BLOCK_QUIC NAT_FIX APP_MODE AUTOSTART WATCHDOG NFQWS_USER LOG_LEVEL LOG_MAX_KB HOME_WIFI ENABLE_HOTSPOT NET_STRATEGY NFQWS_EXTRA_ARGS"
 merge_user_keys() { # <generated config> <settings source config>  -> stdout
   awk -v keys=" $USER_KEYS " -v src="$2" '
     function quotes(str,   t) { t = str; return gsub(/"/, "", t) }
@@ -912,12 +904,20 @@ merge_user_keys() { # <generated config> <settings source config>  -> stdout
 # ---------------------------------------------------------------- home Wi-Fi
 # Current SSID, rc 1 if not on Wi-Fi. cmd wifi needs Android 11; dumpsys is the fallback.
 current_ssid() {
-  local s
-  s=$(cmd wifi status 2>/dev/null | sed -n 's/^Wifi is connected to "\(.*\)"[[:space:]]*$/\1/p' | head -n1)
-  if [ -z "$s" ]; then
-    s=$(dumpsys wifi 2>/dev/null | grep -m1 'mWifiInfo SSID: .*Supplicant state: COMPLETED' \
-        | sed -e 's/.*mWifiInfo SSID: //' -e 's/, BSSID:.*//' -e 's/^"\(.*\)"$/\1/')
-  fi
+  local out s
+  out=$(cmd wifi status 2>/dev/null)
+  case "$out" in
+    *"Wifi is "*)
+      # cmd wifi отвечает — ему и верим: нет «connected to» значит не подключено.
+      # Раньше тут откатывались к dumpsys wifi, а в нём лежит история недавних
+      # состояний: сразу после ухода из дома первой находилась старая запись о
+      # домашней сети, и пауза оставалась на мобильном интернете.
+      s=$(printf '%s\n' "$out" | sed -n 's/^Wifi is connected to "\(.*\)"[[:space:]]*$/\1/p' | head -n1) ;;
+    *)
+      # старые Android без cmd wifi status
+      s=$(dumpsys wifi 2>/dev/null | grep -m1 'mWifiInfo SSID: .*Supplicant state: COMPLETED' \
+          | sed -e 's/.*mWifiInfo SSID: //' -e 's/, BSSID:.*//' -e 's/^"\(.*\)"$/\1/') ;;
+  esac
   case "$s" in ''|'<unknown ssid>'|'<none>'|0x) return 1 ;; esac
   printf '%s' "$s"
 }

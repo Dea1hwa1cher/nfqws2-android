@@ -30,7 +30,7 @@ assert_contains "$ctl_out" '"pid":""' "reports an empty pid"
 assert_contains "$ctl_out" '"uptime":0' "reports uptime 0"
 
 for key in running pid uptime strategy version mode limiter pkt_limit_out pkt_limit_in \
-           block_quic app_mode autostart watchdog wakelock_on ipv6 log_level qdrop queue \
+           block_quic app_mode autostart watchdog ipv6 log_level qdrop queue \
            app_uids counts; do
   assert_contains "$ctl_out" "\"$key\":" "json-status exposes $key"
 done
@@ -51,7 +51,7 @@ section "json-status: numeric fields stay numeric"
 
 # These are spliced into the JSON without quotes; a non-numeric value would make
 # the whole document unparseable and take the WebUI down with it.
-for key in pkt_limit_out pkt_limit_in block_quic autostart watchdog wakelock_on ipv6 log_level qdrop queue app_uids; do
+for key in pkt_limit_out pkt_limit_in block_quic autostart watchdog ipv6 log_level qdrop queue app_uids; do
   assert_match "$ctl_out" "\"$key\":[0-9]+" "$key is emitted as a bare number"
 done
 

@@ -119,7 +119,7 @@ if (status) {
 
   // Fields the WebUI compares or does arithmetic on must be numbers.
   const numeric = ['pkt_limit_out', 'pkt_limit_in', 'block_quic', 'autostart', 'watchdog',
-    'wakelock_on', 'ipv6', 'log_level', 'qdrop', 'queue', 'app_uids', 'uptime'];
+    'ipv6', 'log_level', 'qdrop', 'queue', 'app_uids', 'uptime'];
   const notNumbers = numeric.filter(k => typeof status[k] !== 'number');
   empty(notNumbers, 'every field the WebUI compares numerically is a JSON number');
 

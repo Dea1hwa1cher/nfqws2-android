@@ -155,7 +155,7 @@ async function resetStrategy(name){
 /* Строки-переключатели — однострочные: только заголовок и сам переключатель.
    Описания под ними владелец считает лишними, они ломают ритм списка.
    На главном — только то, что действительно нужно пользователю; служебное
-   (контроль работы, wakelock, лимиты) — в блоке разработчика. */
+   (контроль работы, лимиты) — в блоке разработчика. */
 const SW = [
   ['AUTOSTART', 'Автозапуск при загрузке', 'autostart'],
   ['IPV6_ENABLED', 'Обрабатывать IPv6', 'ipv6'],
@@ -163,8 +163,7 @@ const SW = [
   ['ENABLE_HOTSPOT', 'Точка доступа с nfqws2', 'enable_hotspot']
 ];
 const DEV_SW = [
-  ['WATCHDOG', 'Watchdog', 'watchdog'],
-  ['WAKELOCK', 'Wakelock', 'wakelock_on']
+  ['WATCHDOG', 'Watchdog', 'watchdog']
 ];
 const LIMITS = [
   ['PKT_LIMIT_OUT', 'Исходящие пакеты', 'Сколько первых пакетов соединения обрабатывать', 'pkt_limit_out'],
@@ -179,13 +178,15 @@ function banner(kind, ic, text){
 let svcBusy = '';
 function renderHeroActions(){
   const run = !!S.running, bt = $('bt'), rs = $('bt-restart');
-  const busyLabel = {start: t('Запуск…'), stop: t('Остановка…'), restart: t('Перезапуск…')}[svcBusy];
+  const busyLabel = {start: t('Запуск…'), stop: t('Остановка…'), restart: t('Перезапуск…'), 'home-pause': t('Пауза…')}[svcBusy];
   bt.disabled = !!svcBusy;
   bt.classList.toggle('with-icon', !!svcBusy);
   bt.innerHTML = busyLabel
     ? '<span class="spinner"></span><span>' + esc(busyLabel) + '</span>'
     : '<span>' + esc(run ? t('Остановить') : t('Запустить')) + '</span>';
   rs.hidden = !run || !!svcBusy;
+  // Пауза — только когда обход запущен вручную в домашней сети
+  $('bt-pause').hidden = !run || !!svcBusy || !S.home_override;
 }
 
 function switchRow(k, label, on){
@@ -222,14 +223,11 @@ function renderStatus(){
   if(j.strategy) currentStrategy = j.strategy;
   $('hero-status').className = 'hero' + (j.running ? ' running' : (paused ? ' paused' : ''));
   $('st').textContent = j.running ? t('Служба работает') : (paused ? t('Пауза') : t('Служба остановлена'));
-  const lim = {connbytes: t('лимит connbytes'), connmark_out: t('лимит connmark')}[j.limiter] || '';
+  // В extended вместо лимита (он зависит от ядра и виден в «Диагностике») — состояние DNS
+  const dns = j.dns_available == 1 ? ' · ' + (j.dns_enabled == 1 ? t('DNS включён') : t('DNS выключен')) : '';
   $('sub').textContent = paused
     ? t('Домашняя Wi‑Fi «{0}». Обход возобновится, когда телефон уйдёт из этой сети.', j.paused)
-    : t('Режим') + ' ' + (j.mode || '—') + (j.running && lim ? ', ' + lim : '');
-  $('queue-num').textContent = j.running ? (j.queue || '—') : '—';
-  const qd = $('qdrop-num');
-  qd.textContent = j.running ? (j.qdrop || 0) : '—';
-  qd.classList.toggle('bad', j.running && j.qdrop > 0);
+    : t('Режим') + ' ' + (j.mode || '—') + dns;
   if(j.running) startUptTimer(j.uptime || 0); else stopUptTimer();
   renderHeroActions();
   renderParams(j);
@@ -255,8 +253,6 @@ async function stat(quiet){
       $('hero-status').className = 'hero offline';
       $('st').textContent = t('Нет связи с модулем');
       $('sub').textContent = t('Проверьте root-доступ и наличие {0}', CTL);
-      $('queue-num').textContent = '—';
-      $('qdrop-num').textContent = '—';
       stopUptTimer();
       renderHeroActions();
       setHTML('warn', banner('danger', 'error', 'json-status: ' + (raw.trim() || t('(пустой ответ)')).slice(0, 200)), false);
@@ -303,9 +299,11 @@ async function act(a){
   renderHeroActions();
   const r = await withBusy([a], 40000);
   svcBusy = '';
-  const ok = {start: 'Служба запущена', stop: 'Служба остановлена', restart: 'Служба перезапущена'}[a];
+  const ok = {start: 'Служба запущена', stop: 'Служба остановлена', restart: 'Служба перезапущена',
+    'home-pause': 'Обход на паузе в домашней Wi‑Fi'}[a];
   toast(r.code ? errText(r, 'Команда не выполнена') : t(ok));
   await stat();
 }
 function toggle(){ act(S.running ? 'stop' : 'start'); }
 function restartSvc(){ act('restart'); }
+function pauseHome(){ act('home-pause'); }

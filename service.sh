@@ -80,19 +80,18 @@ start() {
   fi
 
   system_config
-  acquire_wakelock
   echo 1 > "$DESIRED_FILE"
   log_msg "nfqws2 запущен (PID $pid, Native Daemon)"
   update_description running
   ensure_watchdog
-  dns_start
+  dns_start "запуск службы"
   return 0
 }
 
 stop() {
   rm -f "$DESIRED_FILE" "$STARTED_FILE"
   # DNS «без службы» переживает остановку обхода
-  dns_standalone || dns_stop
+  dns_standalone || dns_stop "остановка службы"
   release_wakelock
   firewall_stop
   if [ -f "$PIDFILE" ]; then
@@ -164,7 +163,7 @@ netwatch() {
 
   EVFILE="$STATE_DIR/netwatch_events"
   rm -f "$EVFILE"
-  local prev="" acted="" backoff=2 saw=0 sz mon
+  local prev="" acted="" backoff=2 saw=0 sz mon up recheck=0
   # The monitor writes events to a file, reaction is on its size changing.
   # A file, not a pipe, so kill -TERM reaps ip monitor itself instead of a
   # wrapper that would leave an orphan. Poll every 2s to spare battery
@@ -188,6 +187,17 @@ netwatch() {
         fi
         break
       fi
+      # Контрольная перепроверка через 30 с после смены сети: в момент события
+      # Wi‑Fi бывает ещё в переходном состоянии (отключается, переподключается),
+      # и решение о паузе, принятое по нему, могло остаться неверным.
+      if [ "$recheck" -gt 0 ]; then
+        read -r up _ < /proc/uptime; up=${up%.*}
+        if [ "$up" -ge "$recheck" ]; then
+          recheck=0
+          home_check
+          network_strategy_check
+        fi
+      fi
       sz=$(wc -c < "$EVFILE" 2>/dev/null)
       case "$sz" in ''|*[!0-9]*) sz=0 ;; esac
       if [ "$sz" != "$prev" ]; then
@@ -205,8 +215,9 @@ netwatch() {
         home_check
         network_strategy_check
         # DNS сети сменился вместе с сетью; работает и без службы
-        dns_enabled && dns_start
+        dns_enabled && dns_start "смена сети"
         acted="$sz"
+        read -r up _ < /proc/uptime; recheck=$(( ${up%.*} + 30 ))
       fi
       [ "$sz" -gt 262144 ] && { kill -TERM "$mon" 2>/dev/null; : > "$EVFILE"; prev=""; acted=""; }
     done
@@ -344,7 +355,7 @@ case "$1" in
   netwatch)           netwatch ;;
   firewall_apply)     firewall_start ;;
   firewall_stop)      firewall_stop ;;
-  dns_apply)          dns_start ;;
+  dns_apply)          dns_start "настройки изменены" ;;
   dns_stop)           dns_stop ;;
   *)
     until [ "$(getprop sys.boot_completed 2>/dev/null)" = "1" ]; do sleep 3; done
@@ -366,7 +377,7 @@ case "$1" in
       update_description stopped
     fi
     # DNS «без службы» поднимается и когда служба не стартовала
-    dns_start
+    dns_start "загрузка"
     ensure_watchdog
     ;;
 esac

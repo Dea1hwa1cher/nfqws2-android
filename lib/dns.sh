@@ -250,14 +250,56 @@ dns_build() {
     echo "--cache"
     echo "--timeout=5s"
     echo "--upstream-mode=load_balance"
+    [ "${LOG_LEVEL:-0}" = 1 ] && echo "-v"
     echo "-o"; echo "$DNS_LOG"
   } > "$DNS_RUN_DIR/args"
   return 0
 }
 
 # ---------------------------------------------------------------- процесс
+# Подробный журнал DNS — тот же файл, куда пишет сам dnsproxy (экран
+# «Журналы» → DNS). В журнал службы идут только включение, выключение и ошибки.
+dns_log() {
+  printf '[%s] nfqws2: %s\n' "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null)" "$*" >> "$DNS_LOG" 2>/dev/null
+}
+
 # Последняя ошибка — для WebUI; снимается при удачном запуске и при выключении
-dns_fail() { log_msg "DNS: $1"; printf '%s\n' "$1" > "$DNS_RUN_DIR/error" 2>/dev/null; return 1; }
+dns_fail() { log_msg "DNS: $1"; dns_log "ошибка: $1"; printf '%s\n' "$1" > "$DNS_RUN_DIR/error" 2>/dev/null; return 1; }
+
+# Блокировка. dns_start/dns_stop/dns_check зовут watchdog, netwatch, запуск
+# службы и WebUI — каждый своим процессом. Без неё два запуска одновременно
+# оставляли «сироту»: второй dnsproxy затирал PID-файл первого, первый держал
+# порт, а watchdog писал «упал — перезапуск» про живой процесс.
+# mkdir атомарен; владелец записан внутри, блокировку умершего — снимаем.
+DNS_LOCK="$STATE_DIR/dns.lock"
+DNS_LOCK_HELD=0
+dns_lock() { # [0 — не ждать]
+  local i=0 owner
+  [ -d "$STATE_DIR" ] || mkdir -p "$STATE_DIR" 2>/dev/null
+  while ! mkdir "$DNS_LOCK" 2>/dev/null; do
+    owner=""
+    [ -f "$DNS_LOCK/pid" ] && IFS= read -r owner < "$DNS_LOCK/pid"
+    if [ -n "$owner" ] && ! kill -0 "$owner" 2>/dev/null; then
+      rm -rf "$DNS_LOCK"; continue
+    fi
+    [ "$1" = 0 ] && return 1
+    # ~15 с: запуск dnsproxy ждёт порт до 4 с, плюс iptables
+    i=$((i + 1)); [ "$i" -ge 75 ] && return 1
+    sleep 0.2
+  done
+  echo $$ > "$DNS_LOCK/pid"
+}
+dns_unlock() { rm -rf "$DNS_LOCK"; }
+_dns_locked() { # <0|1 ждать> <функция> [аргументы]
+  local wait="$1" rc; shift
+  [ "$DNS_LOCK_HELD" = 1 ] && { "$@"; return; }
+  dns_lock "$wait" || return 2
+  DNS_LOCK_HELD=1
+  "$@"; rc=$?
+  DNS_LOCK_HELD=0
+  dns_unlock
+  return $rc
+}
 
 dns_pid() {
   local p=""
@@ -281,11 +323,26 @@ dns_cert_dirs() {
   printf '%s' "$out"
 }
 
+# dnsproxy этого модуля, про которые PID-файл не знает (остались от сбоя или
+# от старой версии без блокировки): держат порт, и новый запуск не поднимется.
+dns_kill_strays() {
+  local p known="" exe
+  known=$(dns_pid)
+  for p in $(pidof dnsproxy 2>/dev/null); do
+    [ "$p" = "$known" ] && continue
+    exe=$(readlink "/proc/$p/exe" 2>/dev/null)
+    [ "$exe" = "$DNS_BIN" ] || continue
+    dns_log "лишний dnsproxy (PID $p) без PID-файла — завершаю"
+    kill -KILL "$p" 2>/dev/null
+  done
+}
+
 dns_proxy_start() {
-  local pid i
+  local pid i listen=0
   [ -x "$DNS_BIN" ] || chmod 0755 "$DNS_BIN" 2>/dev/null
   [ -x "$DNS_BIN" ] || { dns_fail "нет исполняемого $DNS_BIN"; return 1; }
   rotate_file "$DNS_LOG" $(( ${LOG_MAX_KB:-512} * 1024 ))
+  dns_kill_strays
   (
     set -f
     IFS='
@@ -300,14 +357,16 @@ dns_proxy_start() {
   i=0
   while [ "$i" -lt 20 ]; do
     kill -0 "$pid" 2>/dev/null || break
-    grep -qi ":$(printf '%04X' "$DNS_PORT") " /proc/net/udp /proc/net/udp6 2>/dev/null && break
+    grep -qi ":$(printf '%04X' "$DNS_PORT") " /proc/net/udp /proc/net/udp6 2>/dev/null && { listen=1; break; }
     sleep 0.2; i=$((i + 1))
   done
   if ! kill -0 "$pid" 2>/dev/null; then
     rm -f "$DNS_PIDFILE"
-    dns_fail "dnsproxy не запустился: $(tail -n 1 "$DNS_LOG" 2>/dev/null)"
+    dns_fail "dnsproxy не запустился: $(grep -v '] nfqws2: ' "$DNS_LOG" 2>/dev/null | tail -n 1)"
     return 1
   fi
+  if [ "$listen" = 1 ]; then dns_log "dnsproxy запущен, PID $pid, порт $DNS_PORT"
+  else dns_log "dnsproxy запущен (PID $pid), но порт $DNS_PORT за 4 с не открылся — ждём дальше"; fi
   protect_process "$pid"
   cp -f "$DNS_RUN_DIR/upstreams.txt" "$DNS_RUN_DIR/running.upstreams" 2>/dev/null
   cp -f "$DNS_RUN_DIR/args" "$DNS_RUN_DIR/running.args" 2>/dev/null
@@ -316,7 +375,10 @@ dns_proxy_start() {
 
 dns_proxy_stop() {
   local pid
-  pid=$(dns_pid) && { kill -TERM "$pid" 2>/dev/null; sleep 0.3; kill -0 "$pid" 2>/dev/null && kill -KILL "$pid" 2>/dev/null; }
+  pid=$(dns_pid) && {
+    kill -TERM "$pid" 2>/dev/null; sleep 0.3; kill -0 "$pid" 2>/dev/null && kill -KILL "$pid" 2>/dev/null
+    dns_log "dnsproxy (PID $pid) остановлен"
+  }
   rm -f "$DNS_PIDFILE" "$DNS_RUN_DIR/running.upstreams" "$DNS_RUN_DIR/running.args"
 }
 
@@ -387,18 +449,47 @@ dns_boot_reset() {
 # применять (dns_build это решает).
 dns_wanted() { dns_enabled && { dns_standalone || dns_service_up; }; }
 
+# Что будет применено — одной строкой в журнал DNS
+dns_describe() {
+  local def net up rules prof ipv6 pm
+  def=$(dns_default); net=$(cat "$DNS_RUN_DIR/net_dns" 2>/dev/null)
+  rules=$(grep -c '^\[/' "$DNS_RUN_DIR/upstreams.txt" 2>/dev/null)
+  prof=$(grep -l '^ENABLED=1$' "$DNS_PROFILES_DIR"/*.conf 2>/dev/null | sed 's#.*/##; s#\.conf$##' | tr '\n' ' ' | sed 's/ $//')
+  up=$(grep -v '^\[/' "$DNS_RUN_DIR/upstreams.txt" 2>/dev/null | grep . | tr '\n' ' ' | sed 's/ $//')
+  if [ "$def" = net ]; then def="DNS сети"; else def="профиль $def"; fi
+  dns_log "по умолчанию: $def ($up); включённые профили: ${prof:-нет}; правил по доменам: ${rules:-0}; DNS сети: ${net:-не определён}"
+  pm=$(dns_private_mode)
+  case "$pm" in hostname|opportunistic)
+    dns_log "внимание: «Частный DNS» = $pm — запросы через DoT системы идут мимо перехвата" ;;
+  esac
+}
+
 # Идемпотентно: пересобирает конфиг и перезапускает dnsproxy, только если
 # конфиг изменился или процесс не живой. Сбой — без перехвата: лучше DNS
-# сети, чем никакого.
+# сети, чем никакого. Аргумент — причина, для журнала DNS.
 dns_start() {
+  local rc
+  _dns_locked 1 _dns_start "$@"; rc=$?
+  [ "$rc" = 2 ] && { dns_log "запуск (${1:-запрос}) пропущен: другой запуск DNS не завершился за 15 с"; return 1; }
+  return "$rc"
+}
+_dns_start() {
+  local why="${1:-запрос}"
   dns_init
-  if ! dns_wanted || ! dns_build; then dns_stop; return 0; fi
+  if ! dns_wanted; then _dns_stop "$why: не нужен"; return 0; fi
+  if ! dns_build; then _dns_stop "$why: применять нечего — DNS сети и нет включённых профилей"; return 0; fi
   mkdir -p "$DNS_RUN_DIR"
   if dns_pid >/dev/null && cmp -s "$DNS_RUN_DIR/upstreams.txt" "$DNS_RUN_DIR/running.upstreams" &&
      cmp -s "$DNS_RUN_DIR/args" "$DNS_RUN_DIR/running.args"; then
-    dns_rules_ok || dns_rules_add || dns_fail "не удалось восстановить перехват"
+    if ! dns_rules_ok; then
+      dns_log "$why: конфиг тот же, правила перехвата пропали — восстанавливаю"
+      dns_rules_add || dns_fail "не удалось восстановить перехват"
+    fi
     return 0
   fi
+  if dns_pid >/dev/null; then dns_log "$why: конфиг изменился — перезапуск dnsproxy"
+  else dns_log "$why: запуск dnsproxy"; fi
+  dns_describe
   dns_proxy_stop
   if ! dns_proxy_start; then dns_rules_del; return 1; fi
   if ! dns_rules_add; then
@@ -406,13 +497,15 @@ dns_start() {
     dns_proxy_stop
     return 1
   fi
+  dns_log "перехват включён: IPv4 — nat REDIRECT, IPv6 — $(cat "$DNS_RUN_DIR/ipv6" 2>/dev/null)"
   rm -f "$DNS_RUN_DIR/error"
+  [ -f "$DNS_RUN_DIR/active" ] || log_msg "DNS: перехват включён, правил по доменам: $(grep -c '^\[/' "$DNS_RUN_DIR/upstreams.txt" 2>/dev/null)"
   : > "$DNS_RUN_DIR/active"
-  log_msg "DNS: перехват включён, правил по доменам: $(grep -c '^\[/' "$DNS_RUN_DIR/upstreams.txt" 2>/dev/null)"
   return 0
 }
 
-dns_stop() {
+dns_stop() { _dns_locked 1 _dns_stop "$@"; [ $? = 2 ] && return 1; return 0; }
+_dns_stop() {
   local had=0
   { dns_pid >/dev/null || dns_rules_ok; } && had=1
   # Ничего не запущено и правил нет — не тратим вызовы iptables на каждый stop
@@ -420,24 +513,35 @@ dns_stop() {
   dns_rules_del
   dns_proxy_stop
   rm -f "$DNS_RUN_DIR/active" "$DNS_RUN_DIR/error"
-  [ "$had" = 1 ] && log_msg "DNS: перехват выключен"
+  if [ "$had" = 1 ]; then
+    dns_log "перехват выключен (${1:-остановка})"
+    log_msg "DNS: перехват выключен"
+  fi
   return 0
 }
 
 # Тик watchdog: процесс упал или правила снесла система — поднимаем заново.
 # Только то, что уже было запущено (метка active): применять нечего или запуск
 # не удался — каждые 20 с не пробуем, ждём смены сети или настроек.
-dns_check() {
+# Блокировку не ждёт: занята — значит, DNS прямо сейчас запускают или
+# останавливают, и проверять на полпути нечего.
+dns_check() { _dns_locked 0 _dns_check; return 0; }
+_dns_check() {
+  local p=""
   if dns_wanted; then
     [ -f "$DNS_RUN_DIR/active" ] || return 0
     if ! dns_pid >/dev/null; then
-      log_msg "DNS: dnsproxy упал — перезапуск"
-      dns_start
+      [ -f "$DNS_PIDFILE" ] && IFS= read -r p < "$DNS_PIDFILE"
+      dns_log "dnsproxy${p:+ (PID $p)} не работает — перезапуск. Последние строки его вывода — выше"
+      log_msg "DNS: dnsproxy упал — перезапуск (подробности — в журнале DNS)"
+      rm -f "$DNS_PIDFILE"
+      if _dns_start "watchdog"; then log_msg "DNS: dnsproxy перезапущен"; fi
     elif ! dns_rules_ok; then
+      dns_log "watchdog: правила перехвата пропали — восстанавливаю"
       dns_rules_add || dns_fail "не удалось восстановить перехват"
     fi
   elif dns_pid >/dev/null || dns_rules_ok; then
-    dns_stop
+    _dns_stop "watchdog: больше не нужен"
   fi
 }
 

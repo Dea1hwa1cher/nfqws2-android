@@ -177,18 +177,21 @@ cmd_json_status() {
   cnt_user="$1" cnt_auto="$2" cnt_excl="$3" cnt_ipset="$4" cnt_ipset_excl="$5" cnt_apps="$6"
   # нечисловое значение обваливает весь JSON и убивает WebUI, поэтому проверяем каждое поле
   for v in appn cnt_user cnt_auto cnt_excl cnt_ipset cnt_ipset_excl cnt_apps uptime qdrop \
-           PKT_LIMIT_OUT PKT_LIMIT_IN BLOCK_QUIC AUTOSTART WATCHDOG IPV6_ENABLED LOG_LEVEL NFQUEUE_NUM WAKELOCK HOME_WIFI ENABLE_HOTSPOT NET_STRATEGY; do
+           PKT_LIMIT_OUT PKT_LIMIT_IN BLOCK_QUIC AUTOSTART WATCHDOG IPV6_ENABLED LOG_LEVEL NFQUEUE_NUM HOME_WIFI ENABLE_HOTSPOT NET_STRATEGY; do
     eval "case \"\${$v}\" in ''|*[!0-9]*) $v=0 ;; esac"
   done
 
   # Сборка extended: есть dnsproxy — WebUI показывает «DNS по профилям»
-  local dnsav=0
+  local dnsav=0 dnson=0 override=""
   [ -f "$DNS_BIN" ] && dnsav=1
+  dns_enabled && dnson=1
+  # Обход запущен вручную в домашней сети — WebUI предлагает вернуть паузу
+  [ -f "$HOME_OVERRIDE_FILE" ] && IFS= read -r override < "$HOME_OVERRIDE_FILE"
   cat <<JSON
 {"running":$run,"pid":"$pid","uptime":$uptime,"strategy":"$(json_str "$cur_strat")","version":"$(json_str "$ver")","mode":"$(json_str "$(current_mode)")",
-"limiter":"$(json_str "$(cat "$STATE_DIR/limiter" 2>/dev/null)")","pkt_limit_out":$PKT_LIMIT_OUT,"pkt_limit_in":$PKT_LIMIT_IN,"block_quic":$BLOCK_QUIC,"app_mode":"$(json_str "$APP_MODE")","autostart":$AUTOSTART,"watchdog":$WATCHDOG,"wakelock_on":$WAKELOCK,
+"limiter":"$(json_str "$(cat "$STATE_DIR/limiter" 2>/dev/null)")","pkt_limit_out":$PKT_LIMIT_OUT,"pkt_limit_in":$PKT_LIMIT_IN,"block_quic":$BLOCK_QUIC,"app_mode":"$(json_str "$APP_MODE")","autostart":$AUTOSTART,"watchdog":$WATCHDOG,
 "ipv6":$IPV6_ENABLED,"log_level":$LOG_LEVEL,"qdrop":$qdrop,"queue":$NFQUEUE_NUM,"app_uids":$appn,
-"home_wifi":$HOME_WIFI,"enable_hotspot":$ENABLE_HOTSPOT,"net_strategy":$NET_STRATEGY,"dns_available":$dnsav,"paused":"$(json_str "$paused")","pending":"$(json_str "$pending")",
+"home_wifi":$HOME_WIFI,"enable_hotspot":$ENABLE_HOTSPOT,"net_strategy":$NET_STRATEGY,"dns_available":$dnsav,"dns_enabled":$dnson,"home_override":"$(json_str "$override")","paused":"$(json_str "$paused")","pending":"$(json_str "$pending")",
 "counts":{"user":$cnt_user,"auto":$cnt_auto,"exclude":$cnt_excl,"ipset":$cnt_ipset,"ipset_exclude":$cnt_ipset_excl,"apps":$cnt_apps}}
 JSON
 }
@@ -285,13 +288,6 @@ cmd_doctor() {
   else
     row info process "$(M 'не запущен' 'not running')"
     row info "$(M 'ОЗУ' 'RAM')" "$(M 'не запущен' 'not running')"
-  fi
-  if grep -q "nfqws2-android" /sys/power/wake_lock 2>/dev/null; then
-    row ok wakelock "$(M удерживается held)"
-  elif [ "$WAKELOCK" = "1" ]; then
-    row warn wakelock "$(M 'включён в настройках, но не удерживается' 'enabled in settings, but not held')"
-  else
-    row info wakelock "$(M выключен off)"
   fi
   if [ -f "$WN_PIDFILE" ] && kill -0 "$(cat "$WN_PIDFILE" 2>/dev/null)" 2>/dev/null; then
     row ok netwatch "$(M 'работает: мгновенная реакция на смену сети' 'running: instant reaction to network changes')"
@@ -394,7 +390,7 @@ cmd_import_add() { # $1 = имя, $2 = путь к файлу с содержи�
 }
 
 # Строки, которые фильтр «Ошибки» в WebUI считает ошибками
-ERR_RE='ошибк|не удал|не запуст|упал|отсутству|отклон|error|fail|fatal|denied|refused|cannot|could not|unable'
+ERR_RE='ошибк|не удал|не запуст|упал|не работает|отсутству|отклон|error|fail|fatal|denied|refused|cannot|could not|unable'
 
 cmd_get_logs() { # <источник> <строк> [errors]
   local n="${2:-100}" f
@@ -402,7 +398,7 @@ cmd_get_logs() { # <источник> <строк> [errors]
   [ "$1" = "summary" ] && { cmd_log_summary; return; }
   case "$1" in
     nfqws) f="$NFQWS_LOG" ;; debug) f="$LOG_DIR/nfqws2-debug.log" ;; auto) f="$LOG_DIR/auto.log" ;;
-    args) f="$ARGS_FILE" ;; *) f="$SERVICE_LOG" ;;
+    args) f="$ARGS_FILE" ;; dns) f="$LOG_DIR/dns.log" ;; *) f="$SERVICE_LOG" ;;
   esac
   if [ ! -s "$f" ]; then echo "$(M '(пусто)' '(empty)')"; return 0; fi
   if [ "$3" = "errors" ]; then
@@ -1094,7 +1090,7 @@ case "$1" in
 
   set)
     case "$2" in
-      BLOCK_QUIC|AUTOSTART|WATCHDOG|IPV6_ENABLED|NAT_FIX|LOG_LEVEL|WAKELOCK|HOME_WIFI|ENABLE_HOTSPOT|NET_STRATEGY) case "$3" in 0|1) ;; *) echo "Допустимо 0 или 1" >&2; exit 1 ;; esac ;;
+      BLOCK_QUIC|AUTOSTART|WATCHDOG|IPV6_ENABLED|NAT_FIX|LOG_LEVEL|HOME_WIFI|ENABLE_HOTSPOT|NET_STRATEGY) case "$3" in 0|1) ;; *) echo "Допустимо 0 или 1" >&2; exit 1 ;; esac ;;
       PKT_LIMIT_OUT|PKT_LIMIT_IN) case "$3" in [1-9]|1[0-5]) ;; *) echo "Допустимо 1..15" >&2; exit 1 ;; esac ;;
       APP_MODE) case "$3" in off|include|exclude) ;; *) echo "off|include|exclude" >&2; exit 1 ;; esac ;;
       *) echo "Параметр $2 нельзя менять этой командой" >&2; exit 1 ;;
@@ -1115,6 +1111,12 @@ case "$1" in
   get-logs) cmd_get_logs "$2" "$3" "$4" ;;
   export-logs) cmd_export_logs ;;
   wifi-ssid) current_ssid || exit 1 ;;
+  # Вернуть паузу после ручного запуска в домашней сети: забыть ручной запуск,
+  # и home_check снова поставит обход на паузу, если телефон всё ещё дома
+  home-pause)
+    rm -f "$HOME_OVERRIDE_FILE"
+    sh "$SERVICE" home_check >/dev/null 2>&1
+    [ -f "$HOME_PAUSED_FILE" ] && echo OK || { echo "$(M 'Телефон уже не в домашней сети' 'The phone is no longer on home Wi‑Fi')" >&2; exit 1; } ;;
   current-network) current_network_title 2>/dev/null || echo "unknown" ;;
   list-net-strategies) list_net_strategies ;;
   clear-net-strategies) clear_net_strategies; echo OK ;;
@@ -1126,7 +1128,7 @@ case "$1" in
   probe-dpi) cmd_probe_dpi "${2:-all}" ;;
   probe-cancel) cmd_probe_cancel ;;
   dns-*) dns_ctl "$@" ;;
-  clear-logs) : > "$SERVICE_LOG"; : > "$NFQWS_LOG"; rm -f "$LOG_DIR/nfqws2-debug.log" "$LOG_DIR/auto.log"; echo OK ;;
+  clear-logs) : > "$SERVICE_LOG"; : > "$NFQWS_LOG"; rm -f "$LOG_DIR/nfqws2-debug.log" "$LOG_DIR/auto.log"; [ -f "$LOG_DIR/dns.log" ] && : > "$LOG_DIR/dns.log"; echo OK ;;
   *)
     echo "Команды: status json-status is-running start stop restart reload doctor get-conf save-conf-b64 reset-conf conf-modified" >&2
     echo "         list-strategies get-strategy set-strategy strategy-get-b64 strategy-save-b64 strategy-reset" >&2

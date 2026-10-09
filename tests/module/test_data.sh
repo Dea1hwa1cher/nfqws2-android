@@ -200,16 +200,15 @@ assert_eq "" "$(printf '%s' "$unread" | sed 's/^ *//')" \
 # ── the wake lock name is pinned to the module id ─────────────────────────────
 section "wake lock name matches the module id"
 
-# Acquiring, releasing and the doctor's check all write and read one string in
-# /sys/power/wake_lock. If they ever disagree the lock is never released, and a
-# named wake lock in the kernel is not tied to a process: the phone would not
-# sleep until reboot. So the name is module.prop's id, and nothing else.
+# WAKELOCK is gone, but stopping and uninstalling still release a lock taken by
+# an older version. A named wake lock in the kernel is not tied to a process: a
+# wrong name would leave the phone awake until reboot. So it is module.prop's id.
 mod_id=$(sed -n 's/^id=//p' "$REPO_DIR/module.prop")
 assert_eq "nfqws2-android" "$mod_id" "module.prop declares the expected id"
-assert_eq "2" "$(grep -c "\"$mod_id\"" "$REPO_DIR/lib/common.sh")" \
-  "acquire_wakelock and release_wakelock both use the module id"
-assert_eq "1" "$(grep -c "\"$mod_id\"" "$REPO_DIR/bin/nfqws2-ctl")" \
-  "the doctor checks the same name"
+assert_eq "1" "$(grep -c "\"$mod_id\" > /sys/power/wake_unlock" "$REPO_DIR/lib/common.sh")" \
+  "release_wakelock uses the module id"
+assert_eq "0" "$(grep -rc "wake_lock\b" "$REPO_DIR/lib/common.sh" "$REPO_DIR/service.sh" | awk -F: '{ s += $2 } END { print s }')" \
+  "nothing takes the wake lock any more"
 assert_eq "1" "$(grep -c "echo $mod_id " "$REPO_DIR/uninstall.sh")" \
   "uninstall releases the same name"
 

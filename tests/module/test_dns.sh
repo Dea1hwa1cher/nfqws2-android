@@ -156,6 +156,54 @@ dns_check
 assert_ne_pid=$(cat "$DNS_PIDFILE" 2>/dev/null)
 [ -n "$assert_ne_pid" ] && [ "$assert_ne_pid" != "$pid" ] && kill -0 "$assert_ne_pid" 2>/dev/null
 assert_rc 0 $? "the watchdog check restarts a dead dnsproxy"
+log=$(cat "$DNS_LOG")
+assert_contains "$log" "запуск службы: запуск dnsproxy" "the DNS log says why dnsproxy was started"
+assert_contains "$log" "по умолчанию: DNS сети" "and what it was started with"
+assert_contains "$log" "перехват включён: IPv4" "and that interception is on"
+assert_contains "$log" "(PID $pid) не работает — перезапуск" "a crash is logged with the dead PID"
+assert_contains "$log" "watchdog: запуск dnsproxy" "followed by the restart"
+assert_contains "$(cat "$SERVICE_LOG")" "DNS: dnsproxy перезапущен" "the service log confirms the restart"
+
+section "one DNS operation at a time"
+
+pid=$(cat "$DNS_PIDFILE")
+sleep 600 & holder=$!
+mkdir "$DNS_LOCK"; echo "$holder" > "$DNS_LOCK/pid"
+kill "$pid"; sleep 0.3
+dns_check
+kill -0 "$(cat "$DNS_PIDFILE" 2>/dev/null)" 2>/dev/null
+assert_rc 1 $? "the watchdog does not touch DNS while another process holds the lock"
+assert_not_contains "$(tail -n 3 "$DNS_LOG")" "не работает — перезапуск" "and does not report a crash"
+( sleep 1; rm -rf "$DNS_LOCK" ) &
+dns_start "тест"
+assert_rc 0 $? "a start waits for the lock to be released"
+kill -0 "$(cat "$DNS_PIDFILE")" 2>/dev/null
+assert_rc 0 $? "and then brings dnsproxy back"
+[ -d "$DNS_LOCK" ]; assert_rc 1 $? "the lock is released afterwards"
+kill "$holder" 2>/dev/null; wait "$holder" 2>/dev/null
+
+mkdir "$DNS_LOCK"; echo 999999 > "$DNS_LOCK/pid"
+pid=$(cat "$DNS_PIDFILE"); kill "$pid"; sleep 0.3
+dns_check
+kill -0 "$(cat "$DNS_PIDFILE" 2>/dev/null)" 2>/dev/null
+assert_rc 0 $? "a lock left by a dead process is taken over"
+
+# Лишний dnsproxy этого модуля без PID-файла (как от двух одновременных запусков)
+sleep 600 & stray=$!
+printf '#!/bin/sh\necho %s\n' "$stray" > "$MOCKBIN/pidof"
+printf '#!/bin/sh\n[ "$1" = /proc/%s/exe ] && { echo "%s"; exit 0; }\nexec /bin/readlink "$@"\n' "$stray" "$DNS_BIN" > "$MOCKBIN/readlink"
+chmod 0755 "$MOCKBIN/pidof" "$MOCKBIN/readlink"
+pid=$(cat "$DNS_PIDFILE"); kill "$pid"; sleep 0.3
+dns_check
+sleep 0.2
+kill -0 "$stray" 2>/dev/null
+assert_rc 1 $? "a stray dnsproxy of this module is killed before a new one starts"
+assert_contains "$(cat "$DNS_LOG")" "лишний dnsproxy (PID $stray)" "and logged"
+rm -f "$MOCKBIN/pidof" "$MOCKBIN/readlink"
+wait "$stray" 2>/dev/null
+
+ctl get-logs dns 300
+assert_contains "$ctl_out" "лишний dnsproxy" "nfqws2-ctl get-logs dns shows the DNS log"
 
 svc stop
 assert_no_file "$DNS_PIDFILE" "stopping the service stops dnsproxy"

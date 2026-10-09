@@ -287,4 +287,32 @@ rm -rf "$LISTS_DIR"
 sync_lists_and_blobs >/dev/null 2>&1
 assert_file "$LISTS_DIR/user.list" "a removed lists directory is recreated and filled"
 
+# ── current_ssid ──────────────────────────────────────────────────────────────
+section "current_ssid trusts cmd wifi"
+
+# dumpsys wifi keeps a history of recent states; right after leaving home its
+# first «COMPLETED» line is still the home network. Trusting it kept the home
+# pause on mobile data.
+cat > "$MOCKBIN/dumpsys" <<'EOF'
+#!/bin/sh
+echo '  mWifiInfo SSID: "Home", BSSID: 00:11:22:33:44:55, Supplicant state: COMPLETED'
+EOF
+cat > "$MOCKBIN/cmd" <<'EOF'
+#!/bin/sh
+printf 'Wifi is enabled\nWifi scanning is always available\n'
+case "$MOCK_WIFI" in
+  '') printf 'Wifi is not connected\n' ;;
+  *)  printf 'Wifi is connected to "%s"\n' "$MOCK_WIFI" ;;
+esac
+EOF
+chmod 0755 "$MOCKBIN/dumpsys" "$MOCKBIN/cmd"
+MOCK_WIFI=Office; export MOCK_WIFI
+assert_eq "Office" "$(current_ssid)" "the connected network comes from cmd wifi"
+MOCK_WIFI=; export MOCK_WIFI
+assert_eq "" "$(current_ssid)" "disconnected means no SSID, whatever dumpsys remembers"
+current_ssid >/dev/null; assert_rc 1 $? "and a failure code"
+printf '#!/bin/sh\nexit 1\n' > "$MOCKBIN/cmd"
+assert_eq "Home" "$(current_ssid)" "dumpsys is the fallback only without cmd wifi status"
+rm -f "$MOCKBIN/cmd" "$MOCKBIN/dumpsys"
+
 harness_finish

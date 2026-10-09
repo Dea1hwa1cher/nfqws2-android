@@ -190,7 +190,7 @@ function dnsStateRow(){
   } else if(s.service !== 'running' && s.standalone !== '1') title = t('Ожидает запуска службы');
   else if(!dnsSt.profiles.some(p => p.enabled && p.servers.length && p.domains.length) && (s.default || 'net') === 'net')
     title = t('Не активно: нет включённых профилей с доменами');
-  else title = t('Не работает — см. журнал службы');
+  else title = t('Не работает — см. журнал DNS');
   // Куда сейчас уходит всё, что не попало в профили: выбранный профиль или
   // DNS сети. Адреса сети — только когда они и правда используются.
   if(working){
@@ -221,7 +221,8 @@ function renderDns(){
       sub: t('DNS работает, даже когда служба остановлена или на паузе. Выключить его тогда можно только переключателем выше.'),
       on: 'setDnsStandalone(this.checked, this)'}) +
     (dnsLoaded && on ? dnsStateRow() : '') +
-    settingsRow({icon: 'search', title: 'Проверить домен', sub: t('Через какой профиль он резолвится и в какой адрес'), on: 'testDnsDomain()'}),
+    settingsRow({icon: 'search', title: 'Проверить домен', sub: t('Через какой профиль он резолвится и в какой адрес'), on: 'testDnsDomain()'}) +
+    settingsRow({icon: 'logs', title: 'Журнал DNS', sub: t('Запуски, перезапуски и ошибки dnsproxy'), on: 'openDnsLog()'}),
     false);
   const max = dnsMax('profiles', 32);
   $('dns-count').textContent = dnsSt.profiles.length ? dnsSt.profiles.length + ' / ' + max : '';
@@ -238,6 +239,8 @@ function renderDns(){
       esc(t('Профилей пока нет. Добавьте свой или возьмите готовый из пресетов.')) + '</span></div>', false);
   $('dns-add').disabled = dnsSt.profiles.length >= max;
 }
+
+function openDnsLog(){ logSource = 'dns'; store.set('nfq_log_src', 'dns'); navigate('logs'); }
 
 async function setDnsEnabled(on){
   const r = await withBusy(['dns-set-enabled', on ? '1' : '0'], 40000);
