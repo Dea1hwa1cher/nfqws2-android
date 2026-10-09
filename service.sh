@@ -31,7 +31,7 @@ start_failed() {
 }
 
 # watchdog/netwatch: auto-restart, home Wi-Fi pause, per-network strategies
-watchers_wanted() { [ "$WATCHDOG" = "1" ] || [ "$HOME_WIFI" = "1" ] || [ "$NET_STRATEGY" = "1" ] || dns_enabled; }
+watchers_wanted() { [ "$WATCHDOG" = "1" ] || [ "$HOME_WIFI" = "1" ] || [ "$NET_STRATEGY" = "1" ]; }
 
 start() {
   if is_running; then

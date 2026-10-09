@@ -443,7 +443,7 @@ $('panel-save-btn').onclick = async () => {
   const o = editorCtx;
   if(!o) return;
   const val = $('panel-editor-text').value;
-  // Свой обработчик (например, домены профиля DNS): вернул текст — это ошибка
+  // Свой обработчик: вернул текст — это ошибка
   if(o.onSave){
     const err = await o.onSave(val);
     if(err){

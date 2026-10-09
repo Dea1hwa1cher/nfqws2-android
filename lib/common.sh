@@ -1213,5 +1213,3 @@ list_net_strategies() {
 clear_net_strategies() {
   rm -rf "$NET_STRATEGIES_DIR"/* 2>/dev/null
 }
-
-[ -f "$MODDIR/lib/plugins.sh" ] && . "$MODDIR/lib/plugins.sh"

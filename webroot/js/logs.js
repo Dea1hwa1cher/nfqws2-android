@@ -4,13 +4,10 @@
 
 /* ══ ЖУРНАЛЫ ═════════════════════════════════════════════════════════════ */
 const LOG_SOURCES = [['summary', 'Краткая статистика'], ['service', 'Служба'], ['nfqws', 'Процесс'],
-  ['auto', 'Автообучение'], ['debug', 'Отладка'], ['dns', 'DNS']];
-/* Журнал DNS доступен при наличии плагина DNS */
-const logSources = () => LOG_SOURCES.filter(s => s[0] !== 'dns' || dnsPluginAvailable);
+  ['auto', 'Автообучение'], ['debug', 'Отладка']];
 let logSource = store.get('nfq_log_src') || 'service', logLines = '100', logErrors = false;
 if(!LOG_SOURCES.some(s => s[0] === logSource)) logSource = 'service';
 function renderLogChips(){
-  if(logSource === 'dns' && !logSources().some(s => s[0] === 'dns')) logSource = 'service';
   const src = t((LOG_SOURCES.find(s => s[0] === logSource) || LOG_SOURCES[1])[1]);
   const sum = logSource === 'summary';
   $('log-chips').innerHTML =
@@ -23,7 +20,7 @@ function renderLogChips(){
         '<span class="chip-check">' + icon('check', 's18') + '</span><span>' + esc(t('Ошибки')) + '</span></button>');
 }
 function pickLogSource(anchor){
-  openMenu(anchor, logSources().map(([k, label]) => ({
+  openMenu(anchor, LOG_SOURCES.map(([k, label]) => ({
     label: t(label), icon: k === logSource ? 'check' : '',
     onClick: () => { logSource = k; store.set('nfq_log_src', k); loadLog(); }
   })));

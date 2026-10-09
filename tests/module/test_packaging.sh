@@ -130,7 +130,7 @@ PY
          "$MODPATH/.git" "$MODPATH/.github" "$MODPATH/.gitattributes" \
          "$MODPATH/CONTRIBUTING.md" \
          "$MODPATH/docs" "$MODPATH/update.json" "$MODPATH/changelog.md" \
-         "$MODPATH/.gitignore" "$MODPATH/dns-profiles"
+         "$MODPATH/.gitignore"
   rm -f "$MODPATH"/*.zip
 
   left=$(find "$MODPATH" -maxdepth 1 -mindepth 1 -exec basename {} \; | sort | tr '\n' ' ' | sed 's/ $//')

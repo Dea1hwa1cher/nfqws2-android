@@ -70,8 +70,6 @@
 <symbol id="i-contrast" viewBox="0 -960 960 960"><path d="M480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm40-83q119-15 199.5-104.5T800-480q0-123-80.5-212.5T520-797v634Z"/></symbol>
 <symbol id="i-home" viewBox="0 -960 960 960"><path d="M240-200h120v-240h240v240h120v-360L480-740 240-560v360Zm-80 80v-480l320-240 320 240v480H520v-240h-80v240H160Zm320-350Z"/></symbol>
 <symbol id="i-motion" viewBox="0 -960 960 960"><path d="M160-160v-480h480v480H160Zm80-80h320v-320H240v320Zm160-240v-80h320v320h-80v-240H400Zm160-160v-80h320v320h-80v-240H560Z"/></symbol>
-<symbol id="i-dns" viewBox="0 -960 960 960"><path d="M300-720q-25 0-42.5 17.5T240-660q0 25 17.5 42.5T300-600q25 0 42.5-17.5T360-660q0-25-17.5-42.5T300-720Zm0 400q-25 0-42.5 17.5T240-260q0 25 17.5 42.5T300-200q25 0 42.5-17.5T360-260q0-25-17.5-42.5T300-320ZM160-840h640q17 0 28.5 11.5T840-800v280q0 17-11.5 28.5T800-480H160q-17 0-28.5-11.5T120-520v-280q0-17 11.5-28.5T160-840Zm40 80v200h560v-200H200Zm-40 320h640q17 0 28.5 11.5T840-400v280q0 17-11.5 28.5T800-80H160q-17 0-28.5-11.5T120-120v-280q0-17 11.5-28.5T160-440Zm40 80v200h560v-200H200Zm0-400v200-200Zm0 400v200-200Z"/></symbol>
-<symbol id="i-select-all" viewBox="0 -960 960 960"><path d="M280-280v-400h400v400H280Zm80-80h240v-240H360v240ZM200-200v80q-33 0-56.5-23.5T120-200h80Zm-80-160v-80h80v80h-80Zm0-160v-80h80v80h-80Zm80-240h-80q0-33 23.5-56.5T200-840v80Zm160 640v-80h80v80h-80Zm0-640v-80h80v80h-80Zm160 640v-80h80v80h-80Zm0-640v-80h80v80h-80Zm240 640v-80h80q0 33-23.5 56.5T760-120Zm0-160v-80h80v80h-80Zm0-160v-80h80v80h-80Zm0-240v-80q33 0 56.5 23.5T840-760h-80Z"/></symbol>
 </defs></svg>
 
 <!-- ═══ Small top app bar: заголовок экрана, его действия и кнопка настроек ═══ -->
@@ -286,68 +284,6 @@
     </div>
   </section>
 
-  <!-- ═══ DNS ПО ПРОФИЛЯМ (дочерний экран настроек) ═════════════════════ -->
-  <section class="page" data-page="dns" aria-label="DNS по профилям" data-ta="aria-label">
-    <label class="main-switch state" id="dns-main">
-      <span class="grow" data-t>DNS по профилям</span>
-      <input type="checkbox" class="switch" role="switch" id="dns-toggle" aria-label="DNS по профилям" data-ta="aria-label"
-             onchange="setDnsEnabled(this.checked)">
-    </label>
-    <div class="helper" data-t>Как в Keenetic: запросы к доменам профиля и их поддоменам идут на его DNS-серверы (DoH, DoT, DoQ или обычные), остальные — на DNS по умолчанию. Включается и выключается вместе со службой обхода, если не выбрано «Без службы обхода».</div>
-    <div id="dns-warn" class="stack"></div>
-
-    <div id="dns-body" class="stack">
-      <div class="list" id="dns-general"></div>
-      <div class="subhead-row">
-        <h2 class="subhead" data-t>Профили</h2>
-        <span class="helper" id="dns-count"></span>
-      </div>
-      <div class="list" id="dns-profiles"></div>
-      <div class="row">
-        <button class="btn text with-icon state" id="dns-add" aria-haspopup="menu" onclick="addDnsProfile(this)">
-          <svg aria-hidden="true" class="icon s18"><use href="#i-add"/></svg><span data-t>Добавить профиль</span>
-        </button>
-      </div>
-    </div>
-  </section>
-
-  <!-- ═══ ПРОФИЛЬ DNS (дочерний экран «DNS по профилям») ═════════════════ -->
-  <section class="page" data-page="dnsprof" aria-label="Профиль DNS" data-ta="aria-label">
-    <div class="list" id="dnsp-head"></div>
-
-    <div class="subhead-row">
-      <h2 class="subhead" data-t>DNS-серверы</h2>
-      <span class="helper" id="dnsp-scount"></span>
-    </div>
-    <div class="helper" data-t>Запросы распределяются между серверами профиля; если ни один не ответил — уходят на DNS сети.</div>
-    <div class="list" id="dnsp-servers"></div>
-    <div class="row">
-      <button class="btn text with-icon state" id="dnsp-add-server" aria-haspopup="menu" onclick="addDnsServer(this)">
-        <svg aria-hidden="true" class="icon s18"><use href="#i-add"/></svg><span data-t>Добавить сервер</span>
-      </button>
-    </div>
-
-    <div class="subhead-row">
-      <h2 class="subhead" data-t>Домены</h2>
-      <span class="helper" id="dnsp-dcount"></span>
-    </div>
-    <div class="list" id="dnsp-domains"></div>
-    <div class="row">
-      <button class="btn text with-icon state" id="dnsp-add-domain" onclick="addDnsDomains()">
-        <svg aria-hidden="true" class="icon s18"><use href="#i-add"/></svg><span data-t>Добавить домены</span>
-      </button>
-      <button class="btn text with-icon state" onclick="editDnsDomainsText()">
-        <svg aria-hidden="true" class="icon s18"><use href="#i-edit"/></svg><span data-t>Редактировать списком</span>
-      </button>
-    </div>
-
-    <div class="row">
-      <button class="btn text danger with-icon state" onclick="deleteDnsProfile()">
-        <svg aria-hidden="true" class="icon s18"><use href="#i-trash"/></svg><span data-t>Удалить профиль</span>
-      </button>
-    </div>
-  </section>
-
   <!-- ═══ ПРИЛОЖЕНИЯ (дочерний экран настроек) ═══════════════════════════ -->
   <section class="page" data-page="apps" aria-label="Приложения" data-ta="aria-label">
     <h2 class="subhead" data-t>Режим фильтра</h2>
@@ -549,16 +485,6 @@
   </div>
 </div>
 
-<div class="sheet list-sheet" id="dns-preset-sheet" role="dialog" aria-modal="true" aria-labelledby="dns-preset-title">
-  <button type="button" class="sheet-drag" aria-label="Закрыть" data-ta="aria-label"><span class="handle"></span></button>
-  <div class="sheet-title" id="dns-preset-title" data-t>Пресеты профилей</div>
-  <div class="sheet-desc" data-t>Пресет добавляется обычным профилем: дальше его можно менять и удалять как свой.</div>
-  <div class="list sheet-scroll" id="dns-preset-list"></div>
-  <div class="sheet-actions">
-    <button class="btn text state" onclick="closeSheet()"><span data-t>Закрыть</span></button>
-  </div>
-</div>
-
 <div class="sheet list-sheet" id="backup-sheet" role="dialog" aria-modal="true" aria-labelledby="backup-sheet-title">
   <button type="button" class="sheet-drag" aria-label="Закрыть" data-ta="aria-label"><span class="handle"></span></button>
   <div class="sheet-title" id="backup-sheet-title" data-t>Восстановить из копии</div>
@@ -694,7 +620,6 @@
 <script src="js/editor.js"></script>
 <script src="js/apps.js"></script>
 <script src="js/test.js"></script>
-<script src="js/dns.js"></script>
 <script src="js/diag.js"></script>
 <script src="js/settings.js"></script>
 <script src="js/theme.js"></script>

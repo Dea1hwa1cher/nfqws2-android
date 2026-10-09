@@ -20,12 +20,11 @@ ui_print "- Architecture: $ARCH -> $BIN"
 rm -rf "$MODPATH/tests" "$MODPATH/tools" "$MODPATH/.workbuddy-ai" \
        "$MODPATH/.git" "$MODPATH/.github" "$MODPATH/.gitattributes" \
        "$MODPATH/CONTRIBUTING.md" \
-       "$MODPATH/docs" "$MODPATH/update.json" "$MODPATH/changelog.md" \
-       "$MODPATH/dns-profiles"
+       "$MODPATH/docs" "$MODPATH/update.json" "$MODPATH/changelog.md"
 rm -f "$MODPATH"/*.zip
 
 for f in \
-  service.sh action.sh boot-completed.sh uninstall.sh lib/common.sh lib/plugins.sh bin/nfqws2-ctl \
+  service.sh action.sh boot-completed.sh uninstall.sh lib/common.sh bin/nfqws2-ctl \
   system/bin/nfqws2-ctl defaults/nfqws2.conf \
   "binaries/$BIN/nfqws2"
 do
