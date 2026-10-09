@@ -44,12 +44,15 @@ jobs:
           set -eu
           unzip -p nfqws2-android.zip module.prop | grep -Fx 'id=nfqws2-android'
           unzip -l nfqws2-android.zip | grep -Eq '[[:space:]]boot-completed\.sh$'
+          rm -rf ci-module
+          mkdir ci-module
+          unzip -q nfqws2-android.zip -d ci-module
 
       - name: Upload module packages
         uses: actions/upload-artifact@v4
         with:
           name: nfqws2-modules-${{ github.sha }}
           path: |
-            nfqws2-android.zip
+            ci-module
           if-no-files-found: error
           retention-days: 14
