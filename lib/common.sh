@@ -296,7 +296,9 @@ app_rules() {
   $CMD -w -t mangle -N $IPT_GROUP_APP 2>/dev/null
   $CMD -w -t mangle -F $IPT_GROUP_APP
   printf '%s\n' "$uids" | tr ',' '\n' | grep -E '^[0-9]+$' | sort -n -u | awk -v mx="$APP_UID_MAX" '
-      { b = int((NR - 1) / mx); a[b] = (b in a ? a[b] "," $0 : $0) }
+      # не a[b] = (b in a ? …): mawk и toybox awk заводят a[b] до проверки,
+      # и первый UID получал запятую впереди («--uid-owner ,10201»)
+      { b = int((NR - 1) / mx); if (b in a) a[b] = a[b] "," $0; else a[b] = $0 }
       END { for (i = 0; i <= b; i++) if (i in a) print a[i] }' | while IFS= read -r chunk; do
     [ -n "$chunk" ] || continue
     $CMD -w -t mangle -A $IPT_GROUP_APP -m owner --uid-owner "$chunk" -j CONNMARK --set-xmark "$mark"
@@ -921,6 +923,34 @@ current_ssid() {
   case "$s" in ''|'<unknown ssid>'|'<none>'|0x) return 1 ;; esac
   printf '%s' "$s"
 }
+# Несёт ли Wi‑Fi трафик: Android держит Wi‑Fi подключённой и когда в ней нет
+# интернета (роутер завис, ещё грузится после перезагрузки) — тогда основная
+# сеть мобильная, и считать телефон «дома» нельзя: обход встал бы на паузу на
+# мобильном интернете. Основная сеть — «Active default network» из dumpsys
+# connectivity и её NetworkAgentInfo. Формат не разобрать — верим SSID, как раньше.
+wifi_is_default() {
+  local r
+  r=$(dumpsys connectivity 2>/dev/null | awk '
+    /^ *Active default network:/ { act = $NF; seen = 1 }
+    /NetworkAgentInfo/ && match($0, /network\{[0-9]+\}/) {
+      id = substr($0, RSTART + 8, RLENGTH - 9)
+      if (!(id in kind)) kind[id] = ($0 ~ /ni\{WIFI/ || $0 ~ /Transports: [A-Z|]*WIFI/ || $0 ~ /InterfaceName: wlan/) ? "wifi" : "other"
+    }
+    END {
+      if (!seen) print "unknown"
+      else if (act == "none" || act == "null") print "none"
+      else if (act in kind) print kind[act]
+      else print "unknown"
+    }')
+  case "$r" in wifi|unknown) return 0 ;; *) return 1 ;; esac
+}
+# SSID Wi‑Fi, через которую сейчас идёт трафик (для домашней сети и стратегий по сетям)
+active_ssid() {
+  local s
+  s=$(current_ssid) || return 1
+  wifi_is_default || return 1
+  printf '%s' "$s"
+}
 ssid_is_home() {
   if [ -z "$1" ] || [ ! -f "$HOME_FILE" ]; then return 1; fi
   grep -v -e '^[[:space:]]*#' -e '^[[:space:]]*$' "$HOME_FILE" 2>/dev/null | grep -Fxq -- "$1"
@@ -929,7 +959,7 @@ ssid_is_home() {
 # ---------------------------------------------------------------- network strategy caching
 current_network_key() {
   local ssid op
-  if ssid=$(current_ssid 2>/dev/null) && [ -n "$ssid" ]; then
+  if ssid=$(active_ssid 2>/dev/null) && [ -n "$ssid" ]; then
     printf 'wifi_%s' "$(printf '%s' "$ssid" | tr -c 'a-zA-Z0-9._-' '_')"
     return 0
   fi
@@ -945,7 +975,7 @@ current_network_key() {
 
 current_network_title() {
   local ssid op
-  if ssid=$(current_ssid 2>/dev/null) && [ -n "$ssid" ]; then
+  if ssid=$(active_ssid 2>/dev/null) && [ -n "$ssid" ]; then
     printf 'Wi-Fi «%s»' "$ssid"
     return 0
   fi

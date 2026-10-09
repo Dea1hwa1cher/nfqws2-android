@@ -477,7 +477,7 @@ const VIEWPORTS = [
     const swipe = (from, to, opts = {}) => page.evaluate(async ([from, to, opts]) => {
       const list = document.querySelector('#strategy-list');
       if (opts.scroll != null) list.scrollTop = opts.scroll;
-      const el = list.querySelector('.list-item') || list, r = el.getBoundingClientRect(), x = r.left + 20;
+      const el = opts.at ? document.querySelector(opts.at) : (list.querySelector('.list-item') || list), r = el.getBoundingClientRect(), x = r.left + 20;
       const touch = y => new Touch({ identifier: 1, target: el, clientX: x, clientY: y });
       const fire = (type, y) => {
         const t = touch(y);
@@ -494,9 +494,11 @@ const VIEWPORTS = [
         await new Promise(r => setTimeout(r, opts.slow ? 40 : 8));
       }
       const mid = document.querySelector('#strategy-sheet').style.transform;
+      const sc = getComputedStyle(document.querySelector('#sheet-scrim'));
+      const midScrim = { opacity: +sc.opacity, blur: parseFloat((sc.backdropFilter.match(/blur\(([\d.]+)px\)/) || [0, 6])[1]) };
       fire('touchend', y0 + (to - from));
       await new Promise(r => setTimeout(r, 120));
-      return { prevented, mid, open: document.querySelector('#strategy-sheet').classList.contains('open') };
+      return { prevented, mid, midScrim, open: document.querySelector('#strategy-sheet').classList.contains('open') };
     }, [from, to, opts]);
 
     await page.evaluate(() => openStrategySheet()); await page.waitForTimeout(500);
@@ -510,12 +512,46 @@ const VIEWPORTS = [
     truthy(r.open && !r.prevented, 'a swipe up from the top scrolls the list');
     r = await swipe(0, 40, { scroll: 0, slow: true });
     truthy(r.open && r.prevented && /translateY\(\d/.test(r.mid), 'a short slow pull from the top moves the sheet and lets it spring back');
+    truthy(r.midScrim.opacity < 1 && r.midScrim.opacity > 0.5 && r.midScrim.blur < 6 && r.midScrim.blur > 3,
+      'the dim and blur follow the finger: ' + JSON.stringify(r.midScrim));
     truthy(await page.evaluate(() => !document.querySelector('#strategy-sheet').style.transform), 'the sheet returns to place');
+    await page.waitForTimeout(500);
+    const back = await page.evaluate(() => getComputedStyle(document.querySelector('#sheet-scrim')).backdropFilter);
+    eq('blur(6px)', back, 'released, the blur grows back');
+    r = await swipe(0, 300, { scroll: 200, at: '#strategy-sheet .sheet-desc' });
+    truthy(!r.open && r.prevented, 'a swipe down on the description closes the sheet even with the list scrolled');
+    await page.waitForTimeout(500);
+    await page.evaluate(() => openStrategySheet()); await page.waitForTimeout(500);
     r = await swipe(0, 300, { scroll: 0 });
     truthy(!r.open, 'a swipe down from the top of the list closes the sheet');
     await page.waitForTimeout(500);
     const blurOff = await page.evaluate(() => getComputedStyle(document.querySelector('#sheet-scrim')).backdropFilter);
     truthy(blurOff === 'none' || blurOff === 'blur(0px)', 'and the blur goes away with it: ' + blurOff);
+    // Большой аргумент (архив для восстановления) уходит частями через upload
+    const up = await page.evaluate(async () => {
+      window.__calls = [];
+      await ctlx(['backup-restore-b64', 'QUJD'.repeat(30000)]);
+      return window.__calls.map(c => { const m = c.match(/nfqws2-ctl' '([a-z0-9-]+)' '([^']*)'/); return m ? [m[1], m[2].slice(0, 4), c.length] : ['?', '', c.length]; });
+    });
+    eq('upload,upload,upload,backup-restore-b64', up.map(c => c[0]).join(','), 'a 120 KB argument is sent in pieces, then by reference');
+    truthy(up.every(c => c[2] < 60000), 'every command stays far below the kernel limit');
+    eq('@up:', up[3][1], 'the command gets @up:<tag> instead of the data');
+    // Выделение текста: только поля ввода и журналы
+    const sel = await page.evaluate(() => {
+      const us = el => el ? getComputedStyle(el).userSelect || getComputedStyle(el).webkitUserSelect : 'missing';
+      return { title: us(document.querySelector('#app-title')), row: us(document.querySelector('.list-item .li-primary')),
+               log: us(document.querySelector('#lg')), args: us(document.querySelector('#args')), ta: us(document.querySelector('textarea')) };
+    });
+    eq(JSON.stringify({ title: 'none', row: 'none', log: 'text', args: 'text', ta: 'text' }), JSON.stringify(sel), 'only inputs and logs can be selected');
+    // Волна на чипе не выходит за чип
+    await page.evaluate(() => navigate('logs')); await page.waitForTimeout(900);
+    const rip = await page.evaluate(() => {
+      const chip = document.querySelector('#log-chips .chip'), r = chip.getBoundingClientRect();
+      chip.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: r.left + 10, clientY: r.top + 10 }));
+      const s = chip.querySelector('.ripple');
+      return s ? s.style.clipPath : 'none';
+    });
+    truthy(/^inset\(/.test(rip), 'a chip ripple is clipped to the chip: ' + rip);
     eq('', pageErrors.join(' | '), 'no script errors');
     await ctx.close();
   }

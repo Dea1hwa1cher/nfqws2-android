@@ -14,7 +14,24 @@ SERVICE="$MODDIR/service.sh"
 # действительно нет — imports/.
 [ -d "$IMPORTS_DIR" ] || mkdir -p "$IMPORTS_DIR" 2>/dev/null
 
+# Данные больше ~100 КБ одной строкой не передать: и команда для sh -c, и
+# аргумент внешнего printf упираются в предел ядра на длину аргумента
+# (E2BIG, «Argument list too long»). Такие данные WebUI сначала кладёт
+# частями командой upload, а вместо них передаёт @up:<метка>.
+UPLOAD_DIR="$STATE_DIR/upload"
+upload_file() { # <@up:метка> -> путь файла или код 1
+  local tk="${1#@up:}"
+  case "$1" in @up:*) ;; *) return 1 ;; esac
+  case "$tk" in ''|*[!a-z0-9]*) return 1 ;; esac
+  printf '%s' "$UPLOAD_DIR/$tk"
+}
 b64d() {
+  local f
+  if f=$(upload_file "$1"); then
+    { if command -v base64 >/dev/null 2>&1; then base64 -d; else busybox base64 -d; fi; } < "$f" 2>/dev/null
+    rm -f "$f"
+    return 0
+  fi
   if command -v base64 >/dev/null 2>&1; then printf '%s' "$1" | base64 -d 2>/dev/null
   else printf '%s' "$1" | busybox base64 -d 2>/dev/null; fi
 }
@@ -490,9 +507,7 @@ cmd_export_logs() {
   mkdir -p "$BACKUP_DIR" 2>/dev/null
   local out_file="$BACKUP_DIR/$name"
   if (cd "$tmp" && tar_cmd -cf "$out_file" .) 2>/dev/null; then
-    local b64_data
-    b64_data=$(b64e < "$out_file" | tr -d '\n')
-    printf '%s\t%s\t%s\n' "$name" "$out_file" "$b64_data"
+    printf '%s\t%s\t' "$name" "$out_file"; b64e < "$out_file" | tr -d '\n'; echo
   else
     local d="$BACKUP_DIR/nfqws2-logs"
     mkdir -p "$d" 2>/dev/null
@@ -545,7 +560,17 @@ cmd_list_apps() {
 # Архив в Download: конфиг, пользовательские списки (сервисные приходят с
 # релизом и в копию не входят), apps.list, домашние сети, правки стратегий,
 # импорты, активная стратегия и настройки WebUI (ui.json, их передаёт WebUI).
-BACKUP_DIR="${NFQWS_BACKUP_DIR:-/sdcard/Download}"
+# Своя папка: список копий не перебирает всю «Загрузку». Копии из старого
+# места (прямо в Download) переносятся туда один раз.
+BACKUP_DIR="${NFQWS_BACKUP_DIR:-/sdcard/Download/nfqws2}"
+backup_migrate() {
+  local old="${BACKUP_DIR%/*}" f
+  [ -z "${NFQWS_BACKUP_DIR:-}" ] || return 0
+  [ -f "$CONFDIR/.backup_moved" ] && return 0
+  mkdir -p "$BACKUP_DIR" 2>/dev/null || return 0
+  for f in "$old"/nfqws2-backup-*.tar; do [ -f "$f" ] && mv -f "$f" "$BACKUP_DIR/" 2>/dev/null; done
+  : > "$CONFDIR/.backup_moved"
+}
 BACKUP_LISTS="user exclude ipset ipset_exclude auto probe_hosts tcp16 probe_dns probe_tg whitelist_sni"
 tar_cmd() {
   if command -v tar >/dev/null 2>&1; then tar "$@"; else busybox tar "$@"; fi
@@ -571,11 +596,12 @@ cmd_backup_create() { # [ui.json в base64]
     return 1
   fi
   rm -rf "$tmp"
-  local b64_data
-  b64_data=$(b64e < "$BACKUP_DIR/$name" | tr -d '\n')
-  printf '%s\t%s\t%s\n' "$name" "$BACKUP_DIR/$name" "$b64_data"
+  # base64 архива — потоком: в переменной и аргументом printf он упирался в
+  # предел длины аргумента («Argument list too long»)
+  printf '%s\t%s\t' "$name" "$BACKUP_DIR/$name"; b64e < "$BACKUP_DIR/$name" | tr -d '\n'; echo
 }
 cmd_backup_list() {
+  backup_migrate
   ls -1t "$BACKUP_DIR"/nfqws2-backup-*.tar 2>/dev/null | while IFS= read -r f; do
     printf '%s\t%s\n' "${f##*/}" "$(wc -c < "$f" 2>/dev/null | tr -d ' ')"
   done
@@ -1124,6 +1150,15 @@ case "$1" in
   backup-list) cmd_backup_list ;;
   backup-restore) cmd_backup_restore "$2" ;;
   backup-restore-b64) cmd_backup_restore_b64 "$2" ;;
+  # upload <метка> <кусок base64> — дописать кусок; heredoc, без внешних команд
+  upload)
+    f=$(upload_file "@up:$2") || { echo "Неверная метка" >&2; exit 1; }
+    mkdir -p "$UPLOAD_DIR" || exit 1
+    find "$UPLOAD_DIR" -type f -mmin +30 -exec rm -f {} + 2>/dev/null
+    cat >> "$f" <<EOF
+$3
+EOF
+    echo OK ;;
   net-info) cmd_net_info ;;
   probe-dpi) cmd_probe_dpi "${2:-all}" ;;
   probe-cancel) cmd_probe_cancel ;;

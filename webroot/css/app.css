@@ -254,4 +254,3 @@ html[data-containers="true"] .settings-grid .list > .list-item:active {
   border-end-end-radius: 20px;
 }
 
-#dns-profiles .list-item { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }

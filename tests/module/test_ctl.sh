@@ -347,9 +347,18 @@ assert_rc 0 "$ctl_rc" "backup-list works"
 assert_match "$ctl_out" "nfqws2-backup-.*\.tar" "backup-list lists created archive"
 
 if [ -n "$b64_bak" ]; then
-  ctl backup-restore-b64 "$b64_bak"
+  # Как WebUI: большой архив не влезает в один аргумент — кусками через upload
+  assert_ge "${#b64_bak}" 131072 "the test archive is bigger than one argument may be"
+  printf '%s' "$b64_bak" | fold -w 48000 > "$SANDBOX/chunks"
+  up_ok=0
+  while IFS= read -r chunk || [ -n "$chunk" ]; do ctl upload tk1 "$chunk"; [ "$ctl_rc" = 0 ] || up_ok=1; done < "$SANDBOX/chunks"
+  assert_rc 0 "$up_ok" "the archive is uploaded in pieces"
+  ctl upload '../x' abc
+  assert_rc 1 "$ctl_rc" "an upload tag with a path is refused"
+  ctl backup-restore-b64 "@up:tk1"
   assert_rc 0 "$ctl_rc" "backup-restore-b64 works"
   assert_contains "$ctl_out" "$(b64 '{"m3_monochrome":"true"}')" "backup-restore-b64 returns ui state"
+  assert_no_file "$CONFDIR/state/upload/tk1" "the uploaded file is removed after use"
 fi
 
 ctl export-logs

@@ -315,4 +315,38 @@ printf '#!/bin/sh\nexit 1\n' > "$MOCKBIN/cmd"
 assert_eq "Home" "$(current_ssid)" "dumpsys is the fallback only without cmd wifi status"
 rm -f "$MOCKBIN/cmd" "$MOCKBIN/dumpsys"
 
+# ── active_ssid ───────────────────────────────────────────────────────────────
+section "home Wi-Fi counts only while it carries the traffic"
+
+# Wi-Fi без интернета остаётся подключённой, но основная сеть — мобильная:
+# так было после перезагрузки, и обход вставал на паузу на мобильном интернете.
+cat > "$MOCKBIN/cmd" <<'EOF'
+#!/bin/sh
+printf 'Wifi is enabled\nWifi is connected to "Home"\n'
+EOF
+cat > "$MOCKBIN/dumpsys" <<'EOF'
+#!/bin/sh
+[ "$1" = connectivity ] || exit 0
+case "$MOCK_DEFAULT" in
+  wifi) echo "Active default network: 101" ;;
+  cell) echo "Active default network: 100" ;;
+  none) echo "Active default network: none" ;;
+  odd)  echo "Active default network: 102" ;;
+  *)    exit 0 ;;
+esac
+echo "  NetworkAgentInfo{network{100}  handle{1} ni{MOBILE[LTE] CONNECTED} lp{{InterfaceName: rmnet_data0 }} nc{[ Transports: CELLULAR Capabilities: INTERNET]}}"
+echo "  NetworkAgentInfo{network{101}  handle{2} ni{WIFI CONNECTED} lp{{InterfaceName: wlan0 }} nc{[ Transports: WIFI Capabilities: INTERNET]}}"
+EOF
+chmod 0755 "$MOCKBIN/cmd" "$MOCKBIN/dumpsys"
+export MOCK_DEFAULT
+MOCK_DEFAULT=wifi; assert_eq "Home" "$(active_ssid)" "Wi-Fi is the default network: it counts"
+MOCK_DEFAULT=cell; assert_eq "" "$(active_ssid)" "connected Wi-Fi with traffic on mobile data does not"
+active_ssid >/dev/null; assert_rc 1 $? "and fails"
+MOCK_DEFAULT=none; assert_eq "" "$(active_ssid)" "no default network at all (still validating) does not either"
+MOCK_DEFAULT=odd; assert_eq "Home" "$(active_ssid)" "an unknown network id falls back to trusting the SSID"
+MOCK_DEFAULT=; assert_eq "Home" "$(active_ssid)" "so does a dumpsys without the default network line"
+MOCK_DEFAULT=cell
+assert_match "$(current_network_key)" "^cell" "per-network strategies follow the traffic too"
+rm -f "$MOCKBIN/cmd" "$MOCKBIN/dumpsys"
+
 harness_finish

@@ -1,18 +1,13 @@
 #!/bin/sh
-# Packaging tests: the module archive must contain module files only.
+# Packaging tests: what .github/workflows/release.yml puts into the two archives.
 #
-# Two independent guards are checked, because either one alone is easy to defeat:
+# The archives are built from an explicit allow-list of module paths, so tests/,
+# .github/, changelog.md and other repository files never reach a phone. The
+# allow-list is read from release.yml itself and the archive is packed here the
+# same way, so a path added to the module but forgotten in the workflow (or the
+# other way round) shows up as a failure.
 #
-#   1. tools/build.py packs from an allow-list and then verifies the archive —
-#      a path outside the list is an error, not a warning;
-#   2. customize.sh deletes the developer directories at install time, in case
-#      the archive was built by hand (a plain `zip -r .` from the repo root).
-#
-# The second guard has to be a deletion rather than an `unzip -x` pattern: in
-# unzip `*` does not cross `/`, so `tests/*` only filters the top level and
-# `tests/module/*` still lands. The simulation below proves that end to end.
-#
-# Needs a python 3 interpreter for the builder; skips itself without one.
+# Needs python 3 for reading the archive; skips itself without one.
 
 HERE=$(cd "$(dirname "$0")" && pwd)
 TESTS_DIR=$(cd "$HERE/.." && pwd)
@@ -25,121 +20,95 @@ if [ -z "$PY" ]; then
     if command -v "$c" >/dev/null 2>&1; then PY="$c"; break; fi
   done
 fi
-if [ -z "$PY" ] && [ -x "$HOME/.workbuddy-ai/binaries/python/versions/3.13.12/python.exe" ]; then
-  PY="$HOME/.workbuddy-ai/binaries/python/versions/3.13.12/python.exe"
-fi
 if [ -z "$PY" ]; then
   printf 'SKIP  no python interpreter found (set NFQWS_TEST_PYTHON)\n'
   exit 0
 fi
 
-# A bare temp dir rather than sandbox_init(): this suite reads the repository
-# directly and does not need the module sandbox. SANDBOX is set so harness_finish
-# cleans it up.
 SANDBOX=$(mktemp -d "${NFQWS_TEST_TMP:-/tmp}/nfqws2-pack.XXXXXX") || exit 1
 SANDBOX=$(cd "$SANDBOX" && pwd)
+WF="$REPO_DIR/.github/workflows/release.yml"
 
-MODULE_FILES="action.sh customize.sh service.sh uninstall.sh module.prop LICENSE README.md"
-MODULE_DIRS="bin $([ -d "$REPO_DIR/binaries" ] && echo binaries) blobs defaults lib lists lua strategies webroot"
+MODULE_TOP="LICENSE README.md action.sh bin binaries blobs customize.sh defaults lib lists lua module.prop service.sh strategies uninstall.sh webroot"
 
-# ── builder ───────────────────────────────────────────────────────────────────
-section "tools/build.py produces a module-only archive"
+# ── allow-list in the workflow ────────────────────────────────────────────────
+section "release.yml packs an allow-list of module paths"
 
+# Строки после `zip ... "$out" \` и `cp -R \` до первой строки без «\» в конце
+lists=$("$PY" - "$WF" <<'PY'
+import re, sys
+text = open(sys.argv[1], encoding='utf-8').read()
+out = []
+for m in re.finditer(r'(zip -q -r -9 -X "\$out" \\|cp -R ([^\n]*?)\\)\n((?:[^\n]*\\\n)*[^\n]*)', text):
+    body = (m.group(2) or '') + ' ' + m.group(3)
+    body = body.replace('\\\n', ' ').replace('"$ext/"', ' ')
+    out.append(' '.join(sorted(w for w in body.split() if not w.startswith('"'))))
+print('\n'.join(out))
+PY
+)
+regular=$(printf '%s\n' "$lists" | sed -n 1p)
+extended=$(printf '%s\n' "$lists" | sed -n 2p)
+assert_eq "$MODULE_TOP" "$regular" "the regular archive takes exactly the module top level"
+assert_eq "$regular" "$extended" "the extended archive starts from the same files"
+assert_contains "$(cat "$WF")" 'sha256sum -c' "dnsproxy downloads are checked against the lock file"
+assert_contains "$(cat "$WF")" 'licenses/dnsproxy-LICENSE' "and ship with their licence"
+
+# ── the archive itself ────────────────────────────────────────────────────────
+section "the archive carries the module and nothing else"
+
+WS="$SANDBOX/ws"
+mkdir -p "$WS"
+(cd "$REPO_DIR" && tar -cf - --exclude=.git .) | (cd "$WS" && tar -xf -)
+for abi in android-arm android-arm64 android-x86 android-x86_64; do
+  mkdir -p "$WS/binaries/$abi"; printf 'ELF' > "$WS/binaries/$abi/nfqws2"
+done
 OUT="$SANDBOX/module.zip"
-"$PY" "$REPO_DIR/tools/build.py" "$OUT" > "$SANDBOX/build.log" 2>&1
-assert_rc 0 $? "the builder exits 0"
-assert_file "$OUT" "the archive is created"
-
-if [ -f "$OUT" ]; then
-  "$PY" - "$OUT" > "$SANDBOX/tops.txt" <<'PY'
-import sys, zipfile
-names = zipfile.ZipFile(sys.argv[1]).namelist()
-tops = sorted({n.split('/')[0] for n in names})
-print('TOPS ' + ' '.join(tops))
-print('FILES ' + str(sum(1 for n in names if not n.endswith('/'))))
-print('DEVS ' + ' '.join(sorted(n for n in names
-      if n.startswith(('tests/', 'tools/', '.workbuddy-ai/', '.git/')))))
-print('ZIPS ' + ' '.join(sorted(n for n in names if n.endswith('.zip'))))
-PY
-  tops=$(sed -n 's/^TOPS //p' "$SANDBOX/tops.txt")
-  files=$(sed -n 's/^FILES //p' "$SANDBOX/tops.txt")
-  devs=$(sed -n 's/^DEVS //p' "$SANDBOX/tops.txt")
-  zips=$(sed -n 's/^ZIPS //p' "$SANDBOX/tops.txt")
-
-  expected=$(printf '%s %s' "$MODULE_FILES" "$MODULE_DIRS" | tr ' ' '\n' | grep -v '^$' | sort | tr '\n' ' ' | sed 's/ $//')
-  assert_eq "$expected" "$tops" "the archive holds exactly the module top level"
-  assert_eq "" "$devs" "no developer directory is archived"
-  assert_eq "" "$zips" "no nested archive is archived"
-  assert_ge "$files" 140 "the archive carries the whole module ($files files)"
-
-  "$PY" - "$OUT" "$REPO_DIR" <<'PY' > "$SANDBOX/required.txt"
+# shellcheck disable=SC2086
+(cd "$WS" && "$PY" - "$OUT" $regular <<'PY'
 import os, sys, zipfile
-names = set(zipfile.ZipFile(sys.argv[1]).namelist())
-for n in ('module.prop', 'customize.sh', 'service.sh', 'action.sh', 'uninstall.sh',
-          'bin/nfqws2-ctl', 'lib/common.sh', 'defaults/nfqws2.conf',
-          'webroot/index.html', 'webroot/config.json'):
-    print(('OK  ' if n in names else 'MISSING ') + n)
-if os.path.isdir(os.path.join(sys.argv[2], 'binaries')):
-    for abi in ('android-arm', 'android-arm64', 'android-x86', 'android-x86_64'):
-        n = 'binaries/%s/nfqws2' % abi
-        print(('OK  ' if n in names else 'MISSING ') + n)
-PY
-  missing=$(grep '^MISSING ' "$SANDBOX/required.txt" | sed 's/^MISSING //' | tr '\n' ' ')
-  assert_eq "" "$missing" "every file the installer needs is present"
-fi
-
-# ── installer cleanup ─────────────────────────────────────────────────────────
-section "customize.sh removes developer directories on install"
-
-# The paths are listed across a line continuation, so match the quoted argument
-# rather than the whole command.
-assert_contains "$(cat "$REPO_DIR/customize.sh")" '"$MODPATH/tests"' "tests/ is deleted at install time"
-assert_contains "$(cat "$REPO_DIR/customize.sh")" '"$MODPATH/tools"' "tools/ is deleted at install time"
-assert_contains "$(cat "$REPO_DIR/customize.sh")" '.workbuddy-ai' ".workbuddy-ai/ is deleted at install time"
-
-if command -v unzip >/dev/null 2>&1; then
-  # A deliberately naive archive: everything in the repo, exactly what
-  # `zip -r` from the root would produce.
-  "$PY" - "$REPO_DIR" "$SANDBOX/naive.zip" <<'PY' >/dev/null 2>&1
-import os, sys, zipfile
-repo, dst = sys.argv[1], sys.argv[2]
-z = zipfile.ZipFile(dst, 'w', zipfile.ZIP_DEFLATED)
-for root, dirs, files in os.walk(repo):
-    dirs[:] = [d for d in dirs if d not in ('.git',)]
-    for f in files:
-        p = os.path.join(root, f)
-        z.write(p, os.path.relpath(p, repo).replace(os.sep, '/'))
+z = zipfile.ZipFile(sys.argv[1], 'w', zipfile.ZIP_DEFLATED)
+for top in sys.argv[2:]:
+    if os.path.isfile(top):
+        z.write(top); continue
+    for root, dirs, files in os.walk(top):
+        for f in files:
+            z.write(os.path.join(root, f))
 z.close()
 PY
-  assert_file "$SANDBOX/naive.zip" "the naive archive was built"
+)
+assert_file "$OUT" "the archive is created"
 
-  MODPATH="$SANDBOX/naive-out"
-  mkdir -p "$MODPATH"
-  unzip -o "$SANDBOX/naive.zip" -x 'META-INF/*' -d "$MODPATH" >/dev/null 2>&1
+"$PY" - "$OUT" > "$SANDBOX/tops.txt" <<'PY'
+import sys, zipfile
+names = zipfile.ZipFile(sys.argv[1]).namelist()
+print('TOPS ' + ' '.join(sorted({n.split('/')[0] for n in names})))
+print('FILES ' + str(sum(1 for n in names if not n.endswith('/'))))
+print('DEVS ' + ' '.join(sorted(n for n in names if n.split('/')[0] in
+      ('tests', 'tools', '.github', '.git', 'changelog.md', 'CONTRIBUTING.md', 'update.json', 'update-extended.json'))))
+need = ('module.prop', 'customize.sh', 'service.sh', 'action.sh', 'uninstall.sh',
+        'bin/nfqws2-ctl', 'lib/common.sh', 'lib/dns.sh', 'defaults/nfqws2.conf',
+        'webroot/index.html', 'webroot/config.json',
+        'binaries/android-arm/nfqws2', 'binaries/android-arm64/nfqws2',
+        'binaries/android-x86/nfqws2', 'binaries/android-x86_64/nfqws2')
+print('MISSING ' + ' '.join(n for n in need if n not in names))
+PY
+assert_eq "$MODULE_TOP" "$(sed -n 's/^TOPS //p' "$SANDBOX/tops.txt")" "the archive holds exactly the module top level"
+assert_eq "" "$(sed -n 's/^DEVS //p' "$SANDBOX/tops.txt")" "no repository-only file is archived"
+assert_eq "" "$(sed -n 's/^MISSING //p' "$SANDBOX/tops.txt")" "every file the installer needs is present"
+assert_ge "$(sed -n 's/^FILES //p' "$SANDBOX/tops.txt")" 140 "the archive carries the whole module"
 
-  # This is the point of the whole exercise: the `-x` pattern alone does NOT
-  # stop nested developer files.
-  nested=$(find "$MODPATH/tests" -type f 2>/dev/null | head -1)
-  if [ -n "$nested" ]; then
-    _ok "unzip -x alone lets nested tests/ through (hence the deletion)"
-  else
-    _fail "unzip -x filtered nested tests/ — the deletion may be unnecessary, re-check the premise"
-  fi
+# ── extended module.prop ──────────────────────────────────────────────────────
+section "extended module.prop"
 
-  rm -rf "$MODPATH/tests" "$MODPATH/tools" "$MODPATH/.workbuddy-ai" \
-         "$MODPATH/.git" "$MODPATH/.github" "$MODPATH/.gitattributes" \
-         "$MODPATH/CONTRIBUTING.md" \
-         "$MODPATH/docs" "$MODPATH/update.json" "$MODPATH/changelog.md" \
-         "$MODPATH/.gitignore"
-  rm -f "$MODPATH"/*.zip
-
-  left=$(find "$MODPATH" -maxdepth 1 -mindepth 1 -exec basename {} \; | sort | tr '\n' ' ' | sed 's/ $//')
-  assert_eq "$expected" "$left" "after cleanup only module entries remain"
-
-  devs=$(find "$MODPATH" \( -path '*/tests/*' -o -path '*/tools/*' -o -path '*/.workbuddy-ai/*' -o -name '*.zip' \) 2>/dev/null | head -3)
-  assert_eq "" "$devs" "nothing developer-ish survives the cleanup"
-else
-  printf '   SKIP  unzip is not available, installer simulation skipped\n'
-fi
+sedline=$(sed -n '/^ *sed -i \\$/,/module.prop"$/p' "$WF" | grep -- "-e '" | sed "s/^ *-e '\(.*\)' *\\\\$/\1/")
+prop="$SANDBOX/module.prop"
+cp "$REPO_DIR/module.prop" "$prop"
+printf '%s\n' "$sedline" > "$SANDBOX/ext.sed"
+sed -i -f "$SANDBOX/ext.sed" "$prop"
+v=$(sed -n 's/^version=//p' "$REPO_DIR/module.prop")
+assert_contains "$(cat "$prop")" "version=$v-extended" "the version gets -extended"
+assert_match "$(grep '^name=' "$prop")" ' Extended$' "the name gets Extended"
+assert_contains "$(cat "$prop")" "/update-extended.json" "updates come from update-extended.json"
+assert_eq "$(sed -n 's/^versionCode=//p' "$REPO_DIR/module.prop")" "$(sed -n 's/^versionCode=//p' "$prop")" "the versionCode is the same"
 
 harness_finish

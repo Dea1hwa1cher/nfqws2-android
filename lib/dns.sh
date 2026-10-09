@@ -251,7 +251,6 @@ dns_build() {
     echo "--timeout=5s"
     echo "--upstream-mode=load_balance"
     [ "${LOG_LEVEL:-0}" = 1 ] && echo "-v"
-    echo "-o"; echo "$DNS_LOG"
   } > "$DNS_RUN_DIR/args"
   return 0
 }
@@ -279,7 +278,7 @@ dns_lock() { # [0 — не ждать]
   while ! mkdir "$DNS_LOCK" 2>/dev/null; do
     owner=""
     [ -f "$DNS_LOCK/pid" ] && IFS= read -r owner < "$DNS_LOCK/pid"
-    if [ -n "$owner" ] && ! kill -0 "$owner" 2>/dev/null; then
+    if [ -n "$owner" ] && [ ! -d "/proc/$owner" ]; then
       rm -rf "$DNS_LOCK"; continue
     fi
     [ "$1" = 0 ] && return 1
@@ -301,16 +300,44 @@ _dns_locked() { # <0|1 ждать> <функция> [аргументы]
   return $rc
 }
 
+# Жив ли процесс — по /proc, а не kill -0: у kill -0 из другого процесса
+# бывает отказ (EPERM) и у живого dnsproxy. Зомби (завершился, но не прибран)
+# — не жив.
+dns_alive() { # <pid>
+  local _a _b st=""
+  [ -d "/proc/$1" ] || return 1
+  [ -r "/proc/$1/stat" ] && read -r _a _b st _a < "/proc/$1/stat"
+  [ "$st" != Z ]
+}
 dns_pid() {
   local p=""
   [ -f "$DNS_PIDFILE" ] && IFS= read -r p < "$DNS_PIDFILE"
   case "$p" in ''|*[!0-9]*) return 1 ;; esac
-  kill -0 "$p" 2>/dev/null || return 1
-  # Завершившийся, но не прибранный процесс (зомби) kill -0 считает живым
-  local _a _b st=""
-  [ -r "/proc/$p/stat" ] && read -r _a _b st _a < "/proc/$p/stat"
-  [ "$st" = Z ] && return 1
+  dns_alive "$p" || return 1
   printf '%s' "$p"
+}
+# Что с процессом из PID-файла — для журнала, когда он «не работает»
+dns_pid_diag() { # <pid>
+  local d _a _b st=""
+  [ -n "$1" ] || { printf 'пусто'; return; }
+  d="PID $1"
+  if [ -d "/proc/$1" ]; then
+    [ -r "/proc/$1/stat" ] && read -r _a _b st _a < "/proc/$1/stat"
+    d="$d: есть в /proc, $_b, состояние ${st:-?}"
+  else
+    d="$d: нет в /proc"
+  fi
+  kill -0 "$1" 2>/dev/null && d="$d, kill -0 ok" || d="$d, kill -0 отказ"
+  printf '%s' "$d"
+}
+# dnsproxy этого модуля (по пути бинарника), кроме PID из аргумента
+dns_own_pids() { # [исключить PID]
+  local p exe
+  for p in $(pidof dnsproxy 2>/dev/null); do
+    [ "$p" = "$1" ] && continue
+    exe=$(readlink "/proc/$p/exe" 2>/dev/null)
+    [ "$exe" = "$DNS_BIN" ] && dns_alive "$p" && echo "$p"
+  done
 }
 
 # Корневые сертификаты для DoH/DoT: Go ищет их в /etc/ssl/certs, а у Android
@@ -326,16 +353,39 @@ dns_cert_dirs() {
 # dnsproxy этого модуля, про которые PID-файл не знает (остались от сбоя или
 # от старой версии без блокировки): держат порт, и новый запуск не поднимется.
 dns_kill_strays() {
-  local p known="" exe
-  known=$(dns_pid)
-  for p in $(pidof dnsproxy 2>/dev/null); do
-    [ "$p" = "$known" ] && continue
-    exe=$(readlink "/proc/$p/exe" 2>/dev/null)
-    [ "$exe" = "$DNS_BIN" ] || continue
+  local p
+  for p in $(dns_own_pids "$(dns_pid)"); do
     dns_log "лишний dnsproxy (PID $p) без PID-файла — завершаю"
     kill -KILL "$p" 2>/dev/null
   done
 }
+
+# Фильтр вывода dnsproxy в журнал. Каждый неответ сервера dnsproxy пишет
+# дважды («response received» и «exchange failed»), а один и тот же
+# недоступный сервер — на каждый запрос: журнал за минуты забивался
+# одинаковыми строками. Первая строка «response received» отбрасывается,
+# одинаковая ошибка (сервер + текст без чисел) показывается раз в 5 минут,
+# а следующая за окном — со счётчиком пропущенных. С LOG_LEVEL=1 — всё как есть.
+DNS_LOG_FILTER='
+function tsec(t,   a) { split(t, a, ":"); return a[1] * 3600 + a[2] * 60 + int(a[3]) }
+{
+  if (index($0, " ERROR response received ")) next
+  if (index($0, " ERROR exchange failed ")) {
+    up = ""; if (match($0, /upstream=[^ ]+/)) up = substr($0, RSTART + 9, RLENGTH - 9)
+    er = ""; if (match($0, /err="[^"]*"/)) er = substr($0, RSTART + 5, RLENGTH - 6)
+    gsub(/[0-9]+/, "N", er)
+    k = up "|" er
+    now = tsec($2) + day * 86400
+    if (now < prev) { day++; now += 86400 }
+    prev = now
+    if ((k in last) && now - last[k] < 300) { cnt[k]++; next }
+    if (cnt[k] > 0) printf "%s %s INFO nfqws2: ошибка сервера %s повторялась, скрыто повторов за 5 мин: %d\n", $1, $2, up, cnt[k]
+    cnt[k] = 0; last[k] = now
+  }
+  print
+  fflush()
+}'
+
 
 dns_proxy_start() {
   local pid i listen=0
@@ -343,11 +393,19 @@ dns_proxy_start() {
   [ -x "$DNS_BIN" ] || { dns_fail "нет исполняемого $DNS_BIN"; return 1; }
   rotate_file "$DNS_LOG" $(( ${LOG_MAX_KB:-512} * 1024 ))
   dns_kill_strays
+  # Вывод dnsproxy — через фильтр (FIFO, чтобы $! остался PID самого
+  # dnsproxy). Фильтр завершается сам, когда dnsproxy закрывает FIFO.
+  local out="$DNS_LOG" fifo="$DNS_RUN_DIR/log.fifo"
+  rm -f "$fifo"
+  if [ "${LOG_LEVEL:-0}" != 1 ] && mkfifo "$fifo" 2>/dev/null; then
+    awk "$DNS_LOG_FILTER" < "$fifo" >> "$DNS_LOG" 2>/dev/null &
+    out="$fifo"
+  fi
   (
     set -f
     IFS='
 '
-    exec 0</dev/null >>"$DNS_LOG" 2>&1
+    exec 0</dev/null >>"$out" 2>&1
     SSL_CERT_DIR=$(dns_cert_dirs); export SSL_CERT_DIR
     exec "$DNS_BIN" $(cat "$DNS_RUN_DIR/args")
   ) &
@@ -356,11 +414,12 @@ dns_proxy_start() {
   # Готов, когда слушает порт: /proc/net/udp, порт в шестнадцатеричном виде
   i=0
   while [ "$i" -lt 20 ]; do
-    kill -0 "$pid" 2>/dev/null || break
+    dns_alive "$pid" || break
     grep -qi ":$(printf '%04X' "$DNS_PORT") " /proc/net/udp /proc/net/udp6 2>/dev/null && { listen=1; break; }
     sleep 0.2; i=$((i + 1))
   done
-  if ! kill -0 "$pid" 2>/dev/null; then
+  if ! dns_alive "$pid"; then
+    wait "$pid" 2>/dev/null
     rm -f "$DNS_PIDFILE"
     dns_fail "dnsproxy не запустился: $(grep -v '] nfqws2: ' "$DNS_LOG" 2>/dev/null | tail -n 1)"
     return 1
@@ -376,7 +435,7 @@ dns_proxy_start() {
 dns_proxy_stop() {
   local pid
   pid=$(dns_pid) && {
-    kill -TERM "$pid" 2>/dev/null; sleep 0.3; kill -0 "$pid" 2>/dev/null && kill -KILL "$pid" 2>/dev/null
+    kill -TERM "$pid" 2>/dev/null; sleep 0.3; dns_alive "$pid" && kill -KILL "$pid" 2>/dev/null
     dns_log "dnsproxy (PID $pid) остановлен"
   }
   rm -f "$DNS_PIDFILE" "$DNS_RUN_DIR/running.upstreams" "$DNS_RUN_DIR/running.args"
@@ -527,12 +586,20 @@ _dns_stop() {
 # останавливают, и проверять на полпути нечего.
 dns_check() { _dns_locked 0 _dns_check; return 0; }
 _dns_check() {
-  local p=""
+  local p="" own
   if dns_wanted; then
     [ -f "$DNS_RUN_DIR/active" ] || return 0
     if ! dns_pid >/dev/null; then
       [ -f "$DNS_PIDFILE" ] && IFS= read -r p < "$DNS_PIDFILE"
-      dns_log "dnsproxy${p:+ (PID $p)} не работает — перезапуск. Последние строки его вывода — выше"
+      # PID-файл врёт, а dnsproxy этого модуля работает — не перезапускаем,
+      # а берём его; в журнал — подробности для разбора
+      own=$(dns_own_pids | head -n 1)
+      if [ -n "$own" ]; then
+        echo "$own" > "$DNS_PIDFILE"
+        dns_log "watchdog: PID-файл ($(dns_pid_diag "$p")) не указывал на dnsproxy, но он работает (PID $own) — PID-файл исправлен, перезапуск не нужен"
+        return 0
+      fi
+      dns_log "dnsproxy не работает ($(dns_pid_diag "$p")) — перезапуск. Последние строки его вывода — выше"
       log_msg "DNS: dnsproxy упал — перезапуск (подробности — в журнале DNS)"
       rm -f "$DNS_PIDFILE"
       if _dns_start "watchdog"; then log_msg "DNS: dnsproxy перезапущен"; fi

@@ -132,9 +132,13 @@ document.addEventListener('pointerdown', e => {
   const size = Math.max(r.width, r.height) * 2.2;
   const s = document.createElement('span');
   s.className = 'ripple';
-  s.style.cssText = 'width:' + size + 'px;height:' + size + 'px;left:' +
-    ((e.clientX || r.left + r.width / 2) - r.left - size / 2) + 'px;top:' +
-    ((e.clientY || r.top + r.height / 2) - r.top - size / 2) + 'px';
+  const L = (e.clientX || r.left + r.width / 2) - r.left - size / 2, T = (e.clientY || r.top + r.height / 2) - r.top - size / 2;
+  s.style.cssText = 'width:' + size + 'px;height:' + size + 'px;left:' + L + 'px;top:' + T + 'px';
+  // Волна не выходит за форму элемента, даже если у него overflow: visible
+  // (у чипов — ради зоны касания 48dp): иначе круг расползался далеко за чип
+  if(getComputedStyle(el).overflow === 'visible')
+    s.style.clipPath = 'inset(' + Math.max(0, -T) + 'px ' + Math.max(0, size + L - r.width) + 'px ' +
+      Math.max(0, size + T - r.height) + 'px ' + Math.max(0, -L) + 'px round ' + (getComputedStyle(el).borderRadius || '0') + ')';
   el.append(s);
   setTimeout(() => s.remove(), 520);
 }, {passive: true});
@@ -299,12 +303,33 @@ async function detectSpawn(){
   spawnOK = r.code === 3 && r.out === 'nfq_a\n\nnfq_b';
 }
 const ctlCmd = a => (LANG === 'en' ? 'NFQWS_LANG=en ' : '') + 'sh ' + q(CTL) + ' ' + a.map(q).join(' ');
+/* Длинный аргумент (base64 архива или большого списка) одной командой не
+   пройдёт: предел ядра на длину аргумента ~128 КБ. Такой уходит частями
+   командой upload, а в саму команду идёт ссылка @up:<метка>. */
+const UPLOAD_CHUNK = 48000;
+async function uploadArgs(a){
+  const out = [];
+  for(const v of a){
+    if(typeof v !== 'string' || v.length <= UPLOAD_CHUNK){ out.push(v); continue; }
+    const tk = 'u' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    for(let i = 0; i < v.length; i += UPLOAD_CHUNK){
+      const r = await sh(ctlCmd(['upload', tk, v.slice(i, i + UPLOAD_CHUNK)]), 20000);
+      if(r.code) throw new Error((r.err || r.out || 'upload').trim());
+    }
+    out.push('@up:' + tk);
+  }
+  return out;
+}
 async function ctl(a, ms){
+  try { a = await uploadArgs(a); } catch(e){ toast(String(e.message || e).slice(0, 160)); return ''; }
   const r = await sh(ctlCmd(a), ms);
   if(r.code && r.err && !r.out) toast(r.err.slice(0, 160));
   return r.out + (r.code && r.err ? '\n' + r.err : '');
 }
-async function ctlx(a, ms, onLine){ return await sh(ctlCmd(a), ms, onLine); }
+async function ctlx(a, ms, onLine){
+  try { a = await uploadArgs(a); } catch(e){ return {code: 1, out: '', err: String(e.message || e)}; }
+  return await sh(ctlCmd(a), ms, onLine);
+}
 const errText = (r, fallback) => ((r.err || '').trim() || (r.out || '').trim().split('\n').pop() || t(fallback));
 
 /* ── Snackbar: M3 (label + optional text action, 4s / 8s с действием) ──── */
@@ -530,6 +555,9 @@ function navigate(page){
   const d0 = pageDepth(currentPage), d1 = pageDepth(page);
   const mode = d1 > d0 ? 'forward' : (d1 < d0 ? 'back' : 'fade');
   pageScroll[currentPage] = scrollY;
+  // Выбор профилей DNS живёт только на своём экране
+  dnsLongCancel();
+  if(dnsSel){ dnsSel = null; if(currentPage === 'dns') renderDns(); }
   if(mode === 'forward') delete pageScroll[page];
   currentPage = page;
   if(!PAGE_META[page].child) lastTop = page;
@@ -611,6 +639,7 @@ function closeSheet(){
   const el = $(openSheetId);
   el.classList.remove('open');
   el.style.transform = '';
+  sheetScrimRelease();
   $('sheet-scrim').classList.remove('show');
   setBackgroundInert(false);
   if(sheetReturnFocus && sheetReturnFocus.focus) sheetReturnFocus.focus({ preventScroll: true });
@@ -728,6 +757,20 @@ document.addEventListener('focusout', () => setTimeout(updateKeyboard, 60));
 addEventListener('orientationchange', () => { vpBase = 0; setTimeout(updateKeyboard, 300); });
 
 /* ── Bottom sheet: смахивание вниз за drag handle, нажатие на него закрывает ── */
+/* Затемнение и размытие фона идут за пальцем: тянешь лист вниз — фон
+   проясняется, возвращаешь — снова размывается. Отпустил — дальше переход
+   CSS от текущего значения: к нулю, если лист закрывается, или обратно. */
+const SHEET_BLUR = 6;
+function sheetScrimFollow(sheet, dy){
+  const sc = $('sheet-scrim'), p = Math.max(0, Math.min(1, 1 - dy / Math.max(1, sheet.offsetHeight)));
+  sc.style.transition = 'none';
+  sc.style.opacity = p;
+  sc.style.webkitBackdropFilter = sc.style.backdropFilter = 'blur(' + (SHEET_BLUR * p).toFixed(2) + 'px)';
+}
+function sheetScrimRelease(){
+  const sc = $('sheet-scrim');
+  sc.style.transition = sc.style.opacity = sc.style.webkitBackdropFilter = sc.style.backdropFilter = '';
+}
 function initSheetDrag(sheet){
   const zone = sheet.querySelector('.sheet-drag');
   let y0 = null, dy = 0, dragged = false;
@@ -741,11 +784,13 @@ function initSheetDrag(sheet){
     dy = Math.max(0, e.clientY - y0);
     if(dy > 4) dragged = true;
     sheet.style.transform = 'translateY(' + dy + 'px)';
+    sheetScrimFollow(sheet, dy);
   });
   const end = () => {
     if(y0 == null) return;
     y0 = null;
     sheet.style.transition = '';
+    sheetScrimRelease();
     if(dy > Math.min(120, sheet.offsetHeight * .25)) requestAnimationFrame(() => closeSheet());
     else sheet.style.transform = '';
   };
@@ -762,18 +807,21 @@ document.querySelectorAll('.sheet').forEach(initSheetDrag);
 function initSheetSwipe(sheet){
   const list = sheet.querySelector('.sheet-scroll');
   if(!list) return;
-  let y0 = 0, t0 = 0, lastY = 0, lastT = 0, v = 0, state = '';   // '' | 'wait' | 'drag' | 'scroll'
+  let y0 = 0, lastY = 0, lastT = 0, v = 0, state = '', inList = false;   // '' | 'wait' | 'drag' | 'scroll'
   sheet.addEventListener('touchstart', e => {
     state = '';
     if(e.touches.length !== 1 || e.target.closest('.sheet-drag')) return;
-    y0 = lastY = e.touches[0].clientY; t0 = lastT = e.timeStamp; v = 0;
-    state = list.scrollTop <= 0 ? 'wait' : 'scroll';
+    y0 = lastY = e.touches[0].clientY; lastT = e.timeStamp; v = 0;
+    // Заголовок и пояснение над списком тянут лист всегда; сам список —
+    // только когда он прокручен в начало
+    inList = !!e.target.closest('.sheet-scroll');
+    state = !inList || list.scrollTop <= 0 ? 'wait' : 'scroll';
   }, {passive: true});
   sheet.addEventListener('touchmove', e => {
     if(!state || state === 'scroll') return;
     const y = e.touches[0].clientY, dy = y - y0;
     if(state === 'wait'){
-      if(dy < 0 || list.scrollTop > 0){ state = 'scroll'; return; }
+      if(dy < 0 || (inList && list.scrollTop > 0)){ state = 'scroll'; return; }
       // Вниз от начала списка прокручивать некуда: забираем жест сразу, пока
       // браузер не начал свою прокрутку (после неё touchmove не отменить)
       if(e.cancelable) e.preventDefault();
@@ -783,6 +831,7 @@ function initSheetSwipe(sheet){
     if(e.cancelable) e.preventDefault();
     if(e.timeStamp > lastT){ v = (y - lastY) / (e.timeStamp - lastT); lastY = y; lastT = e.timeStamp; }
     sheet.style.transform = 'translateY(' + Math.max(0, y - y0) + 'px)';
+    sheetScrimFollow(sheet, Math.max(0, y - y0));
   }, {passive: false});
   const end = e => {
     if(state !== 'drag'){ state = ''; return; }
@@ -790,6 +839,7 @@ function initSheetSwipe(sheet){
     if(e.cancelable) e.preventDefault();                 // отпущенный жест — не нажатие
     const dy = Math.max(0, lastY - y0);
     sheet.style.transition = '';
+    sheetScrimRelease();
     if(e.type === 'touchend' && (dy > Math.min(120, sheet.offsetHeight * .25) || (v > .5 && dy > 24))) requestAnimationFrame(() => closeSheet());
     else sheet.style.transform = '';
   };

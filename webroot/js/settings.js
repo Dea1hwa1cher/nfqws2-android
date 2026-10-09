@@ -235,7 +235,12 @@ async function openBackupSheet(){
   setHTML('backup-list', '<div class="list-item"><span class="spinner"></span><span class="li-text"><span class="li-secondary">' +
     esc(t('Поиск копий…')) + '</span></span></div>', false);
   openSheet('backup-sheet');
+  // Список — после выезда листа: exec без spawn занимает главный поток,
+  // и анимация дёргалась
+  await new Promise(res => setTimeout(res, isAnimationsDisabled() ? 0 : 480));
+  if(openSheetId !== 'backup-sheet') return;
   const r = await ctlx(['backup-list']);
+  if(openSheetId !== 'backup-sheet') return;
   const rows = (r.code ? '' : r.out).split('\n').filter(Boolean).map(l => l.split('\t'));
   setHTML('backup-list', rows.length ? rows.map(([name, size]) => {
     const m = name.match(/(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})/);
@@ -246,7 +251,7 @@ async function openBackupSheet(){
         '<span class="li-secondary li-mono truncate">' + esc(name) + ' · ' + Math.max(1, Math.round((+size || 0) / 1024)) + ' KB</span></span>' +
     '</div>';
   }).join('') : '<div class="empty"><span class="empty-icon">' + icon('download', 's24') + '</span><span>' +
-    esc(t('В памяти устройства нет копий nfqws2-backup-*.tar. Выберите файл вручную.')) + '</span></div>');
+    esc(t('В папке Download/nfqws2 копий нет. Выберите файл вручную.')) + '</span></div>');
 }
 function applyRestoredUi(raw){
   const line = (raw || '').trim().split('\n')[0];

@@ -252,7 +252,7 @@ EN = {
  "Не удалось создать копию": "Could not create a backup",
  "Копия сохранена: {0}": "Backup saved: {0}",
  "Поиск копий…": "Looking for backups…",
- "В памяти устройства нет копий nfqws2-backup-*.tar. Выберите файл вручную.": "No nfqws2-backup-*.tar archives found on device. Pick a file manually.",
+ "В папке Download/nfqws2 копий нет. Выберите файл вручную.": "No backups in Download/nfqws2. Pick a file manually.",
  "Выбрать файл архива": "Pick archive file",
  "Восстановить копию?": "Restore this backup?",
  "Конфиг, пользовательские списки, стратегии и оформление будут заменены содержимым «{0}».": "Config, custom lists, strategies and appearance will be replaced with the contents of “{0}”.",

@@ -277,6 +277,15 @@ function truthy(cond, msg) { cond ? ok(msg) : fail(msg); }
     await longPress('#dns-profiles .list-item:has-text("Alpha")');
     await page.evaluate(() => handleBack(true)); await idle();
     eq('dns', await page.evaluate(() => currentPage), 'back leaves the selection, not the screen');
+    // Палец на профиле, а системный жест «назад» уводит с экрана без pointerup
+    const at = await page.$eval('#dns-profiles .list-item', e => { e.scrollIntoView({ block: 'center' }); const r = e.getBoundingClientRect(); return [r.x + 30, r.y + 20]; });
+    await page.mouse.move(at[0], at[1]); await page.mouse.down();
+    await page.evaluate(() => goBack()); await page.waitForTimeout(700);
+    await page.mouse.up(); await idle();
+    eq('settings', await page.evaluate(() => currentPage), 'a back gesture during a press leaves the screen');
+    truthy(!(await page.textContent('#app-title')).includes('Выбрано') && !(await page.$('#bar-actions .icon-btn')),
+      'and the selection bar does not appear on the settings screen');
+    await page.evaluate(() => navigate('dns')); await idle();
     eq(0, await page.$$eval('#dns-profiles .checkbox', r => r.length), 'and restores the switches');
 
     sect(`${mode}: scroll position`);

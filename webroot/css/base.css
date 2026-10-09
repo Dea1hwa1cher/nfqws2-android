@@ -136,6 +136,12 @@ html, body {
   transition: background-color var(--dur-medium) var(--standard), color var(--dur-medium) var(--standard);
 }
 body { overflow-x: hidden; overscroll-behavior-y: none; }
+/* Как в приложении: подписи, пункты и пояснения не выделяются долгим
+   нажатием. Выделяется только то, что имеет смысл копировать: поля ввода,
+   журналы, аргументы запуска. */
+body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+input, textarea, [contenteditable], .log-view, .code-block {
+  -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
 button, input, select, textarea { font-family: inherit; font-size: inherit; color: inherit; }
 /* Material Symbols — заливные глифы: stroke не используется */
 svg.icon { width: 24px; height: 24px; flex: none; fill: currentColor; display: block; }

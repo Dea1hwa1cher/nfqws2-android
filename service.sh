@@ -163,7 +163,10 @@ netwatch() {
 
   EVFILE="$STATE_DIR/netwatch_events"
   rm -f "$EVFILE"
-  local prev="" acted="" backoff=2 saw=0 sz mon up recheck=0
+  local prev="" acted="" backoff=2 saw=0 sz mon up recheck
+  # Первая перепроверка — через 30 с после старта: при загрузке сеть ещё
+  # устанавливается, и её смена до запуска ip monitor не дала бы события
+  read -r up _ < /proc/uptime; recheck=$(( ${up%.*} + 30 ))
   # The monitor writes events to a file, reaction is on its size changing.
   # A file, not a pipe, so kill -TERM reaps ip monitor itself instead of a
   # wrapper that would leave an orphan. Poll every 2s to spare battery
@@ -277,7 +280,7 @@ home_check() {
   mkdir "$STATE_DIR/home.lock" 2>/dev/null || return 0
   local ssid=""
   if [ "$HOME_WIFI" = "1" ]; then
-    ssid=$(current_ssid)
+    ssid=$(active_ssid)
     if [ -f "$HOME_OVERRIDE_FILE" ] && [ "$(cat "$HOME_OVERRIDE_FILE" 2>/dev/null)" != "$ssid" ]; then
       rm -f "$HOME_OVERRIDE_FILE"
     fi
@@ -329,7 +332,7 @@ network_strategy_check() {
 manual_start() {
   local ssid
   rm -f "$HOME_PAUSED_FILE"
-  if [ "$HOME_WIFI" = "1" ] && ssid=$(current_ssid) && ssid_is_home "$ssid"; then
+  if [ "$HOME_WIFI" = "1" ] && ssid=$(active_ssid) && ssid_is_home "$ssid"; then
     printf '%s' "$ssid" > "$HOME_OVERRIDE_FILE"
   fi
   start
@@ -365,7 +368,7 @@ case "$1" in
     rmdir "$STATE_DIR/home.lock" 2>/dev/null
     dns_boot_reset
     if [ "$AUTOSTART" = "1" ]; then
-      ssid=$(current_ssid)
+      ssid=$(active_ssid)
       if [ "$HOME_WIFI" = "1" ] && ssid_is_home "$ssid"; then
         log_msg "Домашняя Wi-Fi «$ssid» — автозапуск отложен до выхода из неё"
         printf '%s' "$ssid" > "$HOME_PAUSED_FILE"

@@ -160,7 +160,7 @@ log=$(cat "$DNS_LOG")
 assert_contains "$log" "запуск службы: запуск dnsproxy" "the DNS log says why dnsproxy was started"
 assert_contains "$log" "по умолчанию: DNS сети" "and what it was started with"
 assert_contains "$log" "перехват включён: IPv4" "and that interception is on"
-assert_contains "$log" "(PID $pid) не работает — перезапуск" "a crash is logged with the dead PID"
+assert_match "$log" "не работает \\(PID $pid: (нет в /proc|есть в /proc, \\(sleep\\), состояние Z)" "a crash is logged with the dead PID and what was found"
 assert_contains "$log" "watchdog: запуск dnsproxy" "followed by the restart"
 assert_contains "$(cat "$SERVICE_LOG")" "DNS: dnsproxy перезапущен" "the service log confirms the restart"
 
@@ -188,19 +188,47 @@ dns_check
 kill -0 "$(cat "$DNS_PIDFILE" 2>/dev/null)" 2>/dev/null
 assert_rc 0 $? "a lock left by a dead process is taken over"
 
-# Лишний dnsproxy этого модуля без PID-файла (как от двух одновременных запусков)
+# Работающий dnsproxy этого модуля, а PID-файл указывает не на него (так
+# было после загрузки: watchdog счёл живой процесс упавшим) — не перезапуск
 sleep 600 & stray=$!
 printf '#!/bin/sh\necho %s\n' "$stray" > "$MOCKBIN/pidof"
 printf '#!/bin/sh\n[ "$1" = /proc/%s/exe ] && { echo "%s"; exit 0; }\nexec /bin/readlink "$@"\n' "$stray" "$DNS_BIN" > "$MOCKBIN/readlink"
 chmod 0755 "$MOCKBIN/pidof" "$MOCKBIN/readlink"
 pid=$(cat "$DNS_PIDFILE"); kill "$pid"; sleep 0.3
 dns_check
+assert_eq "$stray" "$(cat "$DNS_PIDFILE")" "a running dnsproxy of this module is adopted instead of restarted"
+assert_contains "$(tail -n 2 "$DNS_LOG")" "PID-файл исправлен" "and the log says why"
+
+# Лишний dnsproxy без PID-файла (как от двух одновременных запусков) —
+# завершается перед новым запуском
+sleep 600 & stray2=$!
+printf '#!/bin/sh\necho %s %s\n' "$stray" "$stray2" > "$MOCKBIN/pidof"
+printf '#!/bin/sh\ncase "$1" in /proc/%s/exe|/proc/%s/exe) echo "%s"; exit 0 ;; esac\nexec /bin/readlink "$@"\n' "$stray" "$stray2" "$DNS_BIN" > "$MOCKBIN/readlink"
+rm -f "$DNS_RUN_DIR/running.args"
+dns_start "тест"
 sleep 0.2
-kill -0 "$stray" 2>/dev/null
+kill -0 "$stray2" 2>/dev/null
 assert_rc 1 $? "a stray dnsproxy of this module is killed before a new one starts"
-assert_contains "$(cat "$DNS_LOG")" "лишний dnsproxy (PID $stray)" "and logged"
+assert_contains "$(cat "$DNS_LOG")" "лишний dnsproxy (PID $stray2)" "and logged"
 rm -f "$MOCKBIN/pidof" "$MOCKBIN/readlink"
-wait "$stray" 2>/dev/null
+wait "$stray" "$stray2" 2>/dev/null
+
+# Фильтр журнала: двойные строки и одинаковые ошибки не забивают журнал
+flt=$(awk "$DNS_LOG_FILTER" <<'EOF'
+2026/10/09 00:41:04.17 INFO dnsproxy starting version=v0.86.0
+2026/10/09 00:41:41.17 ERROR response received addr=5.175.161.3:53 proto=udp status="i/o timeout"
+2026/10/09 00:41:41.17 ERROR exchange failed prefix=dnsproxy upstream=5.175.161.3:53 question=";a.com.\tIN\t HTTPS" duration=10.0s err="read udp 10.0.0.1:40034->5.175.161.3:53: i/o timeout"
+2026/10/09 00:41:51.17 ERROR exchange failed prefix=dnsproxy upstream=5.175.161.3:53 question=";b.com.\tIN\t HTTPS" duration=10.0s err="read udp 10.0.0.1:41234->5.175.161.3:53: i/o timeout"
+2026/10/09 00:42:01.17 ERROR exchange failed prefix=dnsproxy upstream=tls://x.ru:853 question=";a.com.\tIN\t A" duration=0.2s err="EOF"
+2026/10/09 00:47:01.17 ERROR exchange failed prefix=dnsproxy upstream=5.175.161.3:53 question=";c.com.\tIN\t A" duration=10.0s err="read udp 10.0.0.1:1->5.175.161.3:53: i/o timeout"
+EOF
+)
+assert_not_contains "$flt" "response received" "the duplicate «response received» line is dropped"
+assert_contains "$flt" ";a.com." "the first timeout of a server is shown"
+assert_not_contains "$flt" ";b.com." "the same error from the same server within 5 minutes is not"
+assert_contains "$flt" "x.ru" "a different server's error still shows"
+assert_contains "$flt" "скрыто повторов за 5 мин: 1" "after the window the skipped repeats are counted"
+assert_contains "$flt" "dnsproxy starting" "other lines pass through"
 
 ctl get-logs dns 300
 assert_contains "$ctl_out" "лишний dnsproxy" "nfqws2-ctl get-logs dns shows the DNS log"

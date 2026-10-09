@@ -272,6 +272,7 @@ function dnsSelExit(quiet){
   scheduleSync();
 }
 function dnsSelRender(){
+  if(!dnsSel || currentPage !== 'dns') return;
   $('app-title').textContent = t('Выбрано: {0}', dnsSel.size);
   const all = dnsSt.profiles.length && dnsSt.profiles.every(p => dnsSel.has(p.id));
   fillBarActions([
@@ -302,7 +303,7 @@ async function dnsSelDelete(){
   toast(one ? t('Профиль «{0}» удалён', ps[0].name) : t('Удалено профилей: {0}', ps.length));
 }
 /* Долгое нажатие: 500 мс без сдвига пальца; click после него гасится */
-let dnsLongFired = false;
+let dnsLongFired = false, dnsLongCancel = () => {};
 (function bindDnsLongPress(){
   const box = $('dns-profiles');
   let tm = 0, x0 = 0, y0 = 0;
@@ -312,10 +313,17 @@ let dnsLongFired = false;
     cancel(); dnsLongFired = false;
     if(!row || dnsSel || e.target.closest('.switch')) return;
     x0 = e.clientX; y0 = e.clientY;
-    tm = setTimeout(() => { tm = 0; dnsLongFired = true; dnsSelEnter(row.dataset.id); }, 500);
+    // Жест «назад» системы мог увести с экрана, не прислав pointerup: тогда
+    // таймер срабатывал уже на другом экране и вешал туда панель выбора
+    tm = setTimeout(() => {
+      tm = 0;
+      if(currentPage !== 'dns' || !row.isConnected || openSheetId) return;
+      dnsLongFired = true; dnsSelEnter(row.dataset.id);
+    }, 500);
   });
   box.addEventListener('pointermove', e => { if(tm && Math.hypot(e.clientX - x0, e.clientY - y0) > 10) cancel(); });
   ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => box.addEventListener(ev, cancel));
+  dnsLongCancel = cancel;
   box.addEventListener('contextmenu', e => { if(e.target.closest('.list-item[data-id]')) e.preventDefault(); });
 })();
 
