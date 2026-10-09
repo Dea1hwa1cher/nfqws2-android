@@ -210,6 +210,22 @@ function highlight(text, lang){
    файлов (ipset.list и т. п.) она выключается, чтобы не тормозил ввод. */
 const HL_LIMIT = 150000;
 let editorCtx = null, editorReturnFocus = null, hlFrame = 0;
+let editorSearchQuery = '', editorMatches = [], editorMatchIndex = -1;
+
+function applySearchHighlights(html, query, curIdx){
+  if(!query) return html;
+  const qEsc = esc(query);
+  const escaped = qEsc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp('(<[^>]+>)|(' + escaped + ')', 'gi');
+  let matchCount = 0;
+  return html.replace(re, (m, tag, textMatch) => {
+    if(tag) return tag;
+    const isCur = matchCount === curIdx;
+    matchCount++;
+    return '<mark class="ce-match' + (isCur ? ' ce-match-cur' : '') + '">' + textMatch + '</mark>';
+  });
+}
+
 function highlightEditor(){
   hlFrame = 0;
   const ta = $('panel-editor-text'), pre = $('ce-hl'), box = $('code-edit');
@@ -217,7 +233,9 @@ function highlightEditor(){
   const on = !!lang && !ta.readOnly && ta.value.length <= HL_LIMIT;
   box.classList.toggle('plain', !on);
   if(!on){ pre.textContent = ''; return; }
-  pre.innerHTML = highlight(ta.value, lang) + ' ';
+  let html = highlight(ta.value, lang) + ' ';
+  if(editorSearchQuery) html = applySearchHighlights(html, editorSearchQuery, editorMatchIndex);
+  pre.innerHTML = html;
   pre.scrollTop = ta.scrollTop; pre.scrollLeft = ta.scrollLeft;
 }
 $('panel-editor-text').addEventListener('input', () => { if(!hlFrame) hlFrame = requestAnimationFrame(highlightEditor); });
@@ -225,6 +243,121 @@ $('panel-editor-text').addEventListener('scroll', () => {
   const ta = $('panel-editor-text'), pre = $('ce-hl');
   pre.scrollTop = ta.scrollTop; pre.scrollLeft = ta.scrollLeft;
 }, {passive: true});
+
+function updateEditorSearchUI(){
+  const countEl = $('editor-search-count');
+  const prevBtn = $('editor-search-prev');
+  const nextBtn = $('editor-search-next');
+  if(!editorSearchQuery){
+    if(countEl) countEl.textContent = '';
+    if(prevBtn) prevBtn.disabled = true;
+    if(nextBtn) nextBtn.disabled = true;
+    return;
+  }
+  const total = editorMatches.length;
+  if(total === 0){
+    if(countEl) countEl.textContent = t('0 из 0');
+    if(prevBtn) prevBtn.disabled = true;
+    if(nextBtn) nextBtn.disabled = true;
+  } else {
+    if(countEl) countEl.textContent = (editorMatchIndex + 1) + ' / ' + total;
+    if(prevBtn) prevBtn.disabled = false;
+    if(nextBtn) nextBtn.disabled = false;
+  }
+}
+
+function scrollTextareaToMatch(ta, pos){
+  const textBefore = ta.value.slice(0, pos);
+  const lineIndex = textBefore.split('\n').length - 1;
+  const comp = typeof getComputedStyle !== 'undefined' ? getComputedStyle(ta) : null;
+  const lh = (comp && parseFloat(comp.lineHeight)) || 20;
+  const targetTop = lineIndex * lh;
+  const halfH = (ta.clientHeight || 300) / 2;
+  ta.scrollTop = Math.max(0, targetTop - halfH);
+  const pre = $('ce-hl');
+  if(pre) pre.scrollTop = ta.scrollTop;
+}
+
+function goToEditorMatch(idx){
+  if(idx < 0 || idx >= editorMatches.length) return;
+  editorMatchIndex = idx;
+  const m = editorMatches[idx];
+  const ta = $('panel-editor-text');
+  if(ta.setSelectionRange) ta.setSelectionRange(m.start, m.end);
+  scrollTextareaToMatch(ta, m.start);
+  highlightEditor();
+  updateEditorSearchUI();
+}
+
+function onEditorSearchInput(){
+  const inp = $('editor-search-input');
+  if(!inp) return;
+  const val = inp.value;
+  editorSearchQuery = val;
+  editorMatches = [];
+  editorMatchIndex = -1;
+  const ta = $('panel-editor-text');
+  const text = ta ? ta.value : '';
+  if(val && text){
+    const q = val.toLowerCase();
+    const lower = text.toLowerCase();
+    let idx = 0;
+    while((idx = lower.indexOf(q, idx)) !== -1){
+      editorMatches.push({ start: idx, end: idx + q.length });
+      idx += q.length;
+      if(editorMatches.length > 5000) break;
+    }
+  }
+  if(editorMatches.length > 0){
+    const cursor = (ta && ta.selectionStart) || 0;
+    let nextIdx = editorMatches.findIndex(m => m.start >= cursor);
+    if(nextIdx === -1) nextIdx = 0;
+    goToEditorMatch(nextIdx);
+  } else {
+    highlightEditor();
+    updateEditorSearchUI();
+  }
+}
+
+function editorSearchNav(dir){
+  if(editorMatches.length === 0) return;
+  let next = editorMatchIndex + dir;
+  if(next >= editorMatches.length) next = 0;
+  if(next < 0) next = editorMatches.length - 1;
+  goToEditorMatch(next);
+}
+
+function toggleEditorSearch(){
+  const bar = $('editor-search-bar');
+  if(!bar) return;
+  if(bar.hidden) openEditorSearch();
+  else closeEditorSearch();
+}
+
+function openEditorSearch(){
+  const bar = $('editor-search-bar');
+  if(!bar) return;
+  bar.hidden = false;
+  const inp = $('editor-search-input');
+  if(inp){
+    inp.focus();
+    inp.select();
+  }
+  onEditorSearchInput();
+}
+
+function closeEditorSearch(){
+  const bar = $('editor-search-bar');
+  if(!bar) return;
+  bar.hidden = true;
+  editorSearchQuery = '';
+  editorMatches = [];
+  editorMatchIndex = -1;
+  updateEditorSearchUI();
+  highlightEditor();
+  const ta = $('panel-editor-text');
+  if(ta && ta.focus) ta.focus({ preventScroll: true });
+}
 
 function openSlideEditor(type, key){
   if(type === 'conf') openEditorWith({target: 'conf', title: 'nfqws2.conf', lang: 'conf',
@@ -237,6 +370,7 @@ function openSlideEditor(type, key){
 }
 async function openEditorWith(o){
   editorCtx = o;
+  closeEditorSearch();
   const ta = $('panel-editor-text');
   $('panel-title-text').textContent = o.title;
   $('panel-hint').textContent = o.hint;
@@ -280,6 +414,7 @@ async function openEditorWith(o){
    текст убирается до закрытия, а для больших файлов анимация отключается. */
 const LARGE_FILE = 50000;
 function teardownEditor(large){
+  closeEditorSearch();
   const panel = $('editor-panel'), box = $('code-edit'), ta = $('panel-editor-text'), pre = $('ce-hl');
   if(document.activeElement === ta) ta.blur();
   if(large) panel.style.transition = 'none';
@@ -308,6 +443,18 @@ $('panel-save-btn').onclick = async () => {
   const o = editorCtx;
   if(!o) return;
   const val = $('panel-editor-text').value;
+  // Свой обработчик (например, домены профиля DNS): вернул текст — это ошибка
+  if(o.onSave){
+    const err = await o.onSave(val);
+    if(err){
+      $('panel-hint').textContent = err;
+      $('panel-hint').className = 'helper err';
+      toast(err);
+      return;
+    }
+    closeSlideEditor(true);
+    return;
+  }
   if(o.target === 'import-new'){
     if(!val.trim()){ toast(t('Вставьте текст конфига')); return; }
     const name = await mdPrompt(t('Имя конфига'), t('Можно по-русски. Слэши, кавычки и $ будут убраны.'), 'import', t('Имя'));
@@ -351,3 +498,29 @@ $('panel-save-btn').onclick = async () => {
   if(o.key === 'apps') appsCache = null;
   if(o.key === 'apps' && currentPage === 'apps') appsInit();
 };
+
+const searchInp = $('editor-search-input');
+if(searchInp){
+  searchInp.addEventListener('input', onEditorSearchInput);
+  searchInp.addEventListener('keydown', e => {
+    if(e.key === 'Enter'){
+      e.preventDefault();
+      editorSearchNav(e.shiftKey ? -1 : 1);
+    } else if(e.key === 'Escape'){
+      e.preventDefault();
+      closeEditorSearch();
+    }
+  });
+}
+const editorPanel = $('editor-panel');
+if(editorPanel){
+  editorPanel.addEventListener('keydown', e => {
+    if((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F')){
+      e.preventDefault();
+      openEditorSearch();
+    } else if(e.key === 'Escape' && $('editor-search-bar') && !$('editor-search-bar').hidden){
+      e.preventDefault();
+      closeEditorSearch();
+    }
+  });
+}

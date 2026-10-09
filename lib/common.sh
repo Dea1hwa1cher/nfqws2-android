@@ -425,7 +425,7 @@ _ipt_cap_cache_get() { # <command> <probe key>
   [ -n "$MOCK_IPT_FEATURES" ] && return 1
   local kernel value
   kernel=$(uname -r 2>/dev/null) || return 1
-  [ -n "$kernel" ] && [ -f "$IPT_CAP_CACHE" ] || return 1
+  if [ -z "$kernel" ] || [ ! -f "$IPT_CAP_CACHE" ]; then return 1; fi
   value=$(while IFS='|' read -r k c p v; do
     [ "$k" = "$kernel" ] && [ "$c" = "$1" ] && [ "$p" = "$2" ] && {
       printf '%s' "$v"
@@ -488,7 +488,11 @@ has_multiport() {
   esac
   has_ipt_feature "$C" -p tcp -m multiport --dports 80,443 -j RETURN
   cached=$?
-  [ "$cached" -eq 0 ] && _ipt_cap_cache_put "$C" multiport 1 || _ipt_cap_cache_put "$C" multiport 0
+  if [ "$cached" -eq 0 ]; then
+    _ipt_cap_cache_put "$C" multiport 1
+  else
+    _ipt_cap_cache_put "$C" multiport 0
+  fi
   return "$cached"
 }
 
@@ -1209,3 +1213,5 @@ list_net_strategies() {
 clear_net_strategies() {
   rm -rf "$NET_STRATEGIES_DIR"/* 2>/dev/null
 }
+
+[ -f "$MODDIR/lib/plugins.sh" ] && . "$MODDIR/lib/plugins.sh"

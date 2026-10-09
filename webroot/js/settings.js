@@ -35,7 +35,9 @@ function renderSettings(){
       {icon: 'apps', title: 'Фильтр приложений', sub: t('Обход только для выбранных приложений или для всех, кроме них'), on: "navigate('apps')", chevron: true},
       {icon: 'test', title: 'Проверка доступности', sub: t('Открывает адреса из probe_hosts.list через обход'), on: "navigate('test')", chevron: true},
       {icon: 'medical', title: 'Диагностика', sub: t('Ядро, правила iptables и аргументы запуска'), on: "navigate('diag')", chevron: true}
-    ]],
+    ].concat(dnsPluginAvailable ? [
+      {icon: 'dns', title: 'DNS по профилям', sub: t('Свои DoH, DoT и DNS-серверы для выбранных доменов'), on: "navigate('dns')", chevron: true}
+    ] : [])],
     ['Резервная копия', [
       {icon: 'download', title: 'Создать копию', sub: t('Конфиг, списки, стратегии и оформление — в архив .tar'), on: 'createBackup()'},
       {icon: 'upload', title: 'Восстановить из копии', sub: t('Выбрать архив .tar или из списка'), on: 'openBackupSheet()'}
@@ -66,7 +68,7 @@ function renderSettings(){
     devHtml = '<div class="stack" id="dev-block"><h2 class="subhead">' + esc(t('Для разработчиков')) + '</h2><div class="list" id="dev-sws">' + rows + '</div></div>';
   }
   setHTML('settings-body', groups.map(([title, rows]) =>
-    '<div class="stack"><h2 class="subhead">' + esc(t(title)) + '</h2><div class="list">' + rows.map(settingsRow).join('') + '</div></div>').join('') +
+    '<div class="stack"><h2 class="subhead">' + esc(t(title)) + '</h2><div class="list">' + rows.filter(r => !r.hidden).map(settingsRow).join('') + '</div></div>').join('') +
     devHtml, false);
 }
 const GITHUB_URL = 'https://github.com/Dea1hwa1cher/nfqws2-android';
@@ -131,6 +133,8 @@ function rerenderAll(){
   if(currentPage === 'wifi') renderWifi();
   if(currentPage === 'test') testInit();
   if(currentPage === 'diag') diagInit();
+  if(currentPage === 'dns') renderDns();
+  if(currentPage === 'dnsprof') renderDnsProfile();
   if(currentPage === 'logs') loadLog();
   if(currentPage === 'config'){ loadImports(); checkConfModified(); }
 }

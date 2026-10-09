@@ -1,0 +1,6 @@
+id=nfqws2-dns-profiles
+name=nfqws2 DNS Profiles
+version=v1.0.0
+versionCode=100
+author=deathwatcher
+description=Optional DNS profiles plugin for nfqws2-android

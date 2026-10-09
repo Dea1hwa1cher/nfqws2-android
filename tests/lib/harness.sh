@@ -85,6 +85,7 @@ sandbox_init() {
   cp "$REPO_DIR/system/bin/nfqws2-ctl" "$MODDIR/system/bin/nfqws2-ctl" 2>/dev/null || true
   cp "$REPO_DIR/bin"/pkglist.*         "$MODDIR/bin/" 2>/dev/null || true
   cp "$REPO_DIR/lib/common.sh"         "$MODDIR/lib/common.sh"
+  cp "$REPO_DIR/lib/plugins.sh"        "$MODDIR/lib/plugins.sh" 2>/dev/null || true
   cp "$REPO_DIR/service.sh"            "$MODDIR/service.sh"
   cp "$REPO_DIR/boot-completed.sh"     "$MODDIR/boot-completed.sh" 2>/dev/null || true
   cp "$REPO_DIR/module.prop"           "$MODDIR/module.prop"

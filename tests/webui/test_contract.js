@@ -156,6 +156,14 @@ sect('commands the WebUI sends');
 const ctlCommands = new Set(
   [...ctlSrc.matchAll(/^\s{2}([a-z][a-z0-9-]*)\)/gm)].map(m => m[1])
 );
+// команды dns-* ctl передаёт в dns_ctl из lib/dns.sh или dns-profiles/lib/dns.sh
+const dnsLib = path.join(REPO, 'lib', 'dns.sh');
+const dnsPluginLib = path.join(REPO, 'dns-profiles', 'lib', 'dns.sh');
+const targetLib = fs.existsSync(dnsLib) ? dnsLib : (fs.existsSync(dnsPluginLib) ? dnsPluginLib : null);
+if (/^\s{2}dns-\*\) dns_ctl/m.test(ctlSrc) && targetLib) {
+  const dnsSrc = fs.readFileSync(targetLib, 'utf8');
+  for (const m of dnsSrc.matchAll(/^\s{4}(dns-[a-z0-9-]+)\)/gm)) ctlCommands.add(m[1]);
+}
 truthy(ctlCommands.size > 20, `the ctl dispatches ${ctlCommands.size} commands`);
 
 // ctl(['name', ...]) — the array form the WebUI uses for most calls.

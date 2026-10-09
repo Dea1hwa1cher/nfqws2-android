@@ -7,6 +7,7 @@
    Данные берутся только из bin/nfqws2-ctl; UI деградирует мягко, если моста нет.
    ══════════════════════════════════════════════════════════════════════════ */
 const MOD = '/data/adb/modules/nfqws2-android', CTL = MOD + '/bin/nfqws2-ctl';
+let dnsPluginAvailable = false;
 const $ = id => document.getElementById(id);
 let S = {}, seq = 0, pkgs = [], currentEditorTarget = '';
 const q = s => "'" + String(s).replace(/'/g, "'\\''") + "'";
@@ -436,7 +437,10 @@ const PAGE_META = {
              actions: [{icon: 'refresh', label: 'Обновить список приложений', fn: () => loadPk()}]},
   test:     {title: 'Проверка доступности', child: true, parent: 'settings', init: () => testInit()},
   diag:     {title: 'Диагностика', child: true, parent: 'settings', init: () => diagInit(),
-             actions: [{icon: 'refresh', label: 'Проверить снова', fn: () => diagInit()}]}
+             actions: [{icon: 'refresh', label: 'Проверить снова', fn: () => diagInit()}]},
+  dns:      {title: 'DNS по профилям', child: true, parent: 'settings', init: () => dnsInit(),
+             actions: [{icon: 'refresh', label: 'Обновить состояние', fn: () => dnsInit()}]},
+  dnsprof:  {title: 'Профиль DNS', child: true, parent: 'dns', init: () => dnsProfInit()}
 };
 let currentPage = 'control', lastTop = 'control', transitionCleanup = null;
 const pageDepth = p => { const m = PAGE_META[p]; return !m.child ? 0 : (m.parent ? pageDepth(m.parent) + 1 : 1); };
@@ -510,6 +514,7 @@ function afterTransition(fn){
   requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(fn, spawnOK ? 0 : 320)));
 }
 function navigate(page){
+  if(page === 'dns' && !dnsPluginAvailable) return;
   if(page === currentPage){
     if(!PAGE_META[page].child) scrollTo({top: 0, behavior: 'smooth'});
     return;
@@ -526,7 +531,10 @@ function navigate(page){
   afterTransition(() => { if(currentPage === target) PAGE_META[target].init(); });
   scheduleSync();
 }
-function goBack(){ navigate(PAGE_META[currentPage].parent || lastTop); }
+function goBack(){
+  if(typeof dnsSel !== 'undefined' && dnsSel && currentPage === 'dns') return dnsSelExit();
+  navigate(PAGE_META[currentPage].parent || lastTop);
+}
 document.querySelectorAll('.nav-dest').forEach(b => { b.onclick = () => navigate(b.dataset.page); });
 
 /* ── Режим разработчика: долгое нажатие на кнопку настроек ───────────────
@@ -601,6 +609,7 @@ function handleBack(allowExit){
   if($('dialog-wrap').classList.contains('open')){ dialogResolve(false); return true; }
   if($('editor-panel').classList.contains('open')){ closeSlideEditor(); return true; }
   if(openSheetId){ closeSheet(); return true; }
+  if(typeof dnsSel !== 'undefined' && dnsSel && currentPage === 'dns'){ dnsSelExit(); return true; }
   if(PAGE_META[currentPage].child){ goBack(); return true; }
   if(allowExit && currentPage !== 'control'){ navigate('control'); return true; }
   return false;
@@ -633,6 +642,7 @@ let histDepth = (history.state && history.state.nfq) || 0, histPending = false, 
 function uiLayers(){
   let n = pageDepth(currentPage) + (PAGE_META[currentPage].child ? (lastTop !== 'control' ? 1 : 0) : (currentPage !== 'control' ? 1 : 0));
   if(openSheetId) n++;
+  if(typeof dnsSel !== 'undefined' && dnsSel && currentPage === 'dns') n++;
   if(editorCtx) n++;
   if($('dialog-wrap').classList.contains('open')) n++;
   if(openMenuEntry) n++;
