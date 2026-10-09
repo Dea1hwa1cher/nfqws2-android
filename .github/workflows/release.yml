@@ -62,8 +62,9 @@ jobs:
           set -eu
           out="nfqws2-android-$TAG.zip"
           zip -q -r -9 -X "$out" \
-            module.prop customize.sh service.sh action.sh uninstall.sh README.md LICENSE \
+            module.prop customize.sh service.sh action.sh boot-completed.sh uninstall.sh README.md LICENSE \
             bin binaries blobs defaults lib lists lua strategies webroot
+          unzip -l "$out" | grep -Eq '[[:space:]]boot-completed\.sh$'
           unzip -l "$out" | tail -n 1
           echo "ZIP=$out" >> "$GITHUB_ENV"
 

@@ -36,13 +36,14 @@ jobs:
       - name: Package main module
         run: |
           zip -q -r -9 -X nfqws2-android.zip \
-            module.prop customize.sh service.sh action.sh uninstall.sh README.md LICENSE \
+            module.prop customize.sh service.sh action.sh boot-completed.sh uninstall.sh README.md LICENSE \
             bin binaries blobs defaults lib lists lua strategies webroot
 
       - name: Verify module packages
         run: |
           set -eu
           unzip -p nfqws2-android.zip module.prop | grep -Fx 'id=nfqws2-android'
+          unzip -l nfqws2-android.zip | grep -Eq '[[:space:]]boot-completed\.sh$'
 
       - name: Upload module packages
         uses: actions/upload-artifact@v4
