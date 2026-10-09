@@ -1,0 +1,55 @@
+name: ci-build
+
+on:
+  push:
+    branches: ['**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-binaries:
+    uses: ./.github/workflows/build-binaries.yml
+
+  package:
+    needs: [build-binaries]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download nfqws2 binaries
+        uses: actions/download-artifact@v4
+        with:
+          pattern: nfqws2-*
+          path: downloaded-binaries
+
+      - name: Install nfqws2 binaries
+        run: |
+          set -eu
+          for abi in android-arm android-arm64 android-x86 android-x86_64; do
+            mkdir -p "binaries/$abi"
+            cp "downloaded-binaries/nfqws2-$abi/nfqws2" "binaries/$abi/nfqws2"
+            chmod 755 "binaries/$abi/nfqws2"
+          done
+
+      - name: Package main module
+        run: |
+          zip -q -r -9 -X nfqws2-android.zip \
+            module.prop customize.sh service.sh action.sh uninstall.sh README.md LICENSE \
+            bin binaries blobs defaults lib lists lua strategies webroot
+
+      - name: Verify module packages
+        run: |
+          set -eu
+          unzip -p nfqws2-android.zip module.prop | grep -Fx 'id=nfqws2-android'
+          unzip -p nfqws2-dns-profiles.zip module.prop | grep -Fx 'id=nfqws2-dns-profiles'
+
+      - name: Upload module packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: nfqws2-modules-${{ github.sha }}
+          path: |
+            nfqws2-android.zip
+          if-no-files-found: error
+          retention-days: 14
