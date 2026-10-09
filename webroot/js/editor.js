@@ -359,6 +359,38 @@ function closeEditorSearch(){
   if(ta && ta.focus) ta.focus({ preventScroll: true });
 }
 
+function dedupEditorList(){
+  if(!editorCtx || (editorCtx.target !== 'list' && editorCtx.lang !== 'list')) return;
+  const ta = $('panel-editor-text');
+  if(!ta || ta.readOnly || (editorCtx.load && $('panel-save-btn').disabled)) return;
+  const lines = ta.value.split(/\r?\n/);
+  const seen = new Set();
+  const result = [];
+  let dupes = 0;
+  for(const line of lines){
+    const trimmed = line.trim();
+    if(!trimmed || trimmed.startsWith('#')){
+      result.push(line);
+      continue;
+    }
+    const key = trimmed.toLowerCase();
+    if(seen.has(key)){
+      dupes++;
+    } else {
+      seen.add(key);
+      result.push(line);
+    }
+  }
+  if(dupes === 0){
+    toast(t('Дубликатов не найдено'));
+    return;
+  }
+  ta.value = result.join('\n');
+  highlightEditor();
+  if(editorSearchQuery) onEditorSearchInput();
+  toast(t('Удалено дубликатов: {0}', dupes));
+}
+
 function openSlideEditor(type, key){
   if(type === 'conf') openEditorWith({target: 'conf', title: 'nfqws2.conf', lang: 'conf',
     hint: t('Конфиг проверяется на устройстве: при ошибке сохранение отклоняется. Изменения вступят в силу после перезапуска службы.'),
@@ -378,6 +410,11 @@ async function openEditorWith(o){
   $('panel-save-btn').disabled = !!o.load;
   $('panel-save-btn').textContent = o.saveLabel || t('Сохранить');
   $('panel-pending').hidden = !(o.target === 'list' && pendingLists().includes(o.key));
+  const dedupBtn = $('panel-dedup-btn');
+  if(dedupBtn){
+    dedupBtn.hidden = !(o.target === 'list' || o.lang === 'list');
+    dedupBtn.disabled = !!o.load;
+  }
   ta.placeholder = o.target === 'list' ? '' : t('# Конфигурация…');
   ta.value = o.load ? t('Загрузка…') : o.text;
   ta.readOnly = !!o.load;
@@ -401,6 +438,8 @@ async function openEditorWith(o){
     ta.value = o.b64 ? unb64(r.out.replace(/\s+/g, '')) : r.out;
     ta.readOnly = false;
     $('panel-save-btn').disabled = false;
+    const dedupBtnAfter = $('panel-dedup-btn');
+    if(dedupBtnAfter) dedupBtnAfter.disabled = false;
     highlightEditor();
   }
   o.original = o.dirty ? null : ta.value;

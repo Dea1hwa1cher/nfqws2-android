@@ -274,6 +274,68 @@ truthy(/\.sheet-title\s*\{[^}]*font-weight:\s*var\(--w-regular\)/s.test(styleBlo
 const settingsJs = fs.readFileSync(path.join(REPO, 'webroot', 'js', 'settings.js'), 'utf8');
 truthy(settingsJs.includes('animations-toggle'), 'settings.js contains animations-toggle');
 
+// ── list deduplicator ────────────────────────────────────────────────────────
+sect('list deduplicator');
+truthy(html.includes('id="panel-dedup-btn"'), 'panel-dedup-btn exists in markup');
+truthy(html.includes('id="i-dedup"'), 'i-dedup symbol exists in markup');
+const i18nJs = fs.readFileSync(path.join(REPO, 'webroot', 'js', 'i18n-en.js'), 'utf8');
+truthy(i18nJs.includes('"Удалить дубликаты"'), 'i18n has key Удалить дубликаты');
+truthy(i18nJs.includes('"Удалено дубликатов: {0}"'), 'i18n has key Удалено дубликатов');
+truthy(i18nJs.includes('"Дубликатов не найдено"'), 'i18n has key Дубликатов не найдено');
+
+// Test deduplication logic in sandbox
+const editorJs = fs.readFileSync(path.join(REPO, 'webroot', 'js', 'editor.js'), 'utf8');
+const elements = {};
+let lastToastMsg = null;
+const sandbox = {
+  editorCtx: null,
+  editorSearchQuery: '',
+  elements,
+  toast(msg) { lastToastMsg = msg; },
+  esc: s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'),
+  t(s, ...args) {
+    let r = s;
+    for (let i = 0; i < args.length; i++) r = r.split('{' + i + '}').join(args[i]);
+    return r;
+  },
+  highlightEditor() {},
+  onEditorSearchInput() {},
+  $(id) {
+    if (!elements[id]) {
+      elements[id] = {
+        value: '', readOnly: false, disabled: false, hidden: false, textContent: '',
+        classList: { add() {}, remove() {}, toggle() {} }, style: {}, addEventListener() {}
+      };
+    }
+    return elements[id];
+  }
+};
+vm.createContext(sandbox);
+vm.runInContext(editorJs, sandbox);
+
+// 1. Non-list context: should do nothing
+vm.runInContext("editorCtx = { target: 'conf', lang: 'conf' };", sandbox);
+sandbox.elements['panel-editor-text'] = { value: 'a\na\n' };
+sandbox.dedupEditorList();
+eq('a\na\n', sandbox.elements['panel-editor-text'].value, 'dedup ignored in non-list context');
+
+// 2. List with duplicates
+vm.runInContext("editorCtx = { target: 'list', lang: 'list', key: 'user' };", sandbox);
+sandbox.elements['panel-editor-text'] = {
+  value: '# Header 1\nexample.com\n# Header 2\n\nEXAMPLE.COM\n  example.com  \nother.com\n# Header 1\nother.com\n'
+};
+sandbox.dedupEditorList();
+const expectedDedup = '# Header 1\nexample.com\n# Header 2\n\nother.com\n# Header 1\n';
+eq(expectedDedup, sandbox.elements['panel-editor-text'].value, 'dedup removes case-insensitive whitespace-padded dupes, preserving comments and blank lines');
+eq('Удалено дубликатов: 3', lastToastMsg, 'toast reports removed count');
+
+// 3. No duplicates
+lastToastMsg = null;
+sandbox.elements['panel-editor-text'] = { value: '# Only unique\nalpha.com\nbeta.com\n' };
+sandbox.dedupEditorList();
+eq('Дубликатов не найдено', lastToastMsg, 'toast reports no duplicates');
+eq('# Only unique\nalpha.com\nbeta.com\n', sandbox.elements['panel-editor-text'].value, 'content untouched when no dupes');
+
 // ── summary ───────────────────────────────────────────────────────────────────
 process.stdout.write('\n----------------------------------------\n');
 if (failures.length === 0) {
