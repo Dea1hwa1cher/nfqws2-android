@@ -305,4 +305,10 @@ rm -rf "$LISTS_DIR"
 sync_lists_and_blobs >/dev/null 2>&1
 assert_file "$LISTS_DIR/user.list" "a removed lists directory is recreated and filled"
 
+# ── setup_cli_symlinks ────────────────────────────────────────────────────────
+section "setup_cli_symlinks"
+
+setup_cli_symlinks
+assert_rc 0 $? "setup_cli_symlinks succeeds silently when APatch/KSU paths are absent"
+
 harness_finish

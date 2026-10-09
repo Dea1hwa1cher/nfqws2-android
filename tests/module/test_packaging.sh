@@ -40,7 +40,7 @@ SANDBOX=$(mktemp -d "${NFQWS_TEST_TMP:-/tmp}/nfqws2-pack.XXXXXX") || exit 1
 SANDBOX=$(cd "$SANDBOX" && pwd)
 
 MODULE_FILES="action.sh customize.sh service.sh uninstall.sh module.prop LICENSE README.md"
-MODULE_DIRS="bin $([ -d "$REPO_DIR/binaries" ] && echo binaries) blobs defaults lib lists lua strategies webroot"
+MODULE_DIRS="bin $([ -d "$REPO_DIR/binaries" ] && echo binaries) blobs defaults lib lists lua strategies system webroot"
 
 # ── builder ───────────────────────────────────────────────────────────────────
 section "tools/build.py produces a module-only archive"
@@ -76,7 +76,7 @@ PY
 import os, sys, zipfile
 names = set(zipfile.ZipFile(sys.argv[1]).namelist())
 for n in ('module.prop', 'customize.sh', 'service.sh', 'action.sh', 'uninstall.sh',
-          'bin/nfqws2-ctl', 'lib/common.sh', 'defaults/nfqws2.conf',
+          'bin/nfqws2-ctl', 'system/bin/nfqws2-ctl', 'lib/common.sh', 'defaults/nfqws2.conf',
           'webroot/index.html', 'webroot/config.json'):
     print(('OK  ' if n in names else 'MISSING ') + n)
 if os.path.isdir(os.path.join(sys.argv[2], 'binaries')):
