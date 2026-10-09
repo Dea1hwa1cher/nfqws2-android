@@ -25,8 +25,8 @@ rm -rf "$MODPATH/tests" "$MODPATH/tools" "$MODPATH/.workbuddy-ai" \
 rm -f "$MODPATH"/*.zip
 
 for f in \
-  service.sh action.sh uninstall.sh lib/common.sh bin/nfqws2-ctl \
-  defaults/nfqws2.conf \
+  service.sh action.sh boot-completed.sh uninstall.sh lib/common.sh lib/plugins.sh bin/nfqws2-ctl \
+  system/bin/nfqws2-ctl defaults/nfqws2.conf \
   "binaries/$BIN/nfqws2"
 do
   [ -s "$MODPATH/$f" ] || abort "! Missing or empty module file: $f"
@@ -107,3 +107,15 @@ fi
 # set perms to nfwqws2
 busybox chmod +x "$MODPATH/bin/nfqws2"
 busybox chmod +x "$MODPATH/bin/nfqws2-ctl"
+<<<<<<< HEAD
+=======
+busybox chmod +x "$MODPATH/boot-completed.sh" 2>/dev/null || chmod +x "$MODPATH/boot-completed.sh" 2>/dev/null
+busybox chmod +x "$MODPATH/system/bin/nfqws2-ctl" 2>/dev/null || chmod +x "$MODPATH/system/bin/nfqws2-ctl" 2>/dev/null
+
+# CLI symlinks for APatch and KernelSU environments
+for p in /data/adb/ap/bin /data/adb/ksu/bin; do
+  if [ -d "$p" ]; then
+    ln -sf /data/adb/modules/nfqws2-android/bin/nfqws2-ctl "$p/nfqws2-ctl" 2>/dev/null || true
+  fi
+done
+>>>>>>> 3119e8d (feat: add boot-completed lifecycle hook and enhanced anti-LMK watchdog)

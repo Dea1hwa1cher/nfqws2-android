@@ -143,7 +143,11 @@ ensure_helper() {
   (
     exec 0</dev/null
     exec >/dev/null 2>&1
-    exec sh "$MODDIR/service.sh" "$sub"
+    if command -v setsid >/dev/null 2>&1; then
+      exec setsid sh "$MODDIR/service.sh" "$sub"
+    else
+      exec sh "$MODDIR/service.sh" "$sub"
+    fi
   ) &
   return 0
 }
@@ -223,7 +227,7 @@ netwatch() {
 watchdog() {
   echo $$ > "$WD_PIDFILE"
   protect_process
-  local fails=0 tick=0
+  local fails=0 tick=0 dpid
   while :; do
     sleep 20
     load_conf >/dev/null 2>&1
@@ -237,15 +241,25 @@ watchdog() {
 
     if ! is_running; then
       fails=$((fails + 1))
-      log_msg "watchdog: nfqws2 упал, автоперезапуск (#$fails)..."
+      log_msg "watchdog: nfqws2 не активен, автоперезапуск (#$fails)..."
       firewall_stop
       start
-      sleep 2
+      if [ "$fails" -ge 5 ]; then
+        log_msg "watchdog: частые сбои службы (#$fails), пауза 60s..."
+        sleep 60
+      else
+        sleep 2
+      fi
       continue
     fi
 
     # survived a full cycle: reset the fail counter
     fails=0
+
+    # Защита от LMK: периодически поддерживаем иммунитет демона и вотчдога
+    dpid=$(cat "$PIDFILE" 2>/dev/null)
+    [ -n "$dpid" ] && protect_process "$dpid"
+    protect_process
 
     # fast iptables recovery after a network switch
     if ! firewall_ok; then
@@ -340,6 +354,7 @@ case "$1" in
   restart)            stop; start ;;
   reload)             reload_lists ;;
   status)             status_service ;;
+  ensure_watchdog)    ensure_watchdog ;;
   watchdog)           watchdog ;;
   netwatch)           netwatch ;;
   firewall_apply)     firewall_start ;;

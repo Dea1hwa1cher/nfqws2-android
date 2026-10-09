@@ -253,4 +253,31 @@ assert_eq "$wd" "$(cat "$WD_PIDFILE" 2>/dev/null)" "a running watchdog is not sp
 
 kill "$wd" 2>/dev/null
 
+# ── boot-completed.sh lifecycle hook ──────────────────────────────────────────
+section "boot-completed.sh lifecycle hook"
+
+assert_file "$MODDIR/boot-completed.sh" "boot-completed.sh exists in sandbox"
+svc stop >/dev/null 2>&1
+
+# When AUTOSTART=1 and service is down, boot-completed hook revives it
+printf 'AUTOSTART=1\n' >> "$CONFFILE"
+sh "$MODDIR/boot-completed.sh" >/dev/null 2>&1
+assert_file "$PIDFILE" "boot-completed hook starts service when AUTOSTART=1"
+
+# When already running, running boot-completed hook maintains service state
+sh "$MODDIR/boot-completed.sh" >/dev/null 2>&1
+assert_file "$PIDFILE" "boot-completed hook maintains running service"
+
+svc stop >/dev/null 2>&1
+
+# ── protect_process ───────────────────────────────────────────────────────────
+section "protect_process"
+
+protect_process $$
+assert_rc 0 $? "protect_process succeeds on valid pid"
+protect_process ""
+assert_rc 0 $? "protect_process handles empty pid gracefully"
+protect_process "99999999"
+assert_rc 0 $? "protect_process handles non-existent pid gracefully"
+
 harness_finish
