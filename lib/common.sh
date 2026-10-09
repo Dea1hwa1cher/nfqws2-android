@@ -597,11 +597,26 @@ _firewall_stop() {
 firewall_iptables()  { _firewall_start iptables; }
 firewall_ip6tables() { [ "$IPV6_ENABLED" = "0" ] && return 0; _firewall_start ip6tables; }
 
+apply_tether_offload() {
+  command -v settings >/dev/null 2>&1 || return 0
+  if [ "$ENABLE_HOTSPOT" = "1" ]; then
+    settings put global tether_offload_disabled 1 2>/dev/null || true
+  else
+    settings put global tether_offload_disabled 0 2>/dev/null || true
+  fi
+}
+
+restore_tether_offload() {
+  command -v settings >/dev/null 2>&1 || return 0
+  settings put global tether_offload_disabled 0 2>/dev/null || true
+}
+
 # check both rc: firewall_ip6tables returns 0 when IPv6 is off, masking an iptables failure
 firewall_start() {
   local rc=0
   firewall_iptables || rc=1
   firewall_ip6tables || rc=1
+  apply_tether_offload
   return $rc
 }
 
@@ -609,6 +624,7 @@ firewall_stop() {
   local rc=0
   _firewall_stop iptables || rc=1
   _firewall_stop ip6tables || rc=1
+  restore_tether_offload
   return $rc
 }
 
