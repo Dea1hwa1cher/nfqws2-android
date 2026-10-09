@@ -533,6 +533,63 @@ _fw_add_rule() {
   fi
 }
 
+_fw_batch_cmd() {
+  local table=mangle arg line original="$*"
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      -w) shift ;;
+      -t) table="$2"; shift 2 ;;
+      *) break ;;
+    esac
+  done
+  [ "$#" -gt 0 ] || return 1
+  # run via real command to reflect actual kernel
+  case "$*" in
+    *nfqws_test*) "$FW_PROBE_CMD" $original; return $? ;;
+  esac
+  case "$1" in
+    -D) return 1 ;;
+    -N|-F|-X|-A|-I)
+      line="$1"; shift
+      for arg in "$@"; do line="$line $arg"; done
+      printf '%s|%s\n' "$table" "$line" >> "$FW_BATCH_FILE"
+      return 0 ;;
+  esac
+  return 1
+}
+
+_firewall_start_restore() {
+  local CMD="$1" restore raw rules table line current="" restore_file
+  restore_file="${FW_RESTORE_DIR}/${CMD}.rules"
+  raw="${FW_RESTORE_DIR}/${CMD}.raw"
+  rules="${FW_RESTORE_DIR}/${CMD}.input"
+
+  command -v "${CMD}-restore" >/dev/null 2>&1 || return 1
+  _firewall_stop "$CMD" || true
+  FW_BATCH_FILE="$raw"
+  FW_PROBE_CMD="$CMD"
+  : > "$raw"
+  # use existing builder to populate same rules
+  _firewall_start _fw_batch_cmd || return 1
+
+  current=""
+  : > "$rules"
+  while IFS='|' read -r table line; do
+    [ "$table" = "$current" ] || {
+      [ -z "$current" ] || printf 'COMMIT\n' >> "$rules"
+      current="$table"
+      printf '*%s\n' "$table" >> "$rules"
+    }
+    printf '%s\n' "$line" >> "$rules"
+  done < "$raw"
+  [ -z "$current" ] || printf 'COMMIT\n' >> "$rules"
+
+  "${CMD}-restore" --noflush < "$rules"
+  local rc=$?
+  rm -f "$raw" "$rules"
+  return "$rc"
+}
+
 _fw_iface_rules() {
   local CMD="$1" OUT="$2" IN="$3"
   local JNFQ="-j NFQUEUE --queue-num $NFQUEUE_NUM --queue-bypass"
@@ -699,6 +756,9 @@ _firewall_stop() {
 firewall_iptables()  { _firewall_start iptables; }
 firewall_ip6tables() { [ "$IPV6_ENABLED" = "0" ] && return 0; _firewall_start ip6tables; }
 
+firewall_iptables_restore()  { _firewall_start_restore iptables; }
+firewall_ip6tables_restore() { [ "$IPV6_ENABLED" = "0" ] && return 0; _firewall_start_restore ip6tables; }
+
 apply_tether_offload() {
   command -v settings >/dev/null 2>&1 || return 0
   if [ "$ENABLE_HOTSPOT" = "1" ]; then
@@ -716,8 +776,20 @@ restore_tether_offload() {
 # check both rc: firewall_ip6tables returns 0 when IPv6 is off, masking an iptables failure
 firewall_start() {
   local rc=0
-  firewall_iptables || rc=1
-  firewall_ip6tables || rc=1
+  FW_RESTORE_DIR="$STATE_DIR/firewall-restore"
+  mkdir -p "$FW_RESTORE_DIR" 2>/dev/null
+  if command -v iptables-restore >/dev/null 2>&1; then
+    firewall_iptables_restore || { firewall_iptables || rc=1; }
+  else
+    firewall_iptables || rc=1
+  fi
+  if [ "$IPV6_ENABLED" = "0" ]; then
+    :
+  elif command -v ip6tables-restore >/dev/null 2>&1; then
+    firewall_ip6tables_restore || { firewall_ip6tables || rc=1; }
+  else
+    firewall_ip6tables || rc=1
+  fi
   apply_tether_offload
   return $rc
 }
