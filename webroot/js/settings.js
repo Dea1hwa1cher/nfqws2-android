@@ -301,4 +301,3 @@ async function toggleNetStrategy(checked){
   if(r.code) toast(errText(r, 'Не удалось переключить привязку стратегий'));
   else { S.net_strategy = on ? 1 : 0; renderSettings(); stat(); }
 }
-

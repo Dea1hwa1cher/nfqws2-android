@@ -43,7 +43,6 @@ jobs:
         run: |
           set -eu
           unzip -p nfqws2-android.zip module.prop | grep -Fx 'id=nfqws2-android'
-          unzip -p nfqws2-dns-profiles.zip module.prop | grep -Fx 'id=nfqws2-dns-profiles'
 
       - name: Upload module packages
         uses: actions/upload-artifact@v4

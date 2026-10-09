@@ -107,8 +107,6 @@ fi
 # set perms to nfwqws2
 busybox chmod +x "$MODPATH/bin/nfqws2"
 busybox chmod +x "$MODPATH/bin/nfqws2-ctl"
-<<<<<<< HEAD
-=======
 busybox chmod +x "$MODPATH/boot-completed.sh" 2>/dev/null || chmod +x "$MODPATH/boot-completed.sh" 2>/dev/null
 busybox chmod +x "$MODPATH/system/bin/nfqws2-ctl" 2>/dev/null || chmod +x "$MODPATH/system/bin/nfqws2-ctl" 2>/dev/null
 
@@ -118,4 +116,3 @@ for p in /data/adb/ap/bin /data/adb/ksu/bin; do
     ln -sf /data/adb/modules/nfqws2-android/bin/nfqws2-ctl "$p/nfqws2-ctl" 2>/dev/null || true
   fi
 done
->>>>>>> 3119e8d (feat: add boot-completed lifecycle hook and enhanced anti-LMK watchdog)
