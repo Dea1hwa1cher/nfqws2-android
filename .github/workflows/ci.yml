@@ -37,22 +37,18 @@ jobs:
         run: |
           zip -q -r -9 -X nfqws2-android.zip \
             module.prop icon.png customize.sh service.sh action.sh boot-completed.sh uninstall.sh README.md LICENSE \
-            bin binaries blobs defaults lib lists lua strategies webroot
+            bin binaries blobs defaults lib lists lua strategies system webroot
 
       - name: Verify module packages
         run: |
           set -eu
           unzip -p nfqws2-android.zip module.prop | grep -Fx 'id=nfqws2-android'
           unzip -l nfqws2-android.zip | grep -Eq '[[:space:]]boot-completed\.sh$'
-          rm -rf ci-module
-          mkdir ci-module
-          unzip -q nfqws2-android.zip -d ci-module
 
-      - name: Upload module packages
-        uses: actions/upload-artifact@v4
+      - name: Upload module package
+        uses: actions/upload-artifact@v7
         with:
-          name: nfqws2-modules-${{ github.sha }}
-          path: |
-            ci-module
+          path: nfqws2-android.zip
+          archive: false
           if-no-files-found: error
           retention-days: 14
