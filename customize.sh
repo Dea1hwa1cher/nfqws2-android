@@ -36,6 +36,11 @@ cp -f "$MODPATH/binaries/$BIN/nfqws2" "$MODPATH/bin/nfqws2" ||
 [ -s "$MODPATH/bin/nfqws2" ] || abort "! Installed nfqws2 binary is empty"
 rm -rf "$MODPATH/binaries"
 
+# Module icon for Magisk / KernelSU / APatch / MMRL managers
+if [ -f "$MODPATH/webroot/icon.png" ]; then
+  cp -f "$MODPATH/webroot/icon.png" "$MODPATH/icon.png" 2>/dev/null || true
+fi
+
 CONF=/data/adb/nfqws2
 mkdir -p "$CONF/lists" "$CONF/state" "$CONF/logs" "$CONF/imports" "$CONF/strategies" ||
   abort "! Cannot create $CONF; check /data/adb access"
