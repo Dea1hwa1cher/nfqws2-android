@@ -1,7 +1,7 @@
 #!/system/bin/sh
 
 # grab own info (version)
-version=$(grep version "$MODPATH/module.prop" | sed 's/version=//g' )
+version=$(sed -n 's/^version=//p' "$MODPATH/module.prop" | tr -d '\r')
 
 ui_print "*******************************************"
 ui_print "- nfqws2-android"
