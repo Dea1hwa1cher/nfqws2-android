@@ -35,7 +35,13 @@ async function exportBlobFile(blob, filename, mimeType, localFilePath){
   mimeType = mimeType || 'application/x-tar';
   if(typeof navigator !== 'undefined' && navigator.canShare && typeof File !== 'undefined'){
     try {
-      const file = new File([blob], filename, { type: mimeType });
+      let file = new File([blob], filename, { type: mimeType });
+      if(!navigator.canShare({ files: [file] })){
+        file = new File([blob], filename, { type: 'application/octet-stream' });
+      }
+      if(!navigator.canShare({ files: [file] })){
+        file = new File([blob], filename, { type: '' });
+      }
       if(navigator.canShare({ files: [file] })){
         await navigator.share({ files: [file], title: filename });
         toast(t('Экспорт завершён: {0}', filename));
@@ -49,7 +55,7 @@ async function exportBlobFile(blob, filename, mimeType, localFilePath){
     try {
       const handle = await window.showSaveFilePicker({
         suggestedName: filename,
-        types: [{ description: filename, accept: { [mimeType]: ['.tar'] } }]
+        types: [{ description: filename, accept: { [mimeType]: ['.tar'], 'application/octet-stream': ['.tar'] } }]
       });
       const writable = await handle.createWritable();
       await writable.write(blob);
@@ -71,9 +77,15 @@ async function exportBlobFile(blob, filename, mimeType, localFilePath){
   } catch(e) {}
   if(localFilePath && typeof window !== 'undefined' && window.ksu){
     try {
-      await sh('am start -a android.intent.action.SEND -t ' + q(mimeType) +
-               ' --eu android.intent.extra.STREAM ' + q('file://' + localFilePath) +
-               ' --es android.intent.extra.SUBJECT ' + q(filename) + ' >/dev/null 2>&1');
+      const safUri = 'content://com.android.externalstorage.documents/document/primary%3ADownload%2F' + encodeURIComponent(filename);
+      const cmd =
+        'f=' + q(localFilePath) + '; ' +
+        'case "$f" in /sdcard/*) rf="/storage/emulated/0/${f#/sdcard/}" ;; *) rf="$f" ;; esac; ' +
+        'u=$(content insert --uri content://media/external/file --bind _data:s:"$rf" --bind mime_type:s:"application/octet-stream" 2>/dev/null | grep -o \'content://[^ ]*\'); ' +
+        '[ -z "$u" ] && u=$(content query --uri content://media/external/file --projection _id --where "_data=\'$f\' OR _data=\'$rf\'" 2>/dev/null | grep -o \'_id=[0-9]*\' | head -n1 | sed \'s/_id=/content:\\/\\/media\\/external\\/file\\//\'); ' +
+        '[ -z "$u" ] && u=' + q(safUri) + '; ' +
+        'am start -a android.intent.action.SEND --user 0 -t "*/*" --eu android.intent.extra.STREAM "$u" --es android.intent.extra.SUBJECT ' + q(filename) + ' --es android.intent.extra.TITLE ' + q(filename) + ' -f 0x10000001 >/dev/null 2>&1';
+      await sh(cmd);
     } catch(e) {}
   }
   toast(t('Экспорт завершён: {0}', filename));
