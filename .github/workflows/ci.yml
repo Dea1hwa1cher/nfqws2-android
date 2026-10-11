@@ -12,8 +12,11 @@ jobs:
   build-binaries:
     uses: ./.github/workflows/build-binaries.yml
 
+  build-pkglist:
+    uses: ./.github/workflows/build-pkglist.yml
+
   package:
-    needs: [build-binaries]
+    needs: [build-binaries, build-pkglist]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -32,6 +35,12 @@ jobs:
             cp "downloaded-binaries/nfqws2-$abi/nfqws2" "binaries/$abi/nfqws2"
             chmod 755 "binaries/$abi/nfqws2"
           done
+
+      - name: Download pkglist
+        uses: actions/download-artifact@v4
+        with:
+          name: pkglist
+          path: bin
 
       - name: Package main module
         run: |
