@@ -15,8 +15,13 @@ SERVICE="$MODDIR/service.sh"
 [ -d "$IMPORTS_DIR" ] || mkdir -p "$IMPORTS_DIR" 2>/dev/null
 
 b64d() {
-  if command -v base64 >/dev/null 2>&1; then printf '%s' "$1" | base64 -d 2>/dev/null
-  else printf '%s' "$1" | busybox base64 -d 2>/dev/null; fi
+  if [ $# -gt 0 ]; then
+    { if command -v base64 >/dev/null 2>&1; then base64 -d 2>/dev/null; else busybox base64 -d 2>/dev/null; fi; } <<EOF
+$1
+EOF
+  else
+    if command -v base64 >/dev/null 2>&1; then base64 -d 2>/dev/null; else busybox base64 -d 2>/dev/null; fi
+  fi
 }
 b64e() {
   if command -v base64 >/dev/null 2>&1; then base64 "$@"
@@ -518,9 +523,9 @@ cmd_export_logs() {
   mkdir -p "$BACKUP_DIR" 2>/dev/null
   local out_file="$BACKUP_DIR/$name"
   if (cd "$tmp" && tar_cmd -cf "$out_file" .) 2>/dev/null; then
-    local b64_data
-    b64_data=$(b64e < "$out_file" | tr -d '\n')
-    printf '%s\t%s\t%s\n' "$name" "$out_file" "$b64_data"
+    printf '%s\t%s\t' "$name" "$out_file"
+    b64e < "$out_file" | tr -d '\r\n'
+    printf '\n'
   else
     local d="$BACKUP_DIR/nfqws2-logs"
     mkdir -p "$d" 2>/dev/null
@@ -598,9 +603,9 @@ cmd_backup_create() { # [ui.json в base64]
     return 1
   fi
   rm -rf "$tmp"
-  local b64_data
-  b64_data=$(b64e < "$BACKUP_DIR/$name" | tr -d '\n')
-  printf '%s\t%s\t%s\n' "$name" "$BACKUP_DIR/$name" "$b64_data"
+  printf '%s\t%s\t' "$name" "$BACKUP_DIR/$name"
+  b64e < "$BACKUP_DIR/$name" | tr -d '\r\n'
+  printf '\n'
 }
 cmd_backup_list() {
   ls -1t "$BACKUP_DIR"/nfqws2-backup-*.tar 2>/dev/null | while IFS= read -r f; do
