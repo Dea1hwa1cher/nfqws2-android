@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# Lifecycle hook: вызывается Magisk/KernelSU/APatch при sys.boot_completed=1
+# lifecycle hook called by Magisk, KernelSU, or APatch
 umask 077
 MODDIR="${0%/*}"
 case "$MODDIR" in /*) ;; *) MODDIR="$(cd "$MODDIR" 2>/dev/null && pwd)" ;; esac
@@ -9,7 +9,7 @@ load_conf >/dev/null 2>&1
 
 log_msg "boot-completed: запуск хука (sys.boot_completed=1)"
 
-# Защита от LMK: если служба должна работать, проверяем её состояние после завершения загрузки
+# restore the service after boot if it should be running
 if [ "$AUTOSTART" = "1" ] || [ -f "$DESIRED_FILE" ]; then
   if ! is_running; then
     log_msg "boot-completed: nfqws2 не активен после старта системы — восстанавливаю..."
@@ -23,7 +23,7 @@ if [ "$AUTOSTART" = "1" ] || [ -f "$DESIRED_FILE" ]; then
   fi
 fi
 
-# Убеждаемся, что наблюдатели (watchdog и netwatch) активны
+# ensure watchdog and netwatch are running
 sh "$MODDIR/service.sh" ensure_watchdog >/dev/null 2>&1
 
 exit 0

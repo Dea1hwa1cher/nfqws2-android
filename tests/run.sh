@@ -1,15 +1,15 @@
 #!/bin/sh
-# Regression suite for the nfqws2-android module and its WebUI.
+# Regression suite for the nfqws2-android module and its WebUI
 #
 #   sh tests/run.sh              # everything
 #   sh tests/run.sh --fast       # skip the slow service/rule-set and browser tests
 #   sh tests/run.sh --keep       # keep the sandboxes for inspection
 #
-# Exit status is 0 only when every suite passed.
+# Exit status is 0 only when every suite passed
 #
 # Runtime note: on Windows/Git Bash every process spawn costs a few hundred
 # milliseconds, and these suites spawn thousands of them, so a full run takes
-# several minutes. On Linux the same suite finishes in seconds.
+# several minutes. On Linux the same suite finishes in seconds
 
 set -u
 
@@ -29,8 +29,7 @@ for a in "$@"; do
 done
 export NFQWS_TEST_KEEP="${NFQWS_TEST_KEEP:-0}"
 
-# tools/ живут только на машине: они не нужны ни модулю на устройстве,
-# ни тому, кто его собирает из архива.
+# tools/ is host-only and must not be tracked
 if tracked=$(git -C "$REPO_DIR" ls-files tools 2>/dev/null) && [ -n "$tracked" ]; then
   printf 'tools/ попали под git — их не должно быть в репозитории:\n%s\n' "$tracked" >&2
   printf 'уберите: git rm -r --cached tools\n' >&2
@@ -44,19 +43,16 @@ trap 'cleanup' EXIT INT TERM
 RESULTS=""
 FAILED=0
 
-# Suites run in parallel and their output is printed in order afterwards.
+# Suites run in parallel and their output is printed in order afterwards
 #
-# They are independent — each builds its own sandbox under /tmp — and on
 # Windows/Git Bash the run is bound by process-spawn rate rather than by the CPU:
 # a single `sh -c true` costs half a second here. Serial execution left the
 # machine mostly idle while paying that over and over, so the wall clock now
-# follows the slowest suite instead of the sum.
+# follows the slowest suite instead of the sum
 #
-# Set NFQWS_TEST_JOBS=1 to force the old serial behaviour.
+# Set NFQWS_TEST_JOBS=1 to force the old serial behaviour
 #
-# One lane per core, capped at 8: past that the suites — thousands of process
-# spawns each — start competing for the same disk and stop gaining. Override with
-# NFQWS_TEST_JOBS when a machine is busy with something else.
+# NFQWS_TEST_JOBS when a machine is busy with something else
 if [ -n "${NFQWS_TEST_JOBS:-}" ]; then
   JOBS="$NFQWS_TEST_JOBS"
 else
@@ -74,8 +70,7 @@ queue_suite() { # <label> <command...>
     return
   fi
   ( if "$@" > "$WORK/$_n.out" 2>&1; then echo 0 > "$WORK/$_n.rc"; else echo 1 > "$WORK/$_n.rc"; fi ) &
-  # Держим не больше JOBS одновременных сьютов: каждый поднимает браузер или
-  # песочницу, и десяток сразу только мешает друг другу.
+  # Limit concurrent suites; each uses a browser or sandbox
   while [ "$(jobs -p | wc -l)" -ge "$JOBS" ]; do sleep 1; done
 }
 
@@ -110,7 +105,6 @@ report_suites() {
   done
 }
 
-# ── tooling ───────────────────────────────────────────────────────────────────
 SHELLS=""
 for s in ${NFQWS_TEST_SHELLS:-dash bash}; do
   command -v "$s" >/dev/null 2>&1 && SHELLS="$SHELLS $s"
@@ -129,7 +123,7 @@ if [ -z "$NODE_BIN" ]; then
 fi
 
 # Playwright is not a dependency of the module; point NODE_PATH at a workspace
-# that has it, or the browser suite skips itself.
+# that has it, or the browser suite skips itself
 if [ -z "${NODE_PATH:-}" ] && [ -d "$HOME/.workbuddy-ai/binaries/node/workspace/node_modules" ]; then
   NODE_PATH="$HOME/.workbuddy-ai/binaries/node/workspace/node_modules"
 fi
@@ -140,7 +134,6 @@ printf 'repo:    %s\n' "$REPO_DIR"
 printf 'shells: %s\n' "$SHELLS"
 printf 'node:   %s\n' "${NODE_BIN:-<not found>}"
 
-# ── module ────────────────────────────────────────────────────────────────────
 queue_suite "module: data integrity" sh "$HERE/module/test_data.sh"
 queue_suite "module: packaging" sh "$HERE/module/test_packaging.sh"
 
@@ -156,7 +149,6 @@ else
   queue_suite "module: service and firewall" sh "$HERE/module/test_service.sh"
 fi
 
-# ── webui ─────────────────────────────────────────────────────────────────────
 if [ -z "$NODE_BIN" ]; then
   queue_skip "webui: static invariants" "node not found"
   queue_skip "webui: app filter" "node not found"
@@ -173,7 +165,7 @@ else
   queue_suite "webui: export & backup" "$NODE_BIN" "$HERE/webui/test_export.js"
 
   # The contract test compares index.html against the real ctl, so the ctl
-  # output is produced here and handed over as files.
+  # output is produced here and handed over as files
   sh "$HERE/lib/dump-ctl.sh" json-status > "$WORK/json-status.txt" 2>/dev/null
   sh "$HERE/lib/dump-ctl.sh" list-strategies > "$WORK/list-strategies.txt" 2>/dev/null
   if [ -s "$WORK/json-status.txt" ]; then
@@ -190,11 +182,9 @@ else
   fi
 fi
 
-# ── collect and report ────────────────────────────────────────────────────────
 wait
 report_suites
 
-# ── summary ───────────────────────────────────────────────────────────────────
 printf '\n========================================\n'
 printf 'summary%s\n' "$RESULTS"
 printf '========================================\n'

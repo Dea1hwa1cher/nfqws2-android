@@ -144,7 +144,7 @@ reload_lists() {
 
 # Start a helper unless it already runs. Returns 0 when it was just started,
 # 1 when it is running or the precondition failed. ensure_watchdog uses this
-# to raise netwatch only alongside the watchdog.
+# to raise netwatch only alongside the watchdog
 ensure_helper() {
   local pf="$1" sub="$2"; shift 2
   # bare "$@" is a no-op with no args in dash, but be explicit about it
@@ -172,7 +172,7 @@ ensure_watchdog() {
 
 # Rebuild rules on events, not on a timer. Routers use a netfilter.d firmware
 # hook for this; ip monitor is the Android equivalent. Watchdog is the
-# fallback where ip monitor is unsupported.
+# fallback where ip monitor is unsupported
 ensure_netwatch() {
   watchers_wanted || return 0
   ensure_helper "$WN_PIDFILE" netwatch command -v ip || return 0
@@ -186,10 +186,10 @@ netwatch() {
   EVFILE="$STATE_DIR/netwatch_events"
   rm -f "$EVFILE"
   local prev="" acted="" backoff=2 saw=0 sz mon
-  # The monitor writes events to a file, reaction is on its size changing.
+  # The monitor writes events to a file, reaction is on its size changing
   # A file, not a pipe, so kill -TERM reaps ip monitor itself instead of a
   # wrapper that would leave an orphan. Poll every 2s to spare battery
-  # through the night.
+  # through the night
   while :; do
     ip monitor route link 2>/dev/null >> "$EVFILE" &
     mon=$!
@@ -200,7 +200,7 @@ netwatch() {
       watchers_wanted || break 2
       if ! kill -0 "$mon" 2>/dev/null; then
         # died on its own. If it never wrote a byte, ip monitor is unsupported
-        # here: grow the pause instead of restarting it in a loop.
+        # here: grow the pause instead of restarting it in a loop
         if [ "$saw" = 0 ]; then
           sleep "$backoff"
           [ "$backoff" -lt 60 ] && backoff=$((backoff * 2))
@@ -268,7 +268,7 @@ watchdog() {
     # survived a full cycle: reset the fail counter
     fails=0
 
-    # Защита от LMK: периодически поддерживаем иммунитет демона и вотчдога
+    # keep the daemon and watchdog protected from lmk
     dpid=$(cat "$PIDFILE" 2>/dev/null)
     [ -n "$dpid" ] && protect_process "$dpid"
     protect_process
@@ -283,8 +283,8 @@ watchdog() {
   rm -f "$WD_PIDFILE"
 }
 
-# home Wi-Fi: networks from home_wifi.list pause the service; leaving resumes.
-# A manual start there is remembered in home_override while that SSID stays.
+# home Wi-Fi: networks from home_wifi.list pause the service; leaving resumes
+# A manual start there is remembered in home_override while that SSID stays
 home_check() {
   # the lock dir keeps the two watchers from stop/starting twice; a lock older
   # than two minutes is residue from a killed process
@@ -313,7 +313,7 @@ home_check() {
   return 0
 }
 
-# On a network change apply the strategy saved for that network.
+# On a network change apply the strategy saved for that network
 network_strategy_check() {
   [ "$NET_STRATEGY" = "1" ] || return 0
   is_running || return 0
@@ -340,7 +340,7 @@ network_strategy_check() {
 }
 
 # Manual start clears the pause; on a home network it also records the SSID as
-# an override so the bypass keeps running there.
+# an override so the bypass keeps running there
 manual_start() {
   local ssid
   rm -f "$HOME_PAUSED_FILE"
@@ -393,5 +393,5 @@ case "$1" in
     ;;
 esac
 # Exit with the command status, not always 0: nfqws2-ctl passes it through,
-# so a failed start is not read as success.
+# so a failed start is not read as success
 exit $?

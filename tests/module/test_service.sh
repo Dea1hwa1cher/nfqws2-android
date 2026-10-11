@@ -1,9 +1,9 @@
 #!/bin/sh
-# Service lifecycle and firewall rule-set tests.
+# Service lifecycle and firewall rule-set tests
 #
 # These are the slowest tests in the suite: every iptables call is a process
 # spawn, and a full rule set is ~130 rules across two tables. They are kept in
-# their own file so the fast suites can be run without them.
+# their own file so the fast suites can be run without them
 
 HERE=$(cd "$(dirname "$0")" && pwd)
 TESTS_DIR=$(cd "$HERE/.." && pwd)
@@ -16,12 +16,10 @@ conf_reset
 
 # IPv6 off by default, switched on only in the section that tests it. With it on,
 # every firewall_apply/firewall_stop in this file drives both tables, and the
-# module applies rules one iptables call at a time — at ~0.3 s per call on
 # Windows that is the single largest cost in the whole suite. Only two assertions
-# here look at ip6tables at all, and the section that enables it covers them.
+# here look at ip6tables at all, and the section that enables it covers them
 printf 'WATCHDOG=0\nIPV6_ENABLED=0\n' >> "$CONFFILE"
 
-# ── start ─────────────────────────────────────────────────────────────────────
 section "start: the daemon comes up and the arguments are assembled"
 
 svc start
@@ -42,7 +40,7 @@ section "start: iptables chains"
 
 assert_file "$MOCK_IPT_STORE/iptables/mangle/nfqws_post" "nfqws_post chain is created"
 assert_file "$MOCK_IPT_STORE/iptables/mangle/nfqws_pre" "nfqws_pre chain is created"
-# APP_MODE defaults to off, so app_rules() actively removes its chain.
+# APP_MODE defaults to off, so app_rules() actively removes its chain
 assert_no_file "$MOCK_IPT_STORE/iptables/mangle/nfqws_app" "no app chain while APP_MODE=off"
 assert_file "$MOCK_IPT_STORE/iptables/nat/nfqws_nat" "nfqws_nat chain is created with NAT_FIX=1"
 
@@ -61,7 +59,6 @@ section "start: the limiter is recorded for the UI"
 
 assert_eq "connbytes" "$(cat "$CONFDIR/state/limiter")" "the limiter state file says connbytes"
 
-# ── stop ──────────────────────────────────────────────────────────────────────
 section "stop: everything is torn down"
 
 svc stop
@@ -73,21 +70,18 @@ assert_no_file "$MOCK_IPT_STORE/iptables/mangle/nfqws_pre" "nfqws_pre is deleted
 assert_no_file "$MOCK_IPT_STORE/iptables/mangle/nfqws_app" "nfqws_app is deleted"
 assert_no_file "$MOCK_IPT_STORE/iptables/nat/nfqws_nat" "nfqws_nat is deleted"
 
-# ── start failure ─────────────────────────────────────────────────────────────
 section "start: a daemon that dies at once is reported with the log tail"
 
 # Neither refusal branch in start() was covered before, and the two of them share
-# one ending: the reason, then the tail of the startup log — exactly the part
 # that used to be copy-pasted into both. This drives the first branch, where the
-# daemon exits non-zero.
+# daemon exits non-zero
 #
 # The service has to be down for it: start() returns 0 without doing anything if
-# it is already up, and the section above is where it gets stopped.
+# it is already up, and the section above is where it gets stopped
 #
 # The status is asserted as well as the log. service.sh used to end with `exit 0`,
-# so every dispatched command reported success no matter what — nfqws2-ctl just
 # passes that status along, which made a failed start indistinguishable from a
-# good one for anything that checks it.
+# good one for anything that checks it
 : > "$SERVICE_LOG"
 MOCK_NFQWS_FAIL=3
 export MOCK_NFQWS_FAIL
@@ -109,12 +103,10 @@ assert_contains "$(cat "$SERVICE_LOG")" "--dry-run" "the dry-run failure is anno
 assert_no_file "$CONFDIR/state/nfqws2.pid" "no pidfile on dry-run failure"
 unset MOCK_NFQWS_DRY_RUN_FAIL
 
-# A command that succeeds still has to say so — propagating the status must not
-# turn everything red.
+# turn everything red
 svc status
 assert_rc 0 "$svc_rc" "status still reports success"
 
-# ── connmark_out mode ─────────────────────────────────────────────────────────
 section "connmark_out: a kernel without connbytes gets counter chains"
 
 conf_reset
@@ -137,7 +129,7 @@ assert_contains "$(ipt_rules nfqws_app)" "--set-xmark 0x10000000/0x10000000" "in
 assert_contains "$(ipt_rules nfqws_post)" "! --mark 0x10000000/0x10000000 -j RETURN" "unmarked traffic is skipped in include mode"
 assert_contains "$(ipt_rules nfqws_pre)" "-j nfqws_qin" "incoming traffic goes through the counter chain"
 
-# The counter chain walks PKT_LIMIT_OUT down to zero and then queues.
+# The counter chain walks PKT_LIMIT_OUT down to zero and then queues
 qout=$(ipt_rules nfqws_qout)
 assert_contains "$qout" "--set-xmark" "the counter chain increments the connmark counter"
 assert_contains "$qout" "-j NFQUEUE --queue-num 300" "the counter chain ends in NFQUEUE"
@@ -154,7 +146,6 @@ section "IPv6 disabled"
 
 assert_no_file "$MOCK_IPT_STORE/ip6tables/mangle/nfqws_post" "no ip6tables chain is created"
 
-# ── firewall_ok ───────────────────────────────────────────────────────────────
 section "firewall_ok"
 
 firewall_ok
@@ -181,10 +172,9 @@ section "firewall_start reports a failure in either half"
 
 # firewall_start() runs the IPv4 and IPv6 halves in sequence and used to return the
 # status of the last one. firewall_ip6tables() returns 0 unconditionally when
-# IPV6_ENABLED=0, so an IPv4 failure was reported as success.
+# IPV6_ENABLED=0, so an IPv4 failure was reported as success
 #
 # The pin matters twice over: the section above turns IPv6 on, and with it every
-# failing call would be made twice — the mock still has to be started to fail.
 printf 'IPV6_ENABLED=0\n' >> "$CONFFILE"
 MOCK_IPT_FAIL=1
 export MOCK_IPT_FAIL
@@ -196,8 +186,7 @@ section "start: a firewall that does not install is a failed start"
 
 # start() ignored firewall_start() entirely, so a kernel where the rules did not
 # install gave a running daemon and a desired-state marker with nothing
-# intercepting traffic — visible from outside as a successful start. The daemon is
-# rolled back now, so the failure does not leave a half-applied state either.
+# rolled back now, so the failure does not leave a half-applied state either
 : > "$SERVICE_LOG"
 MOCK_IPT_FAIL=1
 export MOCK_IPT_FAIL
@@ -214,10 +203,9 @@ section "watchdog and netwatch helpers"
 # carries meaning: 0 means "I just started it", 1 means "nothing to do". That sign
 # is what keeps ensure_watchdog starting netwatch only at the moment it starts the
 # watchdog. A refactor of a load-bearing spawn is exactly where a silent change
-# would hide, so the decisions are pinned here.
-# Помощник поднимается отсоединённым процессом, поэтому его pidfile появляется
-# не мгновенно. Ждём появления, иначе проверка гоняет наперегонки с запуском.
-wait_for_file() { # <file> [секунды]
+# would hide, so the decisions are pinned here
+# The detached helper creates its PID file asynchronously; wait to avoid a race
+wait_for_file() { # <file> [seconds]
   _i=0
   while [ "$_i" -lt "${2:-5}" ]; do
     [ -f "$1" ] && return 0
@@ -234,18 +222,17 @@ assert_no_file "$WD_PIDFILE" "with WATCHDOG=0 no watchdog is spawned"
 assert_no_file "$WN_PIDFILE" "and no netwatch either"
 
 # start() returns early when the service is already up, so the helpers are only
-# reached from a genuinely stopped state.
+# reached from a genuinely stopped state
 svc stop >/dev/null 2>&1
 printf 'WATCHDOG=1\n' >> "$CONFFILE"
 svc start >/dev/null 2>&1
 wait_for_file "$WD_PIDFILE" 8
 assert_file "$WD_PIDFILE" "with WATCHDOG=1 the watchdog is spawned"
-# The sandbox has no `ip`, so the netwatch precondition fails and it must stay down.
+# The sandbox has no `ip`, so the netwatch precondition fails and it must stay down
 assert_no_file "$WN_PIDFILE" "netwatch stays down while ip is missing"
 
 # Kill the daemon but leave the watchdog alive: the next start must reuse the
 # running watchdog rather than spawn a second one. That guard is only reachable
-# with the service down and the watchdog up — the state after a daemon crash.
 wd=$(cat "$WD_PIDFILE" 2>/dev/null)
 kill "$(cat "$PIDFILE" 2>/dev/null)" 2>/dev/null
 svc start >/dev/null 2>&1
@@ -253,7 +240,6 @@ assert_eq "$wd" "$(cat "$WD_PIDFILE" 2>/dev/null)" "a running watchdog is not sp
 
 kill "$wd" 2>/dev/null
 
-# ── boot-completed.sh lifecycle hook ──────────────────────────────────────────
 section "boot-completed.sh lifecycle hook"
 
 assert_file "$MODDIR/boot-completed.sh" "boot-completed.sh exists in sandbox"
@@ -270,7 +256,6 @@ assert_file "$PIDFILE" "boot-completed hook maintains running service"
 
 svc stop >/dev/null 2>&1
 
-# ── protect_process ───────────────────────────────────────────────────────────
 section "protect_process"
 
 protect_process $$

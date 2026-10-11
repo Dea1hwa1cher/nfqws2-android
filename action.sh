@@ -1,5 +1,4 @@
 #!/system/bin/sh
-# Кнопка «Действие» в менеджере: переключает службу и показывает статус
 MODDIR="${0%/*}"
 case "$MODDIR" in /*) ;; *) MODDIR="$(cd "$MODDIR" 2>/dev/null && pwd)" ;; esac
 CTL="$MODDIR/bin/nfqws2-ctl"
