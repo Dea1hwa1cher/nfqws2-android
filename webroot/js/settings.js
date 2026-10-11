@@ -223,6 +223,20 @@ async function setHomeWifi(on){
 /* ══ РЕЗЕРВНАЯ КОПИЯ ═════════════════════════════════════════════════════ */
 const UI_KEYS = ['m3_seed', 'm3_mode', 'm3_amoled', 'm3_containers', 'm3_monochrome', 'nfq_lang', 'nfq_dev'];
 async function createBackup(){
+  let targetDir = (typeof store !== 'undefined' && store.get('nfq_save_dir')) || '/sdcard/Download';
+  if(typeof window !== 'undefined' && window.ksu && typeof mdPrompt === 'function'){
+    const chosen = await mdPrompt(
+      t('Сохранить копию'),
+      t('Укажите папку для сохранения архива:'),
+      targetDir,
+      t('Папка для сохранения'),
+      { ok: t('Сохранить') }
+    );
+    if(chosen === null) return;
+    targetDir = (chosen || targetDir).trim().replace(/\/+$/, '') || '/sdcard/Download';
+    if(!targetDir.startsWith('/')) targetDir = '/sdcard/' + targetDir;
+    if(typeof store !== 'undefined') store.set('nfq_save_dir', targetDir);
+  }
   const ui = {};
   UI_KEYS.forEach(k => { const v = store.get(k); if(v != null) ui[k] = v; });
   const r = await withBusy(['backup-create', b64(JSON.stringify(ui))], 60000);
@@ -233,7 +247,7 @@ async function createBackup(){
   const b64Data = parts[2] || '';
   if(b64Data){
     const blob = b64toBlob(b64Data, 'application/x-tar');
-    await exportBlobFile(blob, filename, 'application/x-tar', filePath);
+    await exportBlobFile(blob, filename, 'application/x-tar', filePath, targetDir);
   } else {
     toast(t('Копия сохранена: {0}', filename));
   }

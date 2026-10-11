@@ -31,9 +31,28 @@ function blobToB64(blob){
     r.readAsDataURL(blob);
   });
 }
-async function exportBlobFile(blob, filename, mimeType, localFilePath){
+async function exportBlobFile(blob, filename, mimeType, localFilePath, targetDir){
   mimeType = mimeType || 'application/x-tar';
-  if(typeof navigator !== 'undefined' && navigator.canShare && typeof File !== 'undefined'){
+  targetDir = (targetDir || (typeof store !== 'undefined' && store.get('nfq_save_dir')) || '/sdcard/Download').trim().replace(/\/+$/, '');
+  if(!targetDir.startsWith('/')) targetDir = '/sdcard/' + targetDir;
+  const targetFile = targetDir.endsWith('.tar') ? targetDir : (targetDir + '/' + filename);
+  const destFolder = targetFile.substring(0, targetFile.lastIndexOf('/')) || '/sdcard/Download';
+  if(!window?.ksu && typeof window !== 'undefined' && window.showSaveFilePicker){
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: filename,
+        types: [{ description: filename, accept: { [mimeType]: ['.tar'], 'application/octet-stream': ['.tar'] } }]
+      });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      toast(t('Файл сохранён: {0}', filename));
+      return true;
+    } catch(e){
+      if(e && e.name === 'AbortError') return false;
+    }
+  }
+  if(!window?.ksu && typeof navigator !== 'undefined' && navigator.canShare && typeof File !== 'undefined'){
     try {
       let file = new File([blob], filename, { type: mimeType });
       if(!navigator.canShare({ files: [file] })){
@@ -51,21 +70,6 @@ async function exportBlobFile(blob, filename, mimeType, localFilePath){
       if(e && e.name === 'AbortError') return false;
     }
   }
-  if(typeof window !== 'undefined' && window.showSaveFilePicker){
-    try {
-      const handle = await window.showSaveFilePicker({
-        suggestedName: filename,
-        types: [{ description: filename, accept: { [mimeType]: ['.tar'], 'application/octet-stream': ['.tar'] } }]
-      });
-      const writable = await handle.createWritable();
-      await writable.write(blob);
-      await writable.close();
-      toast(t('Файл сохранён: {0}', filename));
-      return true;
-    } catch(e){
-      if(e && e.name === 'AbortError') return false;
-    }
-  }
   try {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -79,14 +83,19 @@ async function exportBlobFile(blob, filename, mimeType, localFilePath){
     try {
       const safUri = 'content://com.android.externalstorage.documents/document/primary%3ADownload%2F' + encodeURIComponent(filename);
       const cmd =
-        'f=' + q(localFilePath) + '; ' +
-        'case "$f" in /sdcard/*) rf="/storage/emulated/0/${f#/sdcard/}" ;; *) rf="$f" ;; esac; ' +
+        'f=' + q(localFilePath) + '; tf=' + q(targetFile) + '; td=' + q(destFolder) + '; ' +
+        'mkdir -p "$td" 2>/dev/null; ' +
+        'if [ "$f" != "$tf" ]; then cp -f "$f" "$tf" 2>/dev/null; chmod 666 "$tf" 2>/dev/null; fi; ' +
+        'case "$tf" in /sdcard/*) rf="/storage/emulated/0/${tf#/sdcard/}" ;; *) rf="$tf" ;; esac; ' +
+        'am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d "file://$rf" >/dev/null 2>&1; ' +
         'u=$(content insert --uri content://media/external/file --bind _data:s:"$rf" --bind mime_type:s:"application/octet-stream" 2>/dev/null | grep -o \'content://[^ ]*\'); ' +
-        '[ -z "$u" ] && u=$(content query --uri content://media/external/file --projection _id --where "_data=\'$f\' OR _data=\'$rf\'" 2>/dev/null | grep -o \'_id=[0-9]*\' | head -n1 | sed \'s/_id=/content:\\/\\/media\\/external\\/file\\//\'); ' +
+        '[ -z "$u" ] && u=$(content query --uri content://media/external/file --projection _id --where "_data=\'$tf\' OR _data=\'$rf\'" 2>/dev/null | grep -o \'_id=[0-9]*\' | head -n1 | sed \'s/_id=/content:\\/\\/media\\/external\\/file\\//\'); ' +
         '[ -z "$u" ] && u=' + q(safUri) + '; ' +
         'am start -a android.intent.action.SEND --user 0 -t "*/*" --eu android.intent.extra.STREAM "$u" --es android.intent.extra.SUBJECT ' + q(filename) + ' --es android.intent.extra.TITLE ' + q(filename) + ' -f 0x10000001 >/dev/null 2>&1';
       await sh(cmd);
     } catch(e) {}
+    toast(t('Архив сохранён: {0}', targetFile));
+    return true;
   }
   toast(t('Экспорт завершён: {0}', filename));
   return true;
