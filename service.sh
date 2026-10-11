@@ -30,8 +30,8 @@ start_failed() {
   update_description stopped
 }
 
-# watchdog/netwatch: auto-restart, home Wi-Fi pause, per-network strategies
-watchers_wanted() { [ "$WATCHDOG" = "1" ] || [ "$HOME_WIFI" = "1" ] || [ "$NET_STRATEGY" = "1" ]; }
+# watchdog/netwatch: auto-restart, home Wi-Fi pause, VPN pause, per-network strategies
+watchers_wanted() { [ "$WATCHDOG" = "1" ] || [ "$HOME_WIFI" = "1" ] || [ "$NET_STRATEGY" = "1" ] || [ "$VPN_PAUSE" = "1" ]; }
 
 start() {
   if is_running; then
@@ -223,6 +223,7 @@ netwatch() {
           log_msg "netwatch: сеть изменилась (ip monitor) — пересобираю правила"
           firewall_start
         fi
+        vpn_check
         home_check
         network_strategy_check
         acted="$sz"
@@ -245,6 +246,7 @@ watchdog() {
     load_conf >/dev/null 2>&1
     watchers_wanted || break
     tick=$((tick + 1))
+    [ "$VPN_PAUSE" = "1" ] && vpn_check
     # once a minute: cmd wifi is the expensive part
     [ "$HOME_WIFI" = "1" ] && [ $((tick % 3)) -eq 0 ] && home_check
     [ "$NET_STRATEGY" = "1" ] && [ $((tick % 3)) -eq 0 ] && network_strategy_check
@@ -283,6 +285,40 @@ watchdog() {
   rm -f "$WD_PIDFILE"
 }
 
+# VPN pause: an active VPN interface (tun+, wg+, ppp+, tap+, tailscale+) pauses nfqws2
+# A manual start while VPN is active sets vpn_override so it remains running until VPN disconnects.
+vpn_check() {
+  [ -n "$(find "$STATE_DIR/vpn.lock" -maxdepth 0 -mmin +2 2>/dev/null)" ] && rmdir "$STATE_DIR/vpn.lock" 2>/dev/null
+  mkdir "$STATE_DIR/vpn.lock" 2>/dev/null || return 0
+
+  if [ "$VPN_PAUSE" = "1" ] && vpn_active; then
+    if [ ! -f "$VPN_OVERRIDE_FILE" ] && is_running && [ ! -f "$VPN_PAUSED_FILE" ]; then
+      log_msg "Активен VPN — обход приостановлен"
+      stop >/dev/null 2>&1
+      printf 'vpn' > "$VPN_PAUSED_FILE"
+      update_description paused vpn
+    fi
+  elif [ -f "$VPN_PAUSED_FILE" ]; then
+    rm -f "$VPN_PAUSED_FILE" "$VPN_OVERRIDE_FILE"
+    log_msg "VPN отключён — обход возобновлён"
+    local ssid=""
+    if [ "$HOME_WIFI" = "1" ]; then
+      ssid=$(current_ssid)
+    fi
+    if [ "$HOME_WIFI" = "1" ] && ssid_is_home "$ssid"; then
+      log_msg "Домашняя Wi-Fi «$ssid» — обход остаётся на паузе"
+      printf '%s' "$ssid" > "$HOME_PAUSED_FILE"
+      update_description paused "$ssid"
+    else
+      start >/dev/null 2>&1 || log_msg "Не удалось возобновить обход после VPN"
+    fi
+  elif [ -f "$VPN_OVERRIDE_FILE" ] && ! vpn_active; then
+    rm -f "$VPN_OVERRIDE_FILE"
+  fi
+  rmdir "$STATE_DIR/vpn.lock" 2>/dev/null
+  return 0
+}
+
 # home Wi-Fi: networks from home_wifi.list pause the service; leaving resumes
 # A manual start there is remembered in home_override while that SSID stays
 home_check() {
@@ -306,8 +342,14 @@ home_check() {
     fi
   elif [ -f "$HOME_PAUSED_FILE" ]; then
     rm -f "$HOME_PAUSED_FILE"
-    log_msg "Домашняя Wi-Fi больше не активна — обход возобновлён"
-    start >/dev/null 2>&1 || log_msg "Не удалось возобновить обход после домашней Wi-Fi"
+    if [ "$VPN_PAUSE" = "1" ] && vpn_active; then
+      log_msg "Активен VPN — обход остаётся на паузе"
+      printf 'vpn' > "$VPN_PAUSED_FILE"
+      update_description paused vpn
+    else
+      log_msg "Домашняя Wi-Fi больше не активна — обход возобновлён"
+      start >/dev/null 2>&1 || log_msg "Не удалось возобновить обход после домашней Wi-Fi"
+    fi
   fi
   rmdir "$STATE_DIR/home.lock" 2>/dev/null
   return 0
@@ -318,6 +360,7 @@ network_strategy_check() {
   [ "$NET_STRATEGY" = "1" ] || return 0
   is_running || return 0
   [ -f "$HOME_PAUSED_FILE" ] && return 0 # keep the strategy during a home pause
+  [ -f "$VPN_PAUSED_FILE" ] && return 0  # keep the strategy during a VPN pause
 
   local cur_net last_net saved cur_strat
   cur_net=$(current_network_key 2>/dev/null)
@@ -343,9 +386,12 @@ network_strategy_check() {
 # an override so the bypass keeps running there
 manual_start() {
   local ssid
-  rm -f "$HOME_PAUSED_FILE"
+  rm -f "$HOME_PAUSED_FILE" "$VPN_PAUSED_FILE"
   if [ "$HOME_WIFI" = "1" ] && ssid=$(current_ssid) && ssid_is_home "$ssid"; then
     printf '%s' "$ssid" > "$HOME_OVERRIDE_FILE"
+  fi
+  if [ "$VPN_PAUSE" = "1" ] && vpn_active; then
+    touch "$VPN_OVERRIDE_FILE"
   fi
   start
 }
@@ -360,7 +406,8 @@ status_service() {
 
 case "$1" in
   start)              manual_start ;;
-  stop)               rm -f "$HOME_PAUSED_FILE" "$HOME_OVERRIDE_FILE"; stop ;;
+  stop)               rm -f "$HOME_PAUSED_FILE" "$HOME_OVERRIDE_FILE" "$VPN_PAUSED_FILE" "$VPN_OVERRIDE_FILE"; stop ;;
+  vpn_check)          vpn_check; ensure_watchdog ;;
   home_check)         home_check; ensure_watchdog ;;
   net_check)          network_strategy_check ;;
   restart)            stop; start ;;
@@ -375,16 +422,22 @@ case "$1" in
     until [ "$(getprop sys.boot_completed 2>/dev/null)" = "1" ]; do sleep 3; done
     sleep 4
     [ -f "$CONFDIR/disable" ] && { log_msg "Найден $CONFDIR/disable — автозапуск пропущен"; exit 0; }
-    rm -f "$HOME_PAUSED_FILE" "$HOME_OVERRIDE_FILE"
-    rmdir "$STATE_DIR/home.lock" 2>/dev/null
+    rm -f "$HOME_PAUSED_FILE" "$HOME_OVERRIDE_FILE" "$VPN_PAUSED_FILE" "$VPN_OVERRIDE_FILE"
+    rmdir "$STATE_DIR/home.lock" "$STATE_DIR/vpn.lock" 2>/dev/null
     if [ "$AUTOSTART" = "1" ]; then
-      ssid=$(current_ssid)
-      if [ "$HOME_WIFI" = "1" ] && ssid_is_home "$ssid"; then
-        log_msg "Домашняя Wi-Fi «$ssid» — автозапуск отложен до выхода из неё"
-        printf '%s' "$ssid" > "$HOME_PAUSED_FILE"
-        update_description paused "$ssid"
+      if [ "$VPN_PAUSE" = "1" ] && vpn_active; then
+        log_msg "Активен VPN — автозапуск отложен"
+        printf 'vpn' > "$VPN_PAUSED_FILE"
+        update_description paused vpn
       else
-        start || log_msg "Автозапуск не удался"
+        ssid=$(current_ssid)
+        if [ "$HOME_WIFI" = "1" ] && ssid_is_home "$ssid"; then
+          log_msg "Домашняя Wi-Fi «$ssid» — автозапуск отложен до выхода из неё"
+          printf '%s' "$ssid" > "$HOME_PAUSED_FILE"
+          update_description paused "$ssid"
+        else
+          start || log_msg "Автозапуск не удался"
+        fi
       fi
     else
       update_description stopped

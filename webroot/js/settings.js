@@ -29,7 +29,8 @@ function renderSettings(){
   const groups = [
     ['Работа', [
       {icon: 'home', title: 'Домашняя Wi‑Fi', sub: t('Пауза обхода в домашних сетях') + ' · ' + homeN, on: "navigate('wifi')", chevron: true},
-      {icon: 'refresh', title: 'Стратегии по сетям', sub: t('Запоминать стратегию отдельно для каждой сети'), sw: true, checked: S.net_strategy == 1, on: 'toggleNetStrategy(this.checked)'}
+      {icon: 'refresh', title: 'Стратегии по сетям', sub: t('Запоминать стратегию отдельно для каждой сети'), sw: true, checked: S.net_strategy == 1, on: 'toggleNetStrategy(this.checked)'},
+      {icon: 'shield', title: 'Пауза при VPN', sub: t('Пауза обхода при включённом VPN'), sw: true, checked: S.vpn_pause == 1, on: 'toggleVpnPause(this.checked)'}
     ]],
     ['Инструменты', [
       {icon: 'apps', title: 'Фильтр приложений', sub: t('Обход только для выбранных приложений или для всех, кроме них'), on: "navigate('apps')", chevron: true},
@@ -312,3 +313,11 @@ async function toggleNetStrategy(checked){
   if(r.code) toast(errText(r, 'Не удалось переключить привязку стратегий'));
   else { S.net_strategy = on ? 1 : 0; renderSettings(); stat(); }
 }
+
+async function toggleVpnPause(checked){
+  const on = typeof checked === 'boolean' ? checked : (S.vpn_pause != 1);
+  const r = await withBusy(['set', 'VPN_PAUSE', on ? '1' : '0'], 40000);
+  if(r.code) toast(errText(r, 'Не удалось переключить паузу при VPN'));
+  else { S.vpn_pause = on ? 1 : 0; renderSettings(); stat(); }
+}
+

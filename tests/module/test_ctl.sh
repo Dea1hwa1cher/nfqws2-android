@@ -31,7 +31,7 @@ assert_contains "$ctl_out" '"uptime":0' "reports uptime 0"
 
 for key in running pid uptime strategy version mode limiter pkt_limit_out pkt_limit_in \
            block_quic app_mode autostart watchdog wakelock_on ipv6 log_level qdrop queue \
-           app_uids counts; do
+           app_uids home_wifi enable_hotspot net_strategy vpn_pause counts; do
   assert_contains "$ctl_out" "\"$key\":" "json-status exposes $key"
 done
 for key in user auto exclude ipset ipset_exclude apps; do
@@ -42,7 +42,7 @@ section "json-status: numeric fields stay numeric"
 
 # These are spliced into the JSON without quotes; a non-numeric value would make
 # the whole document unparseable and take the WebUI down with it.
-for key in pkt_limit_out pkt_limit_in block_quic autostart watchdog wakelock_on ipv6 log_level qdrop queue app_uids; do
+for key in pkt_limit_out pkt_limit_in block_quic autostart watchdog wakelock_on ipv6 log_level qdrop queue app_uids home_wifi enable_hotspot net_strategy vpn_pause; do
   assert_match "$ctl_out" "\"$key\":[0-9]+" "$key is emitted as a bare number"
 done
 
@@ -110,8 +110,21 @@ kill "$BROKEN_PID" 2>/dev/null
 wait "$BROKEN_PID" 2>/dev/null
 rm -f "$CONFDIR/state/nfqws2.pid" "$CONFDIR/state/started_at"
 
+# json-status reports paused=vpn when vpn_paused state file is present
+printf 'vpn' > "$CONFDIR/state/vpn_paused"
+ctl json-status
+assert_contains "$ctl_out" '"paused":"vpn"' "json-status reports paused=vpn when vpn_paused exists"
+rm -f "$CONFDIR/state/vpn_paused"
+
 # ── set ───────────────────────────────────────────────────────────────────────
 section "set: value validation"
+
+ctl set VPN_PAUSE 1
+assert_rc 0 "$ctl_rc" "VPN_PAUSE accepts 1"
+ctl get-conf
+assert_contains "$ctl_out" 'VPN_PAUSE="1"' "VPN_PAUSE is written to the config"
+ctl set VPN_PAUSE 2
+assert_rc 1 "$ctl_rc" "VPN_PAUSE rejects 2"
 
 ctl set BLOCK_QUIC 1
 assert_rc 0 "$ctl_rc" "BLOCK_QUIC accepts 1"

@@ -224,7 +224,9 @@ function renderStatus(){
   $('st').textContent = j.running ? t('Служба работает') : (paused ? t('Пауза') : t('Служба остановлена'));
   const lim = {connbytes: t('лимит connbytes'), connmark_out: t('лимит connmark')}[j.limiter] || '';
   $('sub').textContent = paused
-    ? t('Домашняя Wi‑Fi «{0}». Обход возобновится, когда телефон уйдёт из этой сети.', j.paused)
+    ? (j.paused === 'vpn'
+        ? t('Активен VPN. Обход возобновится при отключении VPN.')
+        : t('Домашняя Wi‑Fi «{0}». Обход возобновится, когда телефон уйдёт из этой сети.', j.paused))
     : t('Режим') + ' ' + (j.mode || '—') + (j.running && lim ? ', ' + lim : '');
   $('queue-num').textContent = j.running ? (j.queue || '—') : '—';
   const qd = $('qdrop-num');

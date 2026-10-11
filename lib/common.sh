@@ -32,6 +32,10 @@ HOME_FILE="$CONFDIR/home_wifi.list"
 HOME_PAUSED_FILE="$STATE_DIR/home_paused"      # paused by home network; holds SSID
 HOME_OVERRIDE_FILE="$STATE_DIR/home_override"  # user re-enabled on this network
 
+# VPN pause: bypass pauses while a VPN interface is active (VPN_PAUSE=1)
+VPN_PAUSED_FILE="$STATE_DIR/vpn_paused"        # paused by active VPN
+VPN_OVERRIDE_FILE="$STATE_DIR/vpn_override"    # user re-enabled while VPN is on
+
 MARK_EXCLUDE="0x20000000/0x20000000"
 MARK_INCLUDE="0x10000000/0x10000000"
 MARK_PROCESSED="0x40000000/0x40000000"
@@ -80,6 +84,7 @@ set_defaults() {
   : "${HOME_WIFI:=0}"
   : "${ENABLE_HOTSPOT:=1}"
   : "${NET_STRATEGY:=0}"
+  : "${VPN_PAUSE:=0}"
 }
 
 log_msg() {
@@ -1041,7 +1046,12 @@ update_description() { # running | stopped | paused <ssid>
       strat=$(cat "$ACTIVE_FILE" 2>/dev/null); strat="${strat#imp:}"
       mode=$(current_mode)
       d="✅ Работает · ${strat:-default}${mode:+ · $mode}" ;;
-    paused) d="⏸ Пауза: домашняя Wi-Fi «$2»" ;;
+    paused)
+      if [ "$2" = "vpn" ] || [ "$2" = "VPN" ]; then
+        d="⏸ Пауза: активен VPN"
+      else
+        d="⏸ Пауза: домашняя Wi-Fi «$2»"
+      fi ;;
     *)      d="⛔ Остановлено" ;;
   esac
   d=$(printf '%s' "$d | $DESC_BASE" | tr -d '\n\r')
@@ -1091,7 +1101,7 @@ render_strategy() {
 
 # Module settings (same across strategies) are carried over whole from the live
 # config on strategy change/reset. NFQWS_EXTRA_ARGS only for standard $MODE_* refs.
-USER_KEYS="IPV6_ENABLED TCP_PORTS UDP_PORTS NFQUEUE_NUM PKT_LIMIT_OUT PKT_LIMIT_IN BLOCK_QUIC NAT_FIX APP_MODE AUTOSTART WATCHDOG NFQWS_USER LOG_LEVEL LOG_MAX_KB WAKELOCK HOME_WIFI ENABLE_HOTSPOT NET_STRATEGY NFQWS_EXTRA_ARGS"
+USER_KEYS="IPV6_ENABLED TCP_PORTS UDP_PORTS NFQUEUE_NUM PKT_LIMIT_OUT PKT_LIMIT_IN BLOCK_QUIC NAT_FIX APP_MODE AUTOSTART WATCHDOG NFQWS_USER LOG_LEVEL LOG_MAX_KB WAKELOCK HOME_WIFI ENABLE_HOTSPOT NET_STRATEGY VPN_PAUSE NFQWS_EXTRA_ARGS"
 merge_user_keys() { # <generated config> <settings source config>  -> stdout
   awk -v keys=" $USER_KEYS " -v src="$2" '
     function quotes(str,   t) { t = str; return gsub(/"/, "", t) }
@@ -1140,6 +1150,25 @@ current_ssid() {
 ssid_is_home() {
   if [ -z "$1" ] || [ ! -f "$HOME_FILE" ]; then return 1; fi
   grep -v -e '^[[:space:]]*#' -e '^[[:space:]]*$' "$HOME_FILE" 2>/dev/null | grep -Fxq -- "$1"
+}
+
+# ---------------------------------------------------------------- VPN pause
+# Returns 0 if an active VPN interface is up (tun+, wg+, ppp+, tap+, tailscale+)
+vpn_active() {
+  local dev flags
+  for dev in /sys/class/net/tun* /sys/class/net/wg* /sys/class/net/ppp* /sys/class/net/tap* /sys/class/net/tailscale*; do
+    [ -d "$dev" ] || continue
+    flags=$(cat "$dev/flags" 2>/dev/null)
+    if [ -n "$flags" ]; then
+      [ $(( flags & 1 )) -eq 1 ] && return 0
+    elif [ -f "$dev/operstate" ] && [ "$(cat "$dev/operstate" 2>/dev/null)" != "down" ]; then
+      return 0
+    fi
+  done
+  if command -v ip >/dev/null 2>&1; then
+    ip link show 2>/dev/null | grep -Eq ':[[:space:]]*(tun|wg|ppp|tap|tailscale)[0-9]*[ :].*<[A-Z0-9_,]*UP' && return 0
+  fi
+  return 1
 }
 
 # ---------------------------------------------------------------- network strategy caching
