@@ -128,7 +128,7 @@ PY
 
   rm -rf "$MODPATH/tests" "$MODPATH/tools" "$MODPATH/.workbuddy-ai" \
          "$MODPATH/.git" "$MODPATH/.github" "$MODPATH/.gitattributes" \
-         "$MODPATH/CONTRIBUTING.md" \
+         "$MODPATH/CONTRIBUTING.md" "$MODPATH/java" \
          "$MODPATH/docs" "$MODPATH/update.json" "$MODPATH/changelog.md" \
          "$MODPATH/.gitignore"
   rm -f "$MODPATH"/*.zip
