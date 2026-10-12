@@ -701,7 +701,7 @@ probe_attempt() { # <вид> <путь к утилите> <host[/путь]> [pro
     1) # Plain HTTP (порт 80)
       local url="http://${host}:80${path:-/}"
       if [ "$kind" = "curl" ]; then
-        out=$($to "$bin" -s -L --max-redirs 3 -m 6 --connect-timeout 4 -A 'Mozilla/5.0' \
+        out=$($to "$bin" -s -L --max-redirs 3 -m 6 --connect-timeout 4 -o /dev/null -A 'Mozilla/5.0' \
           -w "\nREDIRECT_URL:%{redirect_url}\n" "$url" 2>&1); rc=$?
       else
         out=$($to "$bin" wget -q -T 6 -O /dev/null -U 'Mozilla/5.0' "$url" 2>&1); rc=$?
@@ -710,7 +710,7 @@ probe_attempt() { # <вид> <путь к утилите> <host[/путь]> [pro
     2) # TLS 1.2 (порт 443)
       local url="https://${target}"
       if [ "$kind" = "curl" ]; then
-        out=$($to "$bin" -s -k --tlsv1.2 --tls-max 1.2 -L --max-redirs 3 -m 8 --connect-timeout 5 -A 'Mozilla/5.0' \
+        out=$($to "$bin" -s -k --tlsv1.2 --tls-max 1.2 -L --max-redirs 3 -m 8 --connect-timeout 5 -o /dev/null -A 'Mozilla/5.0' \
           -w "\nREDIRECT_URL:%{redirect_url}\n" "$url" 2>&1); rc=$?
       else
         out=$($to "$bin" wget -q -T 6 -O /dev/null -U 'Mozilla/5.0' --no-check-certificate "$url" 2>&1); rc=$?
@@ -719,7 +719,7 @@ probe_attempt() { # <вид> <путь к утилите> <host[/путь]> [pro
     3) # TLS 1.3 (порт 443)
       local url="https://${target}"
       if [ "$kind" = "curl" ]; then
-        out=$($to "$bin" -s -k --tlsv1.3 -L --max-redirs 3 -m 8 --connect-timeout 5 -A 'Mozilla/5.0' \
+        out=$($to "$bin" -s -k --tlsv1.3 -L --max-redirs 3 -m 8 --connect-timeout 5 -o /dev/null -A 'Mozilla/5.0' \
           -w "\nREDIRECT_URL:%{redirect_url}\n" "$url" 2>&1); rc=$?
       else
         out=$($to "$bin" wget -q -T 6 -O /dev/null -U 'Mozilla/5.0' --no-check-certificate "$url" 2>&1); rc=$?
@@ -1068,9 +1068,9 @@ cmd_bench_strategies() {
       rm -f "$STATE_DIR/bench_orig.conf"
       echo "$orig_strat" > "$ACTIVE_FILE" 2>/dev/null
       if [ "$orig_running" = "true" ]; then
-        "$SERVICE" restart >/dev/null 2>&1
+        sh "$SERVICE" restart >/dev/null 2>&1
       else
-        "$SERVICE" stop >/dev/null 2>&1
+        sh "$SERVICE" stop >/dev/null 2>&1
       fi
     fi
   }
@@ -1090,7 +1090,7 @@ cmd_bench_strategies() {
   strats=$(list_strategies 2>/dev/null | cut -f1 | tr -d '\r' | grep -v '^default$' || true)
   strats="default $strats"
 
-  local best_name="" best_ok=-1 best_total=0 best_ms=99999
+  local best_name="" best_ok=0 best_total=0 best_ms=99999
   local strat_idx=0 total_strats
   total_strats=$(printf '%s\n' $strats | wc -w | tr -d ' ')
 
@@ -1116,12 +1116,12 @@ cmd_bench_strategies() {
       echo "$st" > "$ACTIVE_FILE" 2>/dev/null
     fi
 
-    "$SERVICE" restart >/dev/null 2>&1
+    sh "$SERVICE" restart >/dev/null 2>&1
 
     local ready=false wait_i=0
-    while [ "$wait_i" -lt 6 ]; do
+    while [ "$wait_i" -lt 8 ]; do
       if is_running; then ready=true; break; fi
-      sleep 0.5 2>/dev/null || sleep 1
+      sleep 0.3 2>/dev/null || sleep 1
       wait_i=$((wait_i + 1))
     done
 
@@ -1179,7 +1179,7 @@ cmd_bench_strategies() {
 
     printf 'BENCH_RES\t%s\t%s\t%s\t%s\t%s\t%s\n' "$strat_idx" "$st" "$ok_cnt" "$total_cnt" "$avg_ms" "$top_fail"
 
-    if [ "$ok_cnt" -gt "$best_ok" ] || { [ "$ok_cnt" -eq "$best_ok" ] && [ "$avg_ms" -lt "$best_ms" ]; }; then
+    if [ "$ok_cnt" -gt "$best_ok" ] || { [ "$ok_cnt" -eq "$best_ok" ] && [ "$best_ok" -gt 0 ] && [ "$avg_ms" -lt "$best_ms" ]; }; then
       best_ok="$ok_cnt"
       best_total="$total_cnt"
       best_ms="$avg_ms"
@@ -1192,8 +1192,8 @@ cmd_bench_strategies() {
   bench_cleanup
   trap - EXIT INT TERM
 
+  [ -z "$best_name" ] && best_name="-"
   printf 'BENCH_BEST\t%s\t%s\t%s\t%s\n' "$best_name" "$best_ok" "$best_total" "$best_ms"
-  echo done
 }
 
 cmd_probe_dpi() {

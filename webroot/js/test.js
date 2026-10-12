@@ -38,7 +38,6 @@ let lastRecommendation = null;
 let benchResults = {};
 let benchTotalStrats = 0;
 let benchBestStrat = null;
-let benchRunningStrat = null;
 
 function testInit(){
   updateTestDesc();
@@ -160,9 +159,7 @@ function finishTestRow(i, res){
     const rName = t(PROBE_REASON[x.reason] || PROBE_REASON.other);
     return pName ? `${pName}: ${rName}` : rName;
   });
-  const reasons = failedProtos.length
-    ? [...new Set(failedProtos)]
-    : [...new Set(res.filter(x => !x.ok && !x.skip).map(x => t(PROBE_REASON[x.reason] || PROBE_REASON.other)))];
+  const reasons = [...new Set(failedProtos)];
 
   const ts = $('ts' + i);
   if(ts) {
@@ -311,7 +308,7 @@ function resetTestResults(){
     if(el){ el.innerHTML = ''; el._html = ''; }
   });
   webResults = {}; tcp16Results = {}; dnsResults = {}; tgResults = {}; tgMediaSpeed = null; lastRecommendation = null;
-  benchResults = {}; benchTotalStrats = 0; benchBestStrat = null; benchRunningStrat = null;
+  benchResults = {}; benchTotalStrats = 0; benchBestStrat = null;
   const recEl = $('test-recommendation');
   if(recEl){ recEl.hidden = true; recEl.innerHTML = ''; }
   const tgBadge = $('test-tg-media-badge');
@@ -427,7 +424,6 @@ async function runTest(){
       }
     } else if(p[0] === 'BENCH_RUN') {
       const idx = p[1], strat = p[2], total = p[3];
-      benchRunningStrat = strat;
       const badge = $('test-bench-badge');
       if(badge){
         badge.hidden = false;
@@ -478,13 +474,49 @@ async function runTest(){
     }
   } finally {
     testRunning = false;
+    if(testCancelled){
+      if(currentTestTab === 'bench'){
+        const badge = $('test-bench-badge');
+        if(badge){
+          badge.className = 'badge warn';
+          badge.textContent = t('Проверка остановлена');
+        }
+        document.querySelectorAll('#test-bench-list .list-item').forEach(el => {
+          if(el.querySelector('.spinner')){
+            const liSec = el.querySelector('.li-secondary');
+            if(liSec) liSec.textContent = t('Прервано');
+            const liTrail = el.querySelector('.li-trail');
+            if(liTrail) liTrail.textContent = '—';
+            const st = el.querySelector('.status');
+            if(st){
+              st.className = 'status warn';
+              st.innerHTML = icon('close', 's16');
+            }
+          }
+        });
+      } else {
+        document.querySelectorAll('#tr .list-item, #test-tcp16-list .list-item, #test-dns-list .list-item, #test-tg-list .list-item').forEach(el => {
+          if(el.querySelector('.spinner')){
+            const liSec = el.querySelector('.li-secondary');
+            if(liSec) liSec.textContent = t('Прервано');
+            const liTrail = el.querySelector('.li-trail');
+            if(liTrail) liTrail.textContent = '—';
+            const st = el.querySelector('.status');
+            if(st){
+              st.className = 'status warn';
+              st.innerHTML = icon('close', 's16');
+            }
+          }
+        });
+      }
+    }
     if(tb){
       tb.classList.remove('danger');
       tb.disabled = false;
       const btnLabel = currentTestTab === 'bench' ? t('Запустить автоподбор') : t('Проверить снова');
       tb.innerHTML = icon('play', 's18') + '<span>' + esc(btnLabel) + '</span>';
     }
-    if(currentTestTab !== 'bench'){
+    if(currentTestTab !== 'bench' && !testCancelled){
       renderRecommendation();
     }
   }
@@ -520,10 +552,15 @@ async function runTestWebView(){
     for(let k = 0; k < 3; k++){
       if(testCancelled) break;
       const subCtrl = new AbortController();
+      const onParentAbort = () => subCtrl.abort();
+      if(webViewAbortCtrl) webViewAbortCtrl.signal.addEventListener('abort', onParentAbort);
       const tm = setTimeout(() => subCtrl.abort(), 6000);
       try {
         out.push(await probeFetch(h, subCtrl.signal));
-      } finally { clearTimeout(tm); }
+      } finally {
+        clearTimeout(tm);
+        if(webViewAbortCtrl) webViewAbortCtrl.signal.removeEventListener('abort', onParentAbort);
+      }
     }
     finishTestRow(i, out);
   }
@@ -693,6 +730,9 @@ async function applyRecommendedStrategy(name){
   if(typeof applyStrategy === 'function'){
     await applyStrategy(name);
     renderRecommendation();
+    if(benchBestStrat){
+      renderBenchBest(benchBestStrat.name, benchBestStrat.ok, benchBestStrat.total, benchBestStrat.avg_ms);
+    }
   }
 }
 

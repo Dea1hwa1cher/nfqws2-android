@@ -28,6 +28,7 @@ start_failed() {
   log_msg "Последние строки лога:"
   tail -n 8 "$NFQWS_LOG" 2>/dev/null | while IFS= read -r l; do log_msg "  $l"; done
   update_description stopped
+  firewall_stop
 }
 
 # watchdog/netwatch: auto-restart, home Wi-Fi pause, VPN pause, per-network strategies
@@ -38,75 +39,98 @@ start() {
     echo "Служба nfqws2 уже запущена (PID $(cat "$PIDFILE"))"
     return 0
   fi
-  if [ ! -x "$NFQWS_BIN" ]; then
-    chmod 0755 "$NFQWS_BIN" 2>/dev/null
-    [ -x "$NFQWS_BIN" ] || { log_msg "Ошибка: нет исполняемого $NFQWS_BIN"; return 1; }
-  fi
-  local err
-  err=$(validate_args_conf) || { log_msg "$err"; return 1; }
 
-  log_msg "Запуск nfqws2..."
-  kernel_modules
-  rotate_logs start
-
-  local args
-  args=$(_startup_args)
-  printf '%s\n' "$args" > "$ARGS_FILE"
-
-  local dry_err
-  if ! dry_err=$(dry_run_check "$args"); then
-    log_msg "Ошибка: проверка nfqws2 --dry-run не пройдена"
-    printf '%s\n' "$dry_err" >> "$NFQWS_LOG"
-    start_failed "Ошибка: параметры запуска nfqws2 некорректны (проверка --dry-run отклонена)."
-    return 1
+  local lock="$STATE_DIR/service.lock"
+  if ! mkdir "$lock" 2>/dev/null; then
+    local wait_lock=0
+    while [ "$wait_lock" -lt 15 ]; do
+      sleep 0.2
+      if is_running; then
+        echo "Служба nfqws2 уже запущена (PID $(cat "$PIDFILE" 2>/dev/null))"
+        return 0
+      fi
+      [ -d "$lock" ] || break
+      wait_lock=$((wait_lock + 1))
+    done
+    mkdir "$lock" 2>/dev/null || true
   fi
 
-  cd "$MODDIR/bin" || return 1
-  set -f
+  _start_internal() {
+    if [ ! -x "$NFQWS_BIN" ]; then
+      chmod 0755 "$NFQWS_BIN" 2>/dev/null
+      [ -x "$NFQWS_BIN" ] || { log_msg "Ошибка: нет исполняемого $NFQWS_BIN"; return 1; }
+    fi
+    local err
+    err=$(validate_args_conf) || { log_msg "$err"; return 1; }
 
-  # built-in --daemon: nfqws2 reparents to init and writes its PID to $PIDFILE
-  rm -f "$PIDFILE"
-  "$NFQWS_BIN" --daemon --pidfile="$PIDFILE" $args >> "$NFQWS_LOG" 2>&1
-  local res=$?
-  set +f
+    log_msg "Запуск nfqws2..."
+    kernel_modules
+    rotate_logs start
 
-  if [ "$res" -ne 0 ]; then
-    start_failed "Ошибка: nfqws2 завершился с кодом $res."
-    return 1
-  fi
+    local args
+    args=$(_startup_args)
+    printf '%s\n' "$args" > "$ARGS_FILE"
 
-  local pid=""
-  [ -f "$PIDFILE" ] && pid=$(cat "$PIDFILE" 2>/dev/null)
-  [ -n "$pid" ] || pid=$(pidof nfqws2 2>/dev/null | awk '{print $1}')
+    local dry_err
+    if ! dry_err=$(dry_run_check "$args"); then
+      log_msg "Ошибка: проверка nfqws2 --dry-run не пройдена"
+      printf '%s\n' "$dry_err" >> "$NFQWS_LOG"
+      start_failed "Ошибка: параметры запуска nfqws2 некорректны (проверка --dry-run отклонена)."
+      return 1
+    fi
 
-  if [ -z "$pid" ] || ! wait_for_process "$pid" up 24; then
-    start_failed "Ошибка: nfqws2 не запустился."
-    return 1
-  fi
+    cd "$MODDIR/bin" || return 1
+    set -f
 
-  echo "$pid" > "$PIDFILE"
-  protect_process "$pid"
-  date +%s > "$STARTED_FILE"
-
-  # firewall_start can return 0 with no rule in place; without the POSTROUTING
-  # jump the daemon runs but nothing reaches NFQUEUE
-  firewall_start
-  if ! firewall_ok; then
-    log_msg "Ошибка: правила iptables не применились — трафик не перехватывается"
-    # a daemon without rules is useless and a stale pidfile would claim it runs
-    kill -TERM "$pid" 2>/dev/null
+    # built-in --daemon: nfqws2 reparents to init and writes its PID to $PIDFILE
     rm -f "$PIDFILE"
-    update_description stopped
-    return 1
-  fi
+    "$NFQWS_BIN" --daemon --pidfile="$PIDFILE" $args >> "$NFQWS_LOG" 2>&1
+    local res=$?
+    set +f
 
-  system_config
-  acquire_wakelock
-  echo 1 > "$DESIRED_FILE"
-  log_msg "nfqws2 запущен (PID $pid, Native Daemon)"
-  update_description running
-  ensure_watchdog
-  return 0
+    if [ "$res" -ne 0 ]; then
+      start_failed "Ошибка: nfqws2 завершился с кодом $res."
+      return 1
+    fi
+
+    local pid=""
+    [ -f "$PIDFILE" ] && pid=$(cat "$PIDFILE" 2>/dev/null)
+    [ -n "$pid" ] || pid=$(pidof nfqws2 2>/dev/null | awk '{print $1}')
+
+    if [ -z "$pid" ] || ! wait_for_process "$pid" up 24; then
+      start_failed "Ошибка: nfqws2 не запустился."
+      return 1
+    fi
+
+    echo "$pid" > "$PIDFILE"
+    protect_process "$pid"
+    date +%s > "$STARTED_FILE"
+
+    # firewall_start can return 0 with no rule in place; without the POSTROUTING
+    # jump the daemon runs but nothing reaches NFQUEUE
+    firewall_start
+    if ! firewall_ok; then
+      log_msg "Ошибка: правила iptables не применились — трафик не перехватывается"
+      # a daemon without rules is useless and a stale pidfile would claim it runs
+      kill -TERM "$pid" 2>/dev/null
+      rm -f "$PIDFILE"
+      start_failed "Ошибка: правила iptables не применились."
+      return 1
+    fi
+
+    system_config
+    acquire_wakelock
+    echo 1 > "$DESIRED_FILE"
+    log_msg "nfqws2 запущен (PID $pid, Native Daemon)"
+    update_description running
+    ensure_watchdog
+    return 0
+  }
+
+  local ret=0
+  _start_internal || ret=$?
+  rmdir "$lock" 2>/dev/null
+  return $ret
 }
 
 stop() {
@@ -118,11 +142,14 @@ stop() {
     pid=$(cat "$PIDFILE" 2>/dev/null)
     if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
       kill -TERM "$pid" 2>/dev/null
-      wait_for_process "$pid" down 16 || kill -KILL "$pid" 2>/dev/null
+      wait_for_process "$pid" down 20 || kill -KILL "$pid" 2>/dev/null
     fi
     rm -f "$PIDFILE"
   fi
-  pidof nfqws2 >/dev/null 2>&1 && killall -9 nfqws2 2>/dev/null
+  if pidof nfqws2 >/dev/null 2>&1; then
+    pkill -9 -x nfqws2 2>/dev/null || kill -9 $(pidof nfqws2 2>/dev/null) 2>/dev/null || true
+  fi
+  sleep 0.1
 
   # a leftover chain still jumps to NFQUEUE with no listener, so the kernel
   # drops that traffic: stopped must mean rules gone

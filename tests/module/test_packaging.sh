@@ -39,7 +39,7 @@ fi
 SANDBOX=$(mktemp -d "${NFQWS_TEST_TMP:-/tmp}/nfqws2-pack.XXXXXX") || exit 1
 SANDBOX=$(cd "$SANDBOX" && pwd)
 
-MODULE_FILES="action.sh boot-completed.sh customize.sh service.sh uninstall.sh module.prop icon.png LICENSE README.md sepolicy.rule"
+MODULE_FILES="action.sh boot-completed.sh customize.sh service.sh uninstall.sh module.prop icon.png LICENSE README.md"
 MODULE_DIRS="bin $([ -d "$REPO_DIR/binaries" ] && echo binaries) blobs defaults lib lists lua strategies system webroot"
 
 # ── builder ───────────────────────────────────────────────────────────────────
