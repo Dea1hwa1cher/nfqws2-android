@@ -1,6 +1,3 @@
-# Быстрая проверка, которая ловит битое слияние до того, как оно попадёт в main:
-# забытые маркеры конфликта, синтаксис shell-скриптов и скриптов WebUI, ссылки
-# index.html на css/ и js/. Запускается на каждый PR и на пуш в main.
 name: check
 
 on:
@@ -14,18 +11,18 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Маркеры конфликта слияния
+      - name: Merge conflict markers
         run: |
           if git grep -nE '^(<<<<<<<|=======$|>>>>>>>)' -- ':!*.bin' ':!binaries'; then
-            echo "::error::В файлах остались маркеры конфликта — слияние разрешено не до конца"
+            echo "::error::conflict markers left in files — merge not fully resolved"
             exit 1
           fi
 
-      - name: Синтаксис shell-скриптов (dash, как sh на Android)
+      - name: Shell script syntax (dash, same as sh on Android)
         run: |
           rc=0
           for f in service.sh action.sh customize.sh uninstall.sh lib/common.sh bin/nfqws2-ctl; do
-            sh -n "$f" || { echo "::error file=$f::синтаксическая ошибка"; rc=1; }
+            sh -n "$f" || { echo "::error file=$f::syntax error"; rc=1; }
           done
           exit $rc
 
@@ -33,33 +30,31 @@ jobs:
         with:
           node-version: 22
 
-      - name: Синтаксис скриптов WebUI
+      - name: WebUI script syntax
         working-directory: webroot
         run: |
           rc=0
           for f in js/*.js; do
-            node --check "$f" || { echo "::error file=webroot/$f::синтаксическая ошибка"; rc=1; }
+            node --check "$f" || { echo "::error file=webroot/$f::syntax error"; rc=1; }
           done
-          # Все скрипты делят одну глобальную область: вместе они тоже должны
-          # разбираться — так ловятся повторные объявления let/const между файлами.
           cat js/*.js > /tmp/webui-all.js && node --check /tmp/webui-all.js || rc=1
           exit $rc
 
-      - name: index.html ссылается только на существующие файлы
+      - name: index.html references only existing files
         working-directory: webroot
         run: |
           rc=0
           for f in $(grep -oE '(src|href)="(js|css)/[^"]+"' index.html | sed -E 's/^(src|href)="//; s/"$//'); do
-            [ -f "$f" ] || { echo "::error file=webroot/index.html::нет файла $f"; rc=1; }
+            [ -f "$f" ] || { echo "::error file=webroot/index.html::missing file $f"; rc=1; }
           done
           for f in js/*.js css/*.css; do
-            grep -q "\"$f\"" index.html || { echo "::error file=webroot/$f::файл не подключён в index.html"; rc=1; }
+            grep -q "\"$f\"" index.html || { echo "::error file=webroot/$f::file not included in index.html"; rc=1; }
           done
           exit $rc
 
-      - name: update.json и module.prop
+      - name: update.json and module.prop
         run: |
           jq -e '.version and .versionCode and .zipUrl and .changelog' update.json >/dev/null \
-            || { echo "::error file=update.json::битый update.json"; exit 1; }
+            || { echo "::error file=update.json::broken update.json"; exit 1; }
           grep -q '^updateJson=https://' module.prop \
-            || { echo "::error file=module.prop::нет updateJson — менеджер не увидит обновления"; exit 1; }
+            || { echo "::error file=module.prop::missing updateJson — the manager will not see updates"; exit 1; }

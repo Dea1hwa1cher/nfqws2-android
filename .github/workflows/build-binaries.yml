@@ -22,17 +22,17 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Установка сборочных утилит хоста
+      - name: Install host build tools
         run: |
           sudo dpkg --add-architecture i386
           sudo apt-get update -qq
           sudo apt-get install -y gcc-multilib libcap-dev
 
-      - name: Сборка nfqws2 для ${{ matrix.abi }}
+      - name: Build nfqws2 for ${{ matrix.abi }}
         run: |
           bash .github/scripts/build-android-binaries.sh "${{ matrix.abi }}"
 
-      - name: Сохранить бинарник ${{ matrix.abi }}
+      - name: Save ${{ matrix.abi }} binary
         uses: actions/upload-artifact@v7
         with:
           name: nfqws2-${{ matrix.abi }}

@@ -1,12 +1,3 @@
-# Выпуск релиза по тегу: git tag v1.6.3 && git push origin v1.6.3
-# или вручную: Actions → release → Run workflow, указав версию (тег тогда
-# создаётся на текущем коммите main).
-#
-# Собирает установочный zip из файлов модуля (тот же состав, что и раньше
-# собирался вручную: без tests/, docs/, .github/ и прочего), публикует релиз с
-# текстом из changelog.md и сразу обновляет update.json в main, чтобы менеджер
-# предложил обновление. Отдельный workflow update-json здесь не сработает:
-# релиз, созданный токеном Actions, не запускает другие workflow.
 name: release
 
 on:
@@ -15,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Версия релиза, как в module.prop (например v1.6.3)
+        description: Release version, as in module.prop (for example v1.6.3)
         required: true
 
 env:
@@ -39,18 +30,18 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Версия в module.prop совпадает с тегом
+      - name: module.prop version matches the tag
         run: |
           ver=$(sed -n 's/^version=//p' module.prop | tr -d '\r')
-          [ "$ver" = "$TAG" ] || { echo "::error::module.prop: version=$ver, а тег $TAG"; exit 1; }
+          [ "$ver" = "$TAG" ] || { echo "::error::module.prop: version=$ver, tag is $TAG"; exit 1; }
 
-      - name: Скачать собранные бинарники nfqws2
+      - name: Download built nfqws2 binaries
         uses: actions/download-artifact@v8
         with:
           pattern: nfqws2-*
           path: downloaded-binaries
 
-      - name: Разместить собранные бинарники в модуль
+      - name: Place built binaries into the module
         run: |
           for abi in android-arm android-arm64 android-x86 android-x86_64; do
             mkdir -p "binaries/$abi"
@@ -66,7 +57,7 @@ jobs:
           name: pkglist
           path: bin
 
-      - name: Собрать zip
+      - name: Build zip
         run: |
           set -eu
           out="nfqws2-android-$TAG.zip"
@@ -78,7 +69,7 @@ jobs:
           unzip -l "$out" | tail -n 1
           echo "ZIP=$out" >> "$GITHUB_ENV"
 
-      - name: Опубликовать релиз
+      - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
           PYTHONIOENCODING: utf-8
@@ -94,7 +85,7 @@ jobs:
 
           if gh release view "$TAG" >/dev/null 2>&1; then
             if gh release view "$TAG" --json assets -q '.assets[].name' | grep -q '\.zip$'; then
-              echo "zip уже приложен"
+              echo "zip already attached"
             else
               gh release upload "$TAG" "$ZIP"
             fi
@@ -103,7 +94,7 @@ jobs:
             gh release create "$TAG" "$ZIP" --title "$TAG" --notes-file release-notes.md --target "$GITHUB_SHA"
           fi
 
-      - name: Обновить update.json в main
+      - name: Update update.json on main
         run: |
           set -eu
           git fetch origin main
