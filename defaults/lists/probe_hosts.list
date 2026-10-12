@@ -1,4 +1,4 @@
-# probe_hosts.list — сайты для проверки доступности (DPI Detector, пункт 2)
+# probe_hosts.list — сайты и сервисы для комплексного DPI-анализа (DPI Detector Rust)
 # Формат: host или host/путь, по одному на строке.
 www.instagram.com
 www.facebook.com
@@ -18,7 +18,6 @@ www.torproject.org
 protonvpn.com
 amnezia.org
 nnmclub.to
-standby-rezka.tv
 hub.docker.com
 www.intel.com
 www.canva.com
@@ -33,6 +32,43 @@ danbooru.donmai.us
 browserleaks.com
 www.cdn77.com
 shikimori.io
-kinopub.online
 vk.ru
 www.google.com
+fonts.gstatic.com
+dl.google.com
+youtube.com
+i.ytimg.com
+youtubei.googleapis.com
+manifest.googlevideo.com
+play.google.com
+accounts.google.com
+youtu.be
+s.ytimg.com
+yt3.ggpht.com
+yt4.ggpht.com
+s.youtube.com
+m.youtube.com
+googleapis.com
+tv.youtube.com
+googlevideo.com
+youtubekids.com
+video.google.com
+music.youtube.com
+clients6.google.com
+studio.youtube.com
+www.youtube-nocookie.com
+signaler-pa.youtube.com
+redirector.googlevideo.com
+youtubeembeddedplayer.googleapis.com
+youtube-nocookie.com
+youtube.googleapis.com
+youtubegaming.googleapis.com
+jnn-pa.googleapis.com
+i9.ytimg.com
+yt3.googleusercontent.com
+youtube-ui.l.google.com
+ytimg.l.google.com
+ytstatic.l.google.com
+wide-youtube.l.google.com
+yt-video-upload.l.google.com
+youtubeeducation.com

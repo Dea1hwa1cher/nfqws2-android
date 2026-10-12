@@ -13,7 +13,15 @@ const PROBE_REASON = {
   isp_redir: 'Заглушка провайдера (RKN)',
   refused: 'Соединение отклонено',
   tls: 'Ошибка TLS',
+  quic_unsupported: 'QUIC не поддерживается',
   other: 'Ошибка'
+};
+
+const PROTO_NAMES = {
+  1: 'HTTP',
+  2: 'TLS 1.2',
+  3: 'TLS 1.3',
+  4: 'QUIC'
 };
 
 let testRunning = false;
@@ -24,6 +32,8 @@ let netInfoData = null;
 let webResults = {};
 let tcp16Results = {};
 let dnsResults = {};
+let tgResults = {};
+let tgMediaSpeed = null;
 let lastRecommendation = null;
 
 function testInit(){
@@ -37,13 +47,15 @@ function updateTestDesc(){
   const d = $('test-desc');
   if(!d) return;
   if(currentTestTab === 'web'){
-    d.textContent = t('Каждый адрес из probe_hosts.list открывается с устройства три раза. Анализируются активные сбросы (TLS RST), инжекции TLS Alert, тихий дроп и подмена сертификатов.');
+    d.textContent = t('Каждый адрес из probe_hosts.list проверяется по 4 протоколам (HTTP, TLS 1.2, TLS 1.3, QUIC). Анализируются активные сбросы (TLS RST), инжекции TLS Alert, тихий дроп и блокировки UDP/QUIC.');
   } else if(currentTestTab === 'tcp16'){
     d.textContent = t('Тестирование соединений к зарубежным CDN и хостингам (Cloudflare, Hetzner, DO, OVH) с нарастающим объёмом данных до 32 КБ для выявления фильтра TCP 16-20KB.');
   } else if(currentTestTab === 'dns'){
     d.textContent = t('Проверка резолверов по UDP:53 и DoH для обнаружения перехвата портов провайдером и подмены IP адресов на заглушки РКН.');
+  } else if(currentTestTab === 'tg'){
+    d.textContent = t('Проверка доступности датацентров Telegram (DC1-DC5) и скорости загрузки медиа.');
   } else {
-    d.textContent = t('Комплексный анализ цензуры DPI: проверка доступности сайтов, детекция блокировок TCP 16-20KB и анализ перехвата DNS.');
+    d.textContent = t('Комплексный анализ цензуры DPI: проверка доступности сайтов (HTTP/TLS/QUIC), детекция блокировок TCP 16-20KB, перехват DNS и датацентры Telegram.');
   }
 }
 
@@ -55,10 +67,12 @@ function selectTestTab(tab){
   const showWeb = tab === 'all' || tab === 'web';
   const showTcp = tab === 'all' || tab === 'tcp16';
   const showDns = tab === 'all' || tab === 'dns';
+  const showTg = tab === 'all' || tab === 'tg';
 
   if($('test-sec-web')) $('test-sec-web').hidden = !showWeb;
   if($('test-sec-tcp16')) $('test-sec-tcp16').hidden = !showTcp;
   if($('test-sec-dns')) $('test-sec-dns').hidden = !showDns;
+  if($('test-sec-tg')) $('test-sec-tg').hidden = !showTg;
 
   updateTestDesc();
 }
@@ -118,17 +132,29 @@ function testRow(i, h){
 }
 
 function finishTestRow(i, res){
-  const ok = res.filter(x => x.ok), n = res.length;
+  const active = res.filter(x => !x.skip);
+  const ok = active.filter(x => x.ok), n = active.length;
   const badge = $('ti' + i);
   if(!badge) return;
-  badge.className = 'status ' + (ok.length === n ? 'ok' : (ok.length ? 'warn' : 'bad'));
-  badge.innerHTML = icon(ok.length === n ? 'check' : (ok.length ? 'warn' : 'close'), 's16');
+  badge.className = 'status ' + (ok.length === n && n > 0 ? 'ok' : (ok.length ? 'warn' : 'bad'));
+  badge.innerHTML = icon(ok.length === n && n > 0 ? 'check' : (ok.length ? 'warn' : 'close'), 's16');
   const tr = $('tr' + i);
   if(tr) tr.textContent = ok.length + '/' + n;
-  const reasons = [...new Set(res.filter(x => !x.ok).map(x => t(PROBE_REASON[x.reason] || PROBE_REASON.other)))];
+
+  const failedProtos = res.filter(x => !x.ok && !x.skip).map(x => {
+    const pName = PROTO_NAMES[x.proto];
+    const rName = t(PROBE_REASON[x.reason] || PROBE_REASON.other);
+    return pName ? `${pName}: ${rName}` : rName;
+  });
+  const reasons = failedProtos.length
+    ? [...new Set(failedProtos)]
+    : [...new Set(res.filter(x => !x.ok && !x.skip).map(x => t(PROBE_REASON[x.reason] || PROBE_REASON.other)))];
+
   const ts = $('ts' + i);
-  if(ts) ts.textContent = (ok.length ? t('{0} мс в среднем', Math.round(ok.reduce((a, x) => a + x.ms, 0) / ok.length)) : '') +
-    (ok.length && reasons.length ? ' · ' : '') + reasons.join(', ');
+  if(ts) {
+    const avg = ok.length ? t('{0} мс в среднем', Math.round(ok.reduce((a, x) => a + x.ms, 0) / ok.length)) : '';
+    ts.textContent = avg + (avg && reasons.length ? ' · ' : '') + reasons.join(', ');
+  }
 }
 
 function renderTcp16Row(i, provider, ip, port, status, detail){
@@ -166,14 +192,31 @@ function renderDnsRow(i, name, ip, udp, doh, hijacked, detail){
   '</div>';
 }
 
+function renderTgRow(i, name, ip, status, ping){
+  const isOk = status === 'ok';
+  const stClass = isOk ? 'ok' : 'bad';
+  const icName = isOk ? 'check' : 'close';
+  const trail = isOk ? (ping || 'OK') : t('СБОЙ');
+  return '<div class="list-item two-line" id="tgrow' + i + '">' +
+    '<span class="status ' + stClass + '">' + icon(icName, 's16') + '</span>' +
+    '<span class="li-text">' +
+      '<span class="li-primary truncate">' + esc(name.replace(/_/g, ' ')) + ' <span class="muted li-mono">(' + esc(ip) + ')</span></span>' +
+      '<span class="li-secondary">' + (isOk ? t('Соединение установлено') : t('Нет ответа (таймаут / сброс)')) + '</span>' +
+    '</span>' +
+    '<span class="li-trail ' + (isOk ? 'li-value' : 't-label-medium bad') + '">' + esc(trail) + '</span>' +
+  '</div>';
+}
+
 function resetTestResults(){
-  ['tr', 'test-tcp16-list', 'test-dns-list'].forEach(id => {
+  ['tr', 'test-tcp16-list', 'test-dns-list', 'test-tg-list'].forEach(id => {
     const el = $(id);
     if(el){ el.innerHTML = ''; el._html = ''; }
   });
-  webResults = {}; tcp16Results = {}; dnsResults = {}; lastRecommendation = null;
+  webResults = {}; tcp16Results = {}; dnsResults = {}; tgResults = {}; tgMediaSpeed = null; lastRecommendation = null;
   const recEl = $('test-recommendation');
   if(recEl){ recEl.hidden = true; recEl.innerHTML = ''; }
+  const tgBadge = $('test-tg-media-badge');
+  if(tgBadge){ tgBadge.hidden = true; tgBadge.textContent = ''; }
 }
 
 async function stopTest(){
@@ -228,11 +271,19 @@ async function runTest(){
       $('tr').insertAdjacentHTML('beforeend', testRow(p[1], p[2]));
     } else if(p[0] === 'R' && webResults[p[1]]) {
       const v = (p[3] || '').split(' ');
-      const resItem = v[0] === 'ok' ? {ok: true, ms: +v[1] || 0} : {ok: false, reason: v[1] || 'other'};
+      const proto = +p[2] || (webResults[p[1]].list.length + 1);
+      const isOk = v[0] === 'ok';
+      const isSkip = v[0] === 'skip';
+      const resItem = isOk
+        ? { ok: true, ms: +v[1] || 0, proto }
+        : (isSkip
+            ? { ok: false, skip: true, reason: v[1] || 'skip', proto }
+            : { ok: false, reason: v[1] || 'other', proto });
       webResults[p[1]].list.push(resItem);
+      const active = webResults[p[1]].list.filter(x => !x.skip);
       const rowEl = $('tr' + p[1]);
-      if(rowEl) rowEl.textContent = webResults[p[1]].list.filter(x => x.ok).length + '/' + webResults[p[1]].list.length;
-      if(webResults[p[1]].list.length === 3) finishTestRow(p[1], webResults[p[1]].list);
+      if(rowEl) rowEl.textContent = active.filter(x => x.ok).length + '/' + active.length;
+      if(webResults[p[1]].list.length === 4) finishTestRow(p[1], webResults[p[1]].list);
     } else if(p[0] === 'T16') {
       const idx = p[1], provider = p[2], ip = p[3], port = p[4], st = p[5], detail = p[6];
       tcp16Results[idx] = {provider, ip, port, status: st, detail};
@@ -247,6 +298,22 @@ async function runTest(){
       const rowHtml = renderDnsRow(idx, name, ip, udp, doh, hijacked, detail);
       if(existing) existing.outerHTML = rowHtml;
       else if($('test-dns-list')) $('test-dns-list').insertAdjacentHTML('beforeend', rowHtml);
+    } else if(p[0] === 'TG') {
+      const idx = p[1], name = p[2], ip = p[3], st = p[4], ping = p[5];
+      tgResults[idx] = {name, ip, status: st, ping};
+      const existing = $('tgrow' + idx);
+      const rowHtml = renderTgRow(idx, name, ip, st, ping);
+      if(existing) existing.outerHTML = rowHtml;
+      else if($('test-tg-list')) $('test-tg-list').insertAdjacentHTML('beforeend', rowHtml);
+    } else if(p[0] === 'TG_MEDIA') {
+      const st = p[1], spd = p[2];
+      tgMediaSpeed = {status: st, speed: spd};
+      const badge = $('test-tg-media-badge');
+      if(badge){
+        badge.hidden = false;
+        badge.textContent = st === 'ok' ? `${spd}` : t('Медиа: сбой');
+        badge.className = 'badge ' + (st === 'ok' ? 'ok' : 'bad');
+      }
     }
   };
 
@@ -257,7 +324,7 @@ async function runTest(){
         await runTestWebView();
       } else {
         Object.keys(webResults).forEach(i => {
-          if(webResults[i].list.length < 3) {
+          if(webResults[i].list.length < 4) {
             finishTestRow(i, webResults[i].list.length ? webResults[i].list : [{ok: false, reason: 'timeout'}]);
           }
         });
@@ -329,7 +396,7 @@ function analyzeProbeResults(webRes, tcp16Res, dnsRes){
   let otherFailWeb = 0;
 
   webKeys.forEach(k => {
-    const list = webRes[k].list || [];
+    const list = (webRes[k].list || []).filter(x => !x.skip);
     const oks = list.filter(x => x.ok);
     if(oks.length >= 2 || (list.length > 0 && oks.length === list.length)) {
       okWeb++;
@@ -513,6 +580,17 @@ function copyTestReport(){
     for(const k of Object.keys(dnsResults)){
       const it = dnsResults[k];
       rep += `- ${it.name} (${it.ip}): UDP=${it.udp}, DoH=${it.doh}, Перехват=${it.hijacked === 'yes' ? 'ДА (' + it.detail + ')' : 'НЕТ'}\n`;
+    }
+    rep += '\n';
+  }
+  if(Object.keys(tgResults).length > 0){
+    rep += '#### Telegram датацентры:\n';
+    if(tgMediaSpeed && tgMediaSpeed.status === 'ok'){
+      rep += `*Скорость загрузки медиа:* ${tgMediaSpeed.speed}\n`;
+    }
+    for(const k of Object.keys(tgResults)){
+      const it = tgResults[k];
+      rep += `- ${it.name} (${it.ip}): ${it.status === 'ok' ? 'OK (' + it.ping + ')' : 'FAIL (' + it.ping + ')'}\n`;
     }
     rep += '\n';
   }

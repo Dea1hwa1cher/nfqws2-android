@@ -1,0 +1,18 @@
+# quic_unsupported.list — хосты, не поддерживающие HTTP/3 (QUIC column)
+aws.amazon.com
+browserleaks.com
+gateway.discord.gg
+hub.docker.com
+protonvpn.com
+shikimori.io
+soundcloud.com
+vk.ru
+www.canva.com
+www.cdn77.com
+www.coursera.org
+www.currenttime.tv
+www.linuxserver.io
+www.svoboda.org
+www.themoscowtimes.com
+www.torproject.org
+x.com

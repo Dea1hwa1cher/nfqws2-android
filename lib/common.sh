@@ -822,6 +822,9 @@ protect_process() {   # $1 - PID; default: current process
   if [ -w /dev/cpuset/cgroup.procs ] 2>/dev/null; then
     echo "$p" > /dev/cpuset/cgroup.procs 2>/dev/null
   fi
+  if command -v renice >/dev/null 2>&1; then
+    renice -n -20 -p "$p" >/dev/null 2>&1 || renice -20 "$p" >/dev/null 2>&1 || true
+  fi
   return 0
 }
 

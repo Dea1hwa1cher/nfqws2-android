@@ -327,6 +327,7 @@
       <button class="seg state" data-tab="web" onclick="selectTestTab('web')"><span data-t>Сайты</span></button>
       <button class="seg state" data-tab="tcp16" onclick="selectTestTab('tcp16')"><span data-t>TCP 16K</span></button>
       <button class="seg state" data-tab="dns" onclick="selectTestTab('dns')"><span data-t>DNS</span></button>
+      <button class="seg state" data-tab="tg" onclick="selectTestTab('tg')"><span data-t>Telegram</span></button>
     </div>
 
     <div class="group">
@@ -377,6 +378,14 @@
     <div id="test-sec-dns" hidden>
       <h2 class="subhead" data-t>Проверка DNS и перехват</h2>
       <div class="list" id="test-dns-list"></div>
+    </div>
+
+    <div id="test-sec-tg" hidden>
+      <div class="subhead-row">
+        <h2 class="subhead" data-t>Датацентры Telegram</h2>
+        <span class="badge" id="test-tg-media-badge" hidden></span>
+      </div>
+      <div class="list" id="test-tg-list"></div>
     </div>
 
     <div class="empty" id="test-empty">

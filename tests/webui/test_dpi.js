@@ -81,6 +81,12 @@ truthy(dnsRow.includes('status ok') && dnsRow.includes('UDP: OK'), 'DNS clean ro
 const dnsHijacked = sandbox.renderDnsRow(1, 'ISP DNS', '192.168.1.1', 'ok', 'none', 'yes', 'Заглушка');
 truthy(dnsHijacked.includes('status bad') && dnsHijacked.includes('ПЕРЕХВАТ'), 'DNS hijacked row renders with status bad');
 
+const tgRowOk = sandbox.renderTgRow(0, 'DC1_Miami', '149.154.175.53', 'ok', '45ms');
+truthy(tgRowOk.includes('status ok') && tgRowOk.includes('45ms'), 'Telegram ok row renders with status ok');
+
+const tgRowFail = sandbox.renderTgRow(1, 'DC2_Amsterdam', '149.154.167.51', 'fail', 'timeout');
+truthy(tgRowFail.includes('status bad') && tgRowFail.includes('СБОЙ'), 'Telegram fail row renders with status bad');
+
 // ── 3. Strategy auto-selection logic ───────────────────────────────────────
 sect('strategy auto-selection logic');
 
@@ -181,6 +187,10 @@ tcp16Results = {
 dnsResults = {
   0: { name: 'Cloudflare', ip: '1.1.1.1', udp: 'ok', doh: 'ok', hijacked: 'no', detail: 'OK' }
 };
+tgResults = {
+  0: { name: 'DC1_Miami', ip: '149.154.175.53', status: 'ok', ping: '45ms' }
+};
+tgMediaSpeed = { status: 'ok', speed: '2.50 MB/s' };
 `, sandbox);
 
 let copiedText = '';
@@ -193,6 +203,8 @@ truthy(copiedText.includes('### DPI Detector (nfqws2-android)'), 'report header 
 truthy(copiedText.includes('5.18.158.84') && copiedText.includes('Z-Telecom'), 'network info is present in report');
 truthy(copiedText.includes('youtube.com'), 'web test is present in report');
 truthy(copiedText.includes('DETECTED @ 16KB'), 'TCP16 test is present in report');
+truthy(copiedText.includes('Telegram датацентры'), 'Telegram section is present in report');
+truthy(copiedText.includes('DC1_Miami'), 'Telegram DC is present in report');
 truthy(copiedText.includes('Рекомендованная стратегия'), 'strategy recommendation is present in report');
 
 // ── 5. Summary ─────────────────────────────────────────────────────────────
