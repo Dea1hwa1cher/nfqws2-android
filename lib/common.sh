@@ -545,59 +545,45 @@ _fw_add_rule() {
 }
 
 _fw_batch_cmd() {
-  local table=mangle arg line original="$*"
-  while [ "$#" -gt 0 ]; do
-    case "$1" in
-      -w) shift ;;
-      -t) table="$2"; shift 2 ;;
-      *) break ;;
-    esac
-  done
-  [ "$#" -gt 0 ] || return 1
-  # run via real command to reflect actual kernel
-  case "$*" in
-    *nfqws_test*) "$FW_PROBE_CMD" $original; return $? ;;
+  local table=mangle original="$*"
+  case "$original" in
+    *nfqws_test*)
+      # run via real command to reflect actual kernel
+      "$FW_PROBE_CMD" $original; return $? ;;
   esac
+  [ "$1" = "-w" ] && shift
+  if [ "$1" = "-t" ]; then table="$2"; shift 2; fi
   case "$1" in
     -D) return 1 ;;
     -N|-F|-X|-A|-I)
-      line="$1"; shift
-      for arg in "$@"; do line="$line $arg"; done
-      printf '%s|%s\n' "$table" "$line" >> "$FW_BATCH_FILE"
+      FW_BATCH_BUF="$FW_BATCH_BUF$table|$*
+"
       return 0 ;;
   esac
   return 1
 }
 
 _firewall_start_restore() {
-  local CMD="$1" restore raw rules table line current="" restore_file
-  restore_file="${FW_RESTORE_DIR}/${CMD}.rules"
-  raw="${FW_RESTORE_DIR}/${CMD}.raw"
+  local CMD="$1" rules
   rules="${FW_RESTORE_DIR}/${CMD}.input"
 
   command -v "${CMD}-restore" >/dev/null 2>&1 || return 1
   _firewall_stop "$CMD" || true
-  FW_BATCH_FILE="$raw"
   FW_PROBE_CMD="$CMD"
-  : > "$raw"
+  FW_BATCH_BUF=""
   # use existing builder to populate same rules
   _firewall_start _fw_batch_cmd || return 1
 
-  current=""
-  : > "$rules"
-  while IFS='|' read -r table line; do
-    [ "$table" = "$current" ] || {
-      [ -z "$current" ] || printf 'COMMIT\n' >> "$rules"
-      current="$table"
-      printf '*%s\n' "$table" >> "$rules"
-    }
-    printf '%s\n' "$line" >> "$rules"
-  done < "$raw"
-  [ -z "$current" ] || printf 'COMMIT\n' >> "$rules"
+  printf '%s' "$FW_BATCH_BUF" | awk '
+    { i = index($0, "|"); t = substr($0, 1, i - 1)
+      if (t != cur) { if (cur != "") print "COMMIT"; cur = t; print "*" t }
+      print substr($0, i + 1) }
+    END { if (cur != "") print "COMMIT" }' > "$rules"
+  FW_BATCH_BUF=""
 
   "${CMD}-restore" --noflush < "$rules"
   local rc=$?
-  rm -f "$raw" "$rules"
+  rm -f "$rules"
   return "$rc"
 }
 
