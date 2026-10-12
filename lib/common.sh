@@ -280,8 +280,10 @@ app_uid_count() {
 app_rules() {
   local CMD="$1" uids n chunk mark
   if ! app_mode_active; then
-    $CMD -w -t mangle -F $IPT_GROUP_APP 2>/dev/null
-    $CMD -w -t mangle -X $IPT_GROUP_APP 2>/dev/null
+    if [ "$CMD" != "_fw_batch_cmd" ]; then
+      $CMD -w -t mangle -F $IPT_GROUP_APP 2>/dev/null
+      $CMD -w -t mangle -X $IPT_GROUP_APP 2>/dev/null
+    fi
     rm -f "$APP_UIDS_FILE"
     return 1
   fi
