@@ -1,9 +1,6 @@
-/* nfqws2 WebUI · i18n-en.js — словарь английского языка
-   Скрипты подключаются из index.html обычными <script> по порядку и делят одну
-   глобальную область: функции и let/const одного файла видны в остальных. */
+/* nfqws2 WebUI - English dictionary */
 
-/* Словарь EN для t(): ключ — русская строка интерфейса как она написана в коде
-   и в разметке (data-t / data-ta). Новую строку интерфейса добавляйте сюда же. */
+/* Keys are the Russian UI strings exactly as written in code and markup (data-t / data-ta) */
 EN = {
  "Таймаут": "Timeout",
  "Нет моста ksu.exec": "No ksu.exec bridge",

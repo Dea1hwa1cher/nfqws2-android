@@ -1,8 +1,5 @@
-/* nfqws2 WebUI · theme.js — тема оформления: генератор ролей M3 и лист темы
-   Скрипты подключаются из index.html обычными <script> по порядку и делят одну
-   глобальную область: функции и let/const одного файла видны в остальных. */
+/* nfqws2 WebUI - theme: M3 role generator and the theme sheet */
 
-/* ══ Тема: генератор цветовых ролей M3 из seed ═══════════════════════════ */
 function hexToRgb(hex){
   hex = String(hex).replace('#', '');
   if(hex.length === 3) hex = hex.split('').map(x => x + x).join('');
@@ -39,7 +36,7 @@ function hslToHex(h, s, l){
   };
   return rgbToHex(hue(h + 1 / 3) * 255, hue(h) * 255, hue(h - 1 / 3) * 255);
 }
-/* ── CIE Lab: тона M3 заданы светлотой L*, поэтому палитры строятся в Lab, а не в HSL ── */
+/* CIE Lab: M3 tones are lightness L*, so palettes are built in Lab, not HSL */
 const toLinear = c => { c /= 255; return c <= .04045 ? c / 12.92 : Math.pow((c + .055) / 1.055, 2.4); };
 const toSrgb = c => 255 * (c <= .0031308 ? c * 12.92 : 1.055 * Math.pow(c, 1 / 2.4) - .055);
 function rgbToLab(rgb){
@@ -61,8 +58,7 @@ function labToRgb(lab){
 }
 const inGamut = rgb => rgb[0] >= -.2 && rgb[0] <= 255.2 && rgb[1] >= -.2 && rgb[1] <= 255.2 && rgb[2] >= -.2 && rgb[2] <= 255.2;
 
-/* Хрома палитр по коэффициентам M3; тон 0..100 = L*. Масштаб хрома уменьшается
-   бисекцией, пока цвет не войдёт в sRGB. */
+/* Chroma scale is reduced by bisection until the color fits sRGB */
 const CHROMA = {primary: 1, secondary: .34, tertiary: .55, neutral: .05, neutralVariant: .12, error: .9};
 const TERTIARY_HUE = Math.PI / 3;
 function tone(lab, t, palette, hueShift){
@@ -87,8 +83,7 @@ const PALETTES = [
 const ERROR_LAB = rgbToLab(hexToRgb('#B3261E'));
 let currentSeed = '#6750a4', currentMode = 'auto';
 
-/* KSU подставляет динамические цвета через colors.css — читаем --primary.
-   В обычном браузере его нет, там акцент берётся из системного Highlight. */
+/* KSU injects dynamic colors via --primary; a browser falls back to Highlight */
 function systemSeed(){
   const raw = getComputedStyle(document.documentElement).getPropertyValue('--primary').trim();
   if(raw){
@@ -160,8 +155,7 @@ function roles(seedHex, dark, amoled, monochrome){
       R.surfaceVariant = p(30, 'neutralVariant'); R.onSurfaceVariant = p(80, 'neutralVariant');
       R.surfaceDim = amoled ? '#000000' : p(6, 'neutral'); R.surfaceBright = p(24, 'neutral');
       R.surfaceContainerLowest = amoled ? '#000000' : p(4, 'neutral');
-      /* AMOLED: фон чёрный, а контейнеры светлее обычного тёмного — с лёгким
-         оттенком акцента, чтобы карточки читались на чёрном. */
+      /* AMOLED containers stay slightly tinted so cards read on black */
       R.surfaceContainerLow = amoled ? p(11, 'neutralVariant') : p(10, 'neutral');
       R.surfaceContainer = amoled ? p(14, 'neutralVariant') : p(12, 'neutral');
       R.surfaceContainerHigh = amoled ? p(18, 'neutralVariant') : p(17, 'neutral');
@@ -216,8 +210,6 @@ function roles(seedHex, dark, amoled, monochrome){
       R.statusOk = '#166a33'; R.statusWarn = '#6b5000'; R.statusBad = '#a01811';
     }
   }
-  /* fixed-роли не зависят от темы (для этого и называются fixed): tone 90/80/30/10.
-     Без них схема не совпадает с Android Dynamic Color по набору ролей. */
   if(isMono){
     R.primaryFixed = '#e2e2e2'; R.primaryFixedDim = '#c6c6c6'; R.primaryFixedVariant = '#444444';
     R.onPrimaryFixed = '#181818'; R.onPrimaryFixedVariant = '#444444';
@@ -277,10 +269,7 @@ function applyTheme(skipUI){
   const containers = store.get('m3_containers') !== 'false';
   const monochrome = isMonochrome();
   const R = roles(currentSeed, dark, amoled, monochrome);
-  // Палитра уходит в <style id="theme-vars">, а не инлайном на documentElement.
-  // Инлайн-стиль нельзя переопределить из CSS — ни правилом компонента, ни
-  // медиазапросом, — поэтому он закрывает тему наглухо. Отдельный блок в <head>
-  // участвует в каскаде обычным порядком.
+  // A <style> block, not inline: an inline style cannot be overridden from CSS
   let css = ':root{';
   for(const k in ROLE_VAR) css += ROLE_VAR[k] + ':' + R[k] + ';';
   css += '--status-ok:' + R.statusOk + ';--status-warn:' + R.statusWarn + ';--status-bad:' + R.statusBad + ';}';
@@ -295,12 +284,7 @@ function applyTheme(skipUI){
   if(meta) meta.setAttribute('content', R.background);
   if(!skipUI) drawThemeUI();
 }
-/* ── Лист темы ────────────────────────────────────────────────────────────
-   Сверху живой предпросмотр на текущих ролях, ниже — режим, AMOLED, готовые
-   акценты и свой цвет. Свой цвет выбирается «руками» на круге: угол — тон,
-   расстояние от центра — насыщенность; яркость — отдельным ползунком, HEX —
-   для точного значения. Пока палец ведёт по кругу, тема применяется сразу,
-   а в память пишется по отпусканию. */
+/* The wheel picks hue by angle and saturation by radius; the theme applies during the drag, stored on release */
 let wheelH = 270, wheelS = .6, wheelDrag = false, wheelFrame = 0;
 function drawThemeUI(){
   setHTML('theme-mode', [['auto', 'Авто'], ['light', 'Светлая'], ['dark', 'Тёмная']].map(m =>
@@ -309,8 +293,6 @@ function drawThemeUI(){
   const dark = isDark();
   const mono = isMonochrome();
   setHTML('palette-grid', PALETTES.map(p => {
-    // Образец — как в выборе обоев Pixel: тон 80 основной палитры сверху,
-    // вторичная и третичная снизу; в любой теме он читается одинаково.
     const isThisMono = p[1].toLowerCase() === '#757575';
     const r = roles(p[1], true, false, isThisMono);
     const on = isThisMono ? mono : (!mono && p[1].toLowerCase() === currentSeed);
@@ -327,9 +309,7 @@ function drawThemeUI(){
   if($('containers-toggle')) $('containers-toggle').checked = store.get('m3_containers') !== 'false';
   syncPicker(true);
 }
-/* Круг, ползунок и HEX отражают текущий seed. fromSeed=false — когда seed
-   только что получен с самого круга: тон и насыщенность берём как есть,
-   без обратного пересчёта (он округляет и дёргает бегунок). */
+/* fromSeed=false when the seed came off the wheel: the reverse conversion rounds and jitters the thumb */
 function syncPicker(fromSeed){
   const hsl = hexToHsl(currentSeed);
   if(fromSeed){ wheelH = hsl[0]; wheelS = hsl[1]; $('cd-lum').value = Math.round(Math.min(85, Math.max(20, hsl[2] * 100))); }

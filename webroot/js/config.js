@@ -1,12 +1,9 @@
-/* nfqws2 WebUI · config.js — экран «Конфиг» и импорт
-   Скрипты подключаются из index.html обычными <script> по порядку и делят одну
-   глобальную область: функции и let/const одного файла видны в остальных. */
+/* nfqws2 WebUI - config screen and imports */
 
-/* ══ КОНФИГУРАЦИЯ И ИМПОРТ ═══════════════════════════════════════════════ */
 const IMPORT_EXTS = ['.txt', '.conf', '.ini', '.cfg', '.list', '.bat'];
 async function confInit(){ await Promise.all([loadImports(), checkConfModified()]); }
-/* «Сбросить» видна, только когда сбрасывать есть что: действующий конфиг
-   отличается от исходника текущей стратегии (без учёта переключателей). */
+
+/* "Reset" shows only when the running config differs from the strategy source, ignoring toggles */
 async function checkConfModified(){
   const [r, r2] = await Promise.all([ctlx(['conf-modified']), ctlx(['get-strategy'])]);
   if(!r2.code && r2.out.trim()) currentStrategy = r2.out.trim();
@@ -75,8 +72,7 @@ async function delImport(name){
   toast(t('Удалено'));
   loadImports();
 }
-/* Вторая строка ответа import-add-b64 — параметры, которых нет в этой сборке
-   nfqws2: модуль вырезает их при импорте, иначе nfqws2 не запустится. */
+/* The second line of import-add-b64 lists options this nfqws2 build lacks; the module strips them or it would not start */
 function importRemoved(r){
   const m = /^removed\t(.+)$/m.exec(r.out || '');
   return m ? t('убраны параметры, неизвестные nfqws2 этого модуля: {0}', m[1]) : '';

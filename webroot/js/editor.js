@@ -1,11 +1,6 @@
-/* nfqws2 WebUI · editor.js — редактор и подсветка синтаксиса
-   Скрипты подключаются из index.html обычными <script> по порядку и делят одну
-   глобальную область: функции и let/const одного файла видны в остальных. */
+/* nfqws2 WebUI - editor and syntax highlighting */
 
-/* ══ Подсветка синтаксиса ════════════════════════════════════════════════
-   Порт токенайзеров nfqws-keenetic-web (CodeMirror StreamLanguage для
-   nfqws.conf, *.list и журналов) без самого CodeMirror: тот же разбор,
-   результатом — span-ы с классами tk-*. */
+/* Syntax highlighting: tokenizers ported from nfqws-keenetic-web, output is spans with tk-* */
 class SStream {
   constructor(s){ this.string = s; this.pos = 0; this.start = 0; }
   eol(){ return this.pos >= this.string.length; }
@@ -26,7 +21,7 @@ class SStream {
 }
 const HL = (() => {
   const wordRe = w => new RegExp('^(?:' + w.join('|') + ')$', 'i');
-  /* ── nfqws2.conf ── */
+  /* nfqws2.conf */
   const ops = wordRe(['iptables', 'ip', 'tc', 'route', 'sysctl', 'echo']);
   const builtin = wordRe(['ROOT', 'BIN', 'SBIN', 'ETC', 'VAR', 'LOG', 'TMP', 'PID', 'LOCK', 'RUN', 'SYS', 'PROC', 'DEV', 'OPT']);
   const isOperatorChar = /[+\-*&%=<>!?|]/;
@@ -127,13 +122,13 @@ const HL = (() => {
   }
   const conf = {start: () => { const s = {tokenize: tokenBase}; resetDq(s); return s; }, token: (st, s) => s.tokenize(st, s)};
 
-  /* ── *.list: только комментарии ── */
+  /* *.list: comments only */
   const list = {start: () => ({}), token: st => {
     if(st.sol()){ st.eatSpace(); if(st.peek() === '#'){ st.skipToEnd(); return 'comment'; } }
     st.skipToEnd(); return null;
   }};
 
-  /* ── журналы ── */
+  /* logs */
   const logLevels = wordRe(['ERROR', 'WARN', 'WARNING', 'INFO', 'DEBUG', 'TRACE', 'FATAL', 'CRITICAL', 'SEVERE', 'NOTICE']);
   const logKeywords = wordRe(['started', 'stopped', 'restarted', 'failed', 'success', 'connection', 'packet', 'rule', 'match',
     'drop', 'accept', 'forward', 'queue', 'process', 'thread', 'memory', 'cpu', 'timeout', 'retry', 'attempt', 'session',
@@ -203,11 +198,7 @@ function highlight(text, lang){
   return out;
 }
 
-/* ══ Full-screen dialog: редактор ════════════════════════════════════════
-   Ошибка сохранения не закрывает редактор: правки остаются на месте.
-   Закрытие с несохранёнными правками спрашивает подтверждение.
-   Подсветка — слой <pre> под прозрачным текстом textarea; для больших
-   файлов (ipset.list и т. п.) она выключается, чтобы не тормозил ввод. */
+/* A failed save keeps the editor open; highlighting is a <pre> under transparent text, off for large files */
 const HL_LIMIT = 150000;
 let editorCtx = null, editorReturnFocus = null, hlFrame = 0;
 let editorSearchQuery = '', editorMatches = [], editorMatchIndex = -1;
@@ -443,14 +434,10 @@ async function openEditorWith(o){
     highlightEditor();
   }
   o.original = o.dirty ? null : ta.value;
-  // Большой файл (ipset.list и т. п.) не фокусируем: клавиатура тянет весь текст
-  // в контекст ввода, и Android ловит TransactionTooLargeException.
+  // Do not focus a large file: the keyboard pulls all text into the input context (TransactionTooLargeException)
   if(ta.value.length < LARGE_FILE) ta.focus({ preventScroll: true });
 }
-/* Закрытие редактора с огромным файлом: если оставить текст в DOM на время
-   анимации, Chromium пытается растрировать слой высотой в сотни тысяч пикселей
-   и роняет процесс WebView (RenderProcessGone) вместе с менеджером. Поэтому
-   текст убирается до закрытия, а для больших файлов анимация отключается. */
+/* Clear the text before closing: animating a layer hundreds of thousands of pixels tall kills the WebView */
 const LARGE_FILE = 50000;
 function teardownEditor(large){
   closeEditorSearch();
@@ -482,7 +469,7 @@ $('panel-save-btn').onclick = async () => {
   const o = editorCtx;
   if(!o) return;
   const val = $('panel-editor-text').value;
-  // Свой обработчик: вернул текст — это ошибка
+  // Custom handler: returned text means an error
   if(o.onSave){
     const err = await o.onSave(val);
     if(err){
@@ -533,7 +520,7 @@ $('panel-save-btn').onclick = async () => {
       o.key === currentStrategy ? {label: t('Применить'), fn: () => applyStrategy(o.key)} : null);
   } else toast(t('{0} сохранён', o.title));
   stat();
-  // Список правили вручную мимо togglePkg() — кэш выбранных приложений устарел.
+  // edited by hand outside togglePkg(), so the selected-apps cache is stale
   if(o.key === 'apps') appsCache = null;
   if(o.key === 'apps' && currentPage === 'apps') appsInit();
 };

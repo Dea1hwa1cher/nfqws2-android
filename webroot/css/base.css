@@ -1,18 +1,8 @@
-/* nfqws2 WebUI · base.css — токены M3 и базовые компоненты */
-/* ══════════════════════════════════════════════════════════════════════════
-   MATERIAL DESIGN 3 EXPRESSIVE — DESIGN TOKENS
-   Навигация: Navigation bar (4 раздела) + экран настроек за кнопкой в top app bar.
-   Роли цвета, typescale, shape, elevation и motion соответствуют M3 Expressive
-   (MotionScheme.expressive(), Purple fallback из таблиц m3.material.io).
-   Значения ролей перезаписывает рантайм-генератор палитры (см. applyTheme()).
-
-   Типографика намеренно longhand: `font:` shorthand без family невалиден на
-   этапе computed-value и молча убивает всю шкалу (дефект 2026-10-04).
-   ══════════════════════════════════════════════════════════════════════════ */
+/* nfqws2 WebUI - M3 tokens and base components */
 :root {
   color-scheme: light;
 
-  /* ── Type ── */
+  /* Type */
   --md-font: 'Roboto', system-ui, -apple-system, 'Segoe UI', 'Noto Sans', sans-serif;
   --md-font-code: 'Roboto Mono', ui-monospace, 'Cascadia Mono', Menlo, Consolas, monospace;
   --ts-display-large: 57px;   --lh-display-large: 64px;
@@ -30,7 +20,7 @@
   --ts-label-large: 14px;     --lh-label-large: 20px;
   --ts-label-medium: 12px;    --lh-label-medium: 16px;
   --ts-label-small: 11px;     --lh-label-small: 16px;
-  /* Трекинг M3: без него шкала «на глаз» ближе, чем надо */
+  /* M3 tracking */
   --tr-display-large: -.25px; --tr-display-medium: 0px;   --tr-display-small: 0px;
   --tr-headline-large: 0px;   --tr-headline-medium: 0px;  --tr-headline-small: 0px;
   --tr-title-large: 0px;      --tr-title-medium: .15px;   --tr-title-small: .1px;
@@ -39,41 +29,41 @@
   /* Emphasized weights M3 Expressive */
   --w-regular: 400; --w-medium: 500; --w-emph: 600; --w-bold: 700;
 
-  /* ── Shape ── */
+  /* Shape */
   --shape-extra-small: 4px;
   --shape-small: 8px;
   --shape-medium: 12px;
   --shape-large: 16px;
   --shape-extra-large: 28px;
-  --shape-card: 12px;          /* M3: радиус карточек 12dp */
+  --shape-card: 12px;          /* M3 card radius is 12dp */
   --shape-full: 9999px;
 
-  /* ── Motion: MotionScheme.expressive() ── */
+  /* Motion: MotionScheme.expressive() */
   --spring: cubic-bezier(.34, 1.41, .64, 1);
   --spring-strong: cubic-bezier(.28, 1.62, .55, .92);
   --standard: cubic-bezier(.2, 0, 0, 1);
   --emphasized-decelerate: cubic-bezier(.05, .7, .1, 1);
   --emphasized-accelerate: cubic-bezier(.3, 0, .8, -.15);
-  /* Длительности — значения таблицы motion-токенов M3 (short1..4, medium1..4, long1..4) */
+  /* Durations: M3 motion tokens */
   --dur-extra-short: 50ms;   /* duration-short1 */
   --dur-short: 100ms;        /* duration-short2 */
   --dur-medium: 250ms;       /* duration-medium1 */
   --dur-medium-long: 350ms;  /* duration-medium3 */
   --dur-long: 450ms;         /* duration-long1 */
 
-  /* ── State layers ── */
+  /* State layers */
   --state-hover: .08;
   --state-focus: .12;
   --state-pressed: .12;
   --state-disabled-content: .38;
   --state-disabled-container: .12;
 
-  /* ── Elevation: key + ambient light ── */
+  /* Elevation: key + ambient light */
   --md-elev-1: 0 1px 2px 0 rgba(0,0,0,.30), 0 1px 3px 1px rgba(0,0,0,.15);
   --md-elev-2: 0 1px 2px 0 rgba(0,0,0,.30), 0 2px 6px 2px rgba(0,0,0,.15);
   --md-elev-3: 0 1px 3px 0 rgba(0,0,0,.30), 0 4px 8px 3px rgba(0,0,0,.15);
 
-  /* ── Layout ── */
+  /* Layout */
   --top-inset: var(--window-inset-top, env(safe-area-inset-top, 0px));
   --bottom-inset: var(--window-inset-bottom, env(safe-area-inset-bottom, 0px));
   --appbar-height: 64px;
@@ -82,15 +72,13 @@
   --screen-margin: 16px;
   --gap: 12px;
 
-  /* ── Color roles: светлая схема (fallback Purple) ── */
-  /* fixed-роли не зависят от темы: tone 90/80/30/10 от той же палитры */
+  /* Color roles: light (Purple fallback) */
+  /* fixed roles are scheme-independent */
   --md-sys-color-scrim: rgba(0, 0, 0, .32);
-  /* Остальные цветовые роли сюда НЕ пишутся: единственный источник — roles() в JS,
-     а applyTheme() кладёт их в <style id="theme-vars">. Вторая копия в CSS однажды
-     уже делала палитру мёртвой. Scrim — исключение: applyTheme() его не пишет. */
+  /* Do not add color roles here: roles() in JS is the single source. Scrim is the exception */
 }
 
-/* ── Отключение анимаций (m3_no_animations) ── */
+/* Animations disabled */
 html[data-animations="false"] {
   --dur-extra-short: 0ms !important;
   --dur-short: 0ms !important;
@@ -119,22 +107,17 @@ html[data-animations="false"] #pk .list-item:active {
   transform: none !important;
 }
 
-/* Color roles: тёмная схема (fallback Purple, tone 80) */
+/* Color roles: dark */
 html[data-mode="dark"] {
   color-scheme: dark;
-  /* fixed совпадают с темой light по определению — они не инвертируются */
 }
 
-/* Светлая схема явно задана и в :root — блок оставлен для переопределений seed */
 html[data-mode="light"] { color-scheme: light; }
 
-/* AMOLED: surface-роли уходят в чёрный (M3 dark + OLED-вариант).
-   Значения задаёт roles() через applyTheme() — здесь остаётся только признак
-   режима для color-scheme. Раньше тут лежала вторая копия палитры; убрана
-   ревью 2026-10-06, потому что любая правка темы в CSS не доезжала до экрана. */
+/* AMOLED surface roles go black; values come from roles(), only the color-scheme marker is here */
 html[data-mode="dark"][data-amoled="true"] { color-scheme: dark; }
 
-/* ── Base ─────────────────────────────────────────────────────────────── */
+/* Base */
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 html, body {
   background: var(--md-sys-color-background);
@@ -147,7 +130,7 @@ html, body {
 }
 body { overflow-x: hidden; overscroll-behavior-y: none; }
 button, input, select, textarea { font-family: inherit; font-size: inherit; color: inherit; }
-/* Material Symbols — заливные глифы: stroke не используется */
+/* Material Symbols: filled glyphs */
 svg.icon { width: 24px; height: 24px; flex: none; fill: currentColor; display: block; }
 svg.icon.s16 { width: 16px; height: 16px; }
 svg.icon.s18 { width: 18px; height: 18px; }
@@ -168,7 +151,7 @@ svg.icon.s24 { width: 24px; height: 24px; }
 [hidden] { display: none !important; }
 .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* State layer + ripple + press scale: каждое тапаемое получает и то, и другое */
+/* State layer, ripple, press scale */
 .state { position: relative; isolation: isolate; overflow: hidden; touch-action: manipulation;
   transition: transform var(--dur-short) var(--spring), background-color var(--dur-short) var(--standard); }
 .state::after {
@@ -176,8 +159,7 @@ svg.icon.s24 { width: 24px; height: 24px; }
   pointer-events: none; border-radius: inherit; z-index: 0;
   transition: opacity var(--dur-short) var(--standard);
 }
-/* Hover только для мыши/тачпада: на сенсорном экране :hover «залипает» после тапа
-   и оставляет полупрозрачный круг вокруг кнопки */
+/* Hover only for pointer devices: on touch :hover sticks after a tap */
 @media (hover: hover) { .state:hover::after { opacity: var(--state-hover); } }
 .state:focus-visible::after { opacity: var(--state-focus); }
 .state:active { transform: scale(.97); }
@@ -192,7 +174,7 @@ svg.icon.s24 { width: 24px; height: 24px; }
   100% { transform: scale(1.04); opacity: 0; }
 }
 
-/* ── Top app bar (small, 64dp) ──────────────────────────────────────────── */
+/* Top app bar */
 .app-bar {
   position: fixed; top: 0; left: 0; right: 0; z-index: 25;
   min-height: calc(var(--top-inset) + var(--appbar-height));
@@ -206,9 +188,6 @@ svg.icon.s24 { width: 24px; height: 24px; }
   font-size: var(--ts-title-large); line-height: var(--lh-title-large); font-weight: var(--w-regular);
   color: var(--md-sys-color-on-surface); }
 #back-btn[hidden] ~ .title { margin-left: calc(var(--screen-margin) - 4px); padding-left: 0; }
-/* 32dp чип состояния в баре: PID / выкл / нет связи */
-
-/* Icon button 48×48 */
 .icon-btn {
   appearance: none; border: none; background: transparent; cursor: pointer;
   width: 48px; height: 48px; flex: none; border-radius: var(--shape-full);
@@ -219,7 +198,7 @@ svg.icon.s24 { width: 24px; height: 24px; }
 .icon-btn.tone-primary { color: var(--md-sys-color-primary); }
 .icon-btn.sm { width: 40px; height: 40px; }
 
-/* ── Scrim ───────────────────────────────────────────────────────────── */
+/* Scrim */
 .scrim {
   position: fixed; inset: 0; z-index: 40; background: var(--md-sys-color-scrim);
   opacity: 0; pointer-events: none;
@@ -227,14 +206,12 @@ svg.icon.s24 { width: 24px; height: 24px; }
 }
 .scrim.show { opacity: 1; pointer-events: auto; }
 
-/* ── App bar: действия текущего экрана + overflow ─────────────────────── */
+/* App bar actions */
 .bar-actions { display: flex; align-items: center; flex: none; }
 .app-bar .title.swap { animation: title-in var(--dur-medium) var(--emphasized-decelerate); }
 @keyframes title-in { from { opacity: 0; transform: translateY(4px); } }
 
-/* ── Navigation bar (M3): 80dp, индикатор 64×32, подписи видны всегда ───
-   Индикатор раскрывается от иконки по горизонтали (scaleX .5 → 1) — так
-   M3 показывает смену выбранного раздела. Ripple ограничен индикатором. */
+/* Navigation bar (M3): the indicator expands from the icon horizontally */
 .nav-bar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
   height: calc(var(--navbar-height) + var(--bottom-inset));
@@ -244,7 +221,7 @@ svg.icon.s24 { width: 24px; height: 24px; }
   transition: transform var(--dur-medium-long) var(--emphasized-decelerate),
               background-color var(--dur-medium) var(--standard);
 }
-/* На дочерних экранах панель уезжает вниз: M3 показывает её только на разделах верхнего уровня */
+/* Hidden on child screens */
 body.nav-hidden .nav-bar {
   transform: translateY(100%);
   transition: transform var(--dur-medium) var(--emphasized-accelerate);
@@ -282,7 +259,7 @@ body.nav-hidden .nav-bar {
 }
 .nav-dest[aria-current="page"] .nav-label { color: var(--md-sys-color-on-surface); font-weight: var(--w-bold); }
 
-/* ── Content / pages ─────────────────────────────────────────────────── */
+/* Content and pages */
 .content {
   position: relative;
   padding: calc(var(--top-inset) + var(--appbar-height) + 8px) var(--screen-margin)
@@ -292,16 +269,10 @@ body.nav-hidden .nav-bar {
 body.nav-hidden .content { padding-bottom: calc(var(--bottom-inset) + 24px); }
 .page { display: none; flex-direction: column; gap: var(--gap); }
 .page.active, .page.leaving { display: flex; }
-/* Уходящий экран закреплён fixed на своём месте, пока новый появляется в потоке:
-   так оба видны одновременно и прокрутка не дёргается. */
+/* The leaving screen stays fixed so both are visible and scrolling does not jump */
 .page.leaving { pointer-events: none; z-index: 1; }
 
-/* ── Переходы M3 ─────────────────────────────────────────────────────────
-   Fade through — между разделами Navigation bar: старый гаснет за 90ms,
-   новый проявляется с масштабом .92 → 1 за 210ms.
-   Shared axis X — переход на дочерний экран и обратно: сдвиг на 30dp по оси
-   навигации, прозрачность меняется в первые 30% / последние 70% времени.
-   Сдвиг и прозрачность — отдельные анимации, чтобы easing не дробился. */
+/* Fade through between sections, shared axis X for child screens */
 @keyframes fade-in { from { opacity: 0; } }
 @keyframes fade-out { to { opacity: 0; } }
 @keyframes ft-scale-in { from { transform: scale(.92); } }
@@ -318,11 +289,10 @@ body.nav-hidden .content { padding-bottom: calc(var(--bottom-inset) + 24px); }
 .page.enter-back { animation: sx-in-back 300ms var(--standard) both, fade-in 210ms var(--standard) 90ms both; }
 .page.leave-back { animation: sx-out-back 300ms var(--standard) both, fade-out 90ms var(--standard) both; }
 
-/* ── Cards: filled 20dp, elevated, outlined ──────────────────────────── */
 .stack { display: flex; flex-direction: column; gap: var(--gap); }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 
-/* ── Banner ──────────────────────────────────────────────────────────── */
+/* Banner */
 .banner {
   display: flex; align-items: center; gap: 12px; padding: 12px 16px;
   border-radius: var(--shape-card);
@@ -332,10 +302,7 @@ body.nav-hidden .content { padding-bottom: calc(var(--bottom-inset) + 24px); }
 }
 .banner.danger { background: var(--md-sys-color-error-container); color: var(--md-sys-color-on-error-container); }
 
-/* ── Карточка состояния: единственный «громкий» элемент экрана ──────────
-   Цвет карточки и форма иконки отражают состояние службы: остановлена —
-   нейтральный контейнер и скруглённый квадрат, работает — primary-container
-   и круг. Морфинг формы (M3 Expressive) показывает смену состояния. */
+/* Status card: color and icon shape follow the service state */
 .hero {
   --hero-bg: var(--md-sys-color-surface-container-highest);
   border-radius: var(--shape-extra-large); padding: 20px;
@@ -359,7 +326,6 @@ body.nav-hidden .content { padding-bottom: calc(var(--bottom-inset) + 24px); }
 .hero-state { font-size: var(--ts-headline-small); line-height: var(--lh-headline-small); font-weight: var(--w-emph); }
 .hero-sub { font-size: var(--ts-body-medium); line-height: var(--lh-body-medium);
   letter-spacing: var(--tr-body-medium); opacity: .8; word-break: break-word; }
-/* Статистика службы: равномерное центрирование по трём колонкам и внутри блоков */
 .hero-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; width: 100%; }
 .hstat { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 2px; min-width: 0; }
 .hstat-label { width: 100%; text-align: center; font-size: var(--ts-label-medium); line-height: var(--lh-label-medium); font-weight: var(--w-medium);
@@ -367,7 +333,6 @@ body.nav-hidden .content { padding-bottom: calc(var(--bottom-inset) + 24px); }
 .hstat-value { width: 100%; text-align: center; font-size: var(--ts-title-large); line-height: var(--lh-title-large); font-weight: var(--w-emph);
   font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hstat-value.bad { color: var(--md-sys-color-error); }
-/* Основное действие растянуто; перезапуск — outlined icon button рядом (M3 button group) */
 .hero-actions { display: flex; align-items: center; gap: 8px; }
 .hero-actions #bt {
   flex: 1 1 auto; min-width: 0; padding: 0 24px;
@@ -377,7 +342,7 @@ body.nav-hidden .content { padding-bottom: calc(var(--bottom-inset) + 24px); }
 .hero-restart { width: 48px; height: 48px; color: inherit;
   border: 1px solid color-mix(in srgb, currentColor 45%, transparent); }
 
-/* ── Chips / status ──────────────────────────────────────────────────── */
+/* Chips */
 .chips { display: flex; gap: 8px; flex-wrap: wrap; }
 .chip {
   position: relative;
@@ -387,13 +352,11 @@ body.nav-hidden .content { padding-bottom: calc(var(--bottom-inset) + 24px); }
   font-size: var(--ts-label-large); line-height: var(--lh-label-large); font-weight: var(--w-medium);
   cursor: pointer; white-space: nowrap;
 }
-/* M3: чип остаётся 32dp по высоте, но зона касания дотянута до 48dp.
-   Без overflow:visible Blink обрезает псевдоэлемент по box кнопки, и он не ловит pointer. */
+/* Touch area 48dp; overflow:visible is required or Blink clips the pseudo-element */
 .chip::before { content: ""; position: absolute; inset: -8px -4px; }
 .chip { overflow: visible; }
 .chip.selected { background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container);
   border-color: transparent; }
-/* горизонтальная прокрутка вместо переноса */
 .status {
   display: inline-flex; align-items: center; justify-content: center; gap: 4px;
   min-width: 26px; height: 26px; padding: 0 6px; flex: none;
@@ -405,7 +368,7 @@ body.nav-hidden .content { padding-bottom: calc(var(--bottom-inset) + 24px); }
 .status.bad { background: color-mix(in srgb, var(--status-bad) 18%, transparent); color: var(--status-bad); }
 .status.info { background: var(--md-sys-color-surface-container-highest); color: var(--md-sys-color-on-surface-variant); }
 
-/* ── Buttons: pill, 40dp по умолчанию ────────────────────────────────── */
+/* Buttons */
 .btn {
   appearance: none; border: none; cursor: pointer; text-decoration: none;
   height: 40px; padding: 0 24px; border-radius: var(--shape-full);
@@ -424,14 +387,11 @@ body.nav-hidden .content { padding-bottom: calc(var(--bottom-inset) + 24px); }
   background: color-mix(in srgb, var(--md-sys-color-on-surface) calc(var(--state-disabled-container) * 100%), transparent);
   color: color-mix(in srgb, var(--md-sys-color-on-surface) calc(var(--state-disabled-content) * 100%), transparent); }
 .btn.text[disabled] { background: transparent; }
-/* sm = компактные отступы; высота всё равно 40dp — минимум для кнопки в M3 */
 .btn.sm { height: 40px; padding: 0 14px; }
 .btn.sm.with-icon { padding: 0 12px 0 8px; }
 .btn.height-m { height: 48px; padding: 0 28px; }
 
-/* ── Menu: открывается снизу, переворачивается вверх без места ─────────
-   Ширина по M3: 112dp min / 280dp max. Радиус 16dp — вариант M3 Expressive
-   (у baseline-меню углы 4dp), проект целится в Expressive. */
+/* Menu: 112-280dp wide, 16dp radius (Expressive) */
 .menu {
   position: absolute; z-index: 60; min-width: 112px; max-width: 280px;
   padding: 8px 0; border-radius: var(--shape-large);
@@ -455,10 +415,7 @@ body.nav-hidden .content { padding-bottom: calc(var(--bottom-inset) + 24px); }
 .menu .sep { height: 1px; margin: 8px 0; background: var(--md-sys-color-outline-variant); }
 .menu-back { position: fixed; inset: 0; z-index: 59; }
 
-/* ── M3 segmented button: единая группа-пилюля ──────────────────────────
-   M3: сегменты стыкуются без зазора, внешние углы полностью скруглены,
-   между сегментами 1dp-разделитель, выбранный — secondary-container без
-   собственной рамки. Раньше были отдельные «таблетки» с зазором 3dp. */
+/* Segmented button: one pill group with 1dp dividers */
 .segmented { display: flex; gap: 0; }
 .segmented .seg {
   appearance: none; background: transparent; cursor: pointer;
@@ -469,7 +426,6 @@ body.nav-hidden .content { padding-bottom: calc(var(--bottom-inset) + 24px); }
   color: var(--md-sys-color-on-surface);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-/* стык вплотную: рамки соседей совпадают и дают один 1dp-разделитель */
 .segmented .seg + .seg { margin-inline-start: -1px; }
 .segmented .seg:first-child { border-start-start-radius: var(--shape-full); border-end-start-radius: var(--shape-full); }
 .segmented .seg:last-child { border-start-end-radius: var(--shape-full); border-end-end-radius: var(--shape-full); }
@@ -479,7 +435,7 @@ body.nav-hidden .content { padding-bottom: calc(var(--bottom-inset) + 24px); }
   border-color: transparent; font-weight: var(--w-bold); }
 .segmented .seg.on .check { width: 18px; }
 
-/* ── M3 switch: трек 52×32, handle 16→24, spring ─────────────────────── */
+/* M3 switch */
 .switch {
   appearance: none; -webkit-appearance: none; position: relative; cursor: pointer;
   width: 52px; height: 32px; flex: 0 0 52px;
@@ -515,7 +471,7 @@ body.nav-hidden .content { padding-bottom: calc(var(--bottom-inset) + 24px); }
 .switch:disabled::before { background: color-mix(in srgb, var(--md-sys-color-on-surface) calc(var(--state-disabled-content) * 100%), transparent); }
 .switch:disabled::after { background: color-mix(in srgb, var(--md-sys-color-on-surface) calc(var(--state-disabled-content) * 100%), transparent); }
 
-/* ── M3 checkbox 18dp ────────────────────────────────────────────────── */
+/* M3 checkbox */
 .checkbox {
   appearance: none; -webkit-appearance: none; position: relative; cursor: pointer;
   width: 18px; height: 18px; flex: 0 0 18px; box-sizing: border-box;
@@ -530,9 +486,7 @@ body.nav-hidden .content { padding-bottom: calc(var(--bottom-inset) + 24px); }
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 18'%3E%3Cpath d='M4 9L7 12L14 5' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat center / 18px 18px;
 }
 
-/* ── Lists & list items ──────────────────────────────────────────────────
-   Плоский список M3 либо контейнеры-подложки (M3 Expressive stacked list).
-   Режим контейнеров переключается в настройках темы (data-containers). */
+/* Lists: flat or container-backed (data-containers) */
 .list { display: flex; flex-direction: column; gap: 0; }
 .sheet > .list-item { border-radius: var(--shape-large); }
 .list-item {
@@ -611,11 +565,10 @@ html[data-containers="true"] .list > .list-item:active {
 .list-item.selected .li-icon { background: color-mix(in srgb, var(--md-sys-color-on-secondary-container) 18%, transparent);
   color: var(--md-sys-color-on-secondary-container); }
 
-/* ── Text fields (filled) ────────────────────────────────────────────── */
+/* Text fields */
 .field { display: flex; flex-direction: column; gap: 4px; }
 .field > label { font-size: var(--ts-label-medium); line-height: var(--lh-label-medium); font-weight: var(--w-emph);
   color: var(--md-sys-color-on-surface-variant); padding-left: 4px; }
-/* M3 filled text field: высота 56dp, верхние углы 4dp, индикатор 1dp снизу */
 .field input, .field select, .field textarea {
   width: 100%; height: 56px; padding: 0 16px;
   background: var(--md-sys-color-surface-container-highest); color: var(--md-sys-color-on-surface);
@@ -628,7 +581,7 @@ html[data-containers="true"] .list > .list-item:active {
   transition: border-color var(--dur-short) var(--standard), box-shadow var(--dur-short) var(--standard),
               background-color var(--dur-short) var(--standard);
 }
-/* Индикатор M3: 1dp в покое, 2dp в фокусе — без сдвига вёрстки на 1px */
+/* Indicator 1dp at rest, 2dp on focus, without shifting the layout */
 .field input:focus, .field select:focus, .field textarea:focus {
   border-bottom-color: var(--md-sys-color-primary);
   box-shadow: inset 0 -1px 0 var(--md-sys-color-primary), inset 0 -1px 0 0 var(--md-sys-color-primary);
@@ -639,7 +592,7 @@ html[data-containers="true"] .list > .list-item:active {
   color: var(--md-sys-color-on-surface-variant); padding-left: 4px; }
 .helper.err { color: var(--md-sys-color-error); }
 .field ::placeholder { color: var(--md-sys-color-on-surface-variant); opacity: .7; }
-/* ── Code / logs ─────────────────────────────────────────────────────── */
+/* Code and logs */
 .code-block, .log-view {
   background: var(--md-sys-color-surface-container-lowest);
   border: 1px solid var(--md-sys-color-outline-variant);
@@ -652,7 +605,7 @@ html[data-containers="true"] .list > .list-item:active {
 .code-block { max-height: 46vh; }
 .log-view { min-height: 40vh; max-height: 60vh; }
 
-/* ── Progress indicators ─────────────────────────────────────────────── */
+/* Progress indicators */
 .progress-linear { position: relative; height: 4px; overflow: hidden;
   border-radius: var(--shape-full);
   background: color-mix(in srgb, var(--md-sys-color-primary) 20%, transparent); }
@@ -666,7 +619,7 @@ html[data-containers="true"] .list > .list-item:active {
   animation: spin .72s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ── Modal bottom sheet ──────────────────────────────────────────────── */
+/* Modal bottom sheet */
 .sheet {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; margin: 0 auto;
   max-width: var(--content-max);
@@ -682,7 +635,7 @@ html[data-containers="true"] .list > .list-item:active {
   border-radius: var(--shape-full); background: var(--md-sys-color-on-surface-variant); }
 .sheet-title { font-size: var(--ts-title-large); line-height: var(--lh-title-large); font-weight: var(--w-regular); }
 
-/* ── Full-screen dialog (редактор) ───────────────────────────────────── */
+/* Full-screen dialog */
 .fs-dialog {
   position: fixed; inset: 0; z-index: 70; background: var(--md-sys-color-surface);
   display: flex; flex-direction: column; transform: translateY(100%);
@@ -697,7 +650,7 @@ html[data-containers="true"] .list > .list-item:active {
 .fs-body { flex: 1; display: flex; flex-direction: column; gap: 8px;
   padding: 8px var(--screen-margin) calc(8px + var(--bottom-inset)); }
 
-/* ── Dialog (28dp) ───────────────────────────────────────────────────── */
+/* Dialog */
 .dialog-wrap { position: fixed; inset: 0; z-index: 80; display: none;
   align-items: center; justify-content: center; padding: 24px var(--screen-margin); }
 .dialog-wrap.open { display: flex; }
@@ -718,7 +671,7 @@ html[data-containers="true"] .list > .list-item:active {
   white-space: pre-line; }
 .dialog .d-actions { display: flex; justify-content: flex-end; gap: 8px; }
 
-/* ── Snackbar ────────────────────────────────────────────────────────── */
+/* Snackbar */
 .snackbar {
   position: fixed; left: var(--screen-margin); right: var(--screen-margin);
   bottom: calc(var(--bottom-inset) + var(--navbar-height) + 12px); z-index: 90; margin: 0 auto;
@@ -735,7 +688,7 @@ body.nav-hidden .snackbar { bottom: calc(var(--bottom-inset) + 16px); }
 .snackbar .snack-msg { flex: 1; min-width: 0; word-break: break-word; }
 .snackbar .btn.text { color: var(--md-sys-color-inverse-primary); }
 
-/* ── Hex input (theme sheet) ─────────────────────────────────────────── */
+/* Hex input */
 .hex-group { display: flex; align-items: center; gap: 8px; width: 100%; height: 48px;
   padding-right: 8px; background: var(--md-sys-color-surface-container-highest);
   border-radius: var(--shape-extra-small); }
@@ -747,7 +700,7 @@ body.nav-hidden .snackbar { bottom: calc(var(--bottom-inset) + 16px); }
   background: transparent; font-size: var(--ts-title-medium); line-height: var(--lh-title-medium);
   font-weight: var(--w-emph); text-transform: uppercase; color: var(--md-sys-color-on-surface); }
 
-/* ── M3 slider (XS): трек 16dp со скруглением 8dp, ручка 4×44dp ───────── */
+/* M3 slider */
 .slider {
   appearance: none; -webkit-appearance: none; width: 100%; height: 48px; padding: 0;
   background: transparent; cursor: pointer; outline: none; --track: transparent;
@@ -768,7 +721,7 @@ body.nav-hidden .snackbar { bottom: calc(var(--bottom-inset) + 16px); }
 .cd-row > label { font-size: var(--ts-label-medium); line-height: var(--lh-label-medium); font-weight: var(--w-emph);
   color: var(--md-sys-color-on-surface-variant); }
 
-/* ── Пустое состояние / pill / kv ────────────────────────────────────── */
+/* Empty state */
 .empty { display: flex; flex-direction: column; align-items: center; gap: 12px;
   padding: 32px 24px; text-align: center; color: var(--md-sys-color-on-surface-variant);
   font-size: var(--ts-body-medium); line-height: var(--lh-body-medium); }
@@ -776,9 +729,7 @@ body.nav-hidden .snackbar { bottom: calc(var(--bottom-inset) + 16px); }
   display: flex; align-items: center; justify-content: center;
   background: var(--md-sys-color-surface-container-high); color: var(--md-sys-color-secondary); }
 
-/* ── Подзаголовки групп и контейнеры (стиль настроек Android 16) ────────
-   Списки — стопки list-item с общей формой; всё, что не список
-   (сегменты, поле ввода, описание), живёт в .group того же тона. */
+/* Group headings and containers */
 .subhead {
   font-size: var(--ts-title-small); line-height: var(--lh-title-small); font-weight: var(--w-emph);
   letter-spacing: var(--tr-title-small);
@@ -793,15 +744,13 @@ body.nav-hidden .snackbar { bottom: calc(var(--bottom-inset) + 16px); }
 }
 .muted { color: var(--md-sys-color-on-surface-variant); }
 
-/* Кнопка внутри trail-слота поля: сам слот прозрачен для касаний, кнопка — нет */
-
-/* Деструктивные строки: цвет error только на тексте и иконке */
+/* Destructive rows */
 .list-item.danger .li-primary { color: var(--md-sys-color-error); }
 .list-item.danger .li-icon { background: var(--md-sys-color-error-container); color: var(--md-sys-color-on-error-container); }
 .list-item .li-value { font-variant-numeric: tabular-nums; font-size: var(--ts-body-medium); font-weight: var(--w-medium); }
 label.list-item { cursor: pointer; }
 
-/* ── M3 radio: кольцо 20dp, точка 10dp, пружина при выборе ───────────── */
+/* M3 radio */
 .radio {
   appearance: none; -webkit-appearance: none; position: relative; cursor: pointer;
   width: 20px; height: 20px; flex: 0 0 20px; margin: 0 2px; border-radius: 50%;
@@ -818,42 +767,31 @@ label.list-item { cursor: pointer; }
 .list-item.selected .radio:checked { border-color: var(--md-sys-color-on-secondary-container); }
 .list-item.selected .radio:checked::after { background: var(--md-sys-color-on-secondary-container); }
 
-/* ── Filter chips: у выбранного появляется галочка ───────────────────── */
-
-/* ── Журнал занимает всю свободную высоту экрана ─────────────────────── */
 .log-view {
   min-height: 240px; max-height: none;
   height: calc(100dvh - var(--top-inset) - var(--appbar-height) - var(--navbar-height) - var(--bottom-inset) - 300px);
 }
 
-/* ── Bottom sheet со списком: прокручивается список, кнопки на месте ─── */
 .sheet.list-sheet { overflow: hidden; }
 .sheet-desc { margin-top: -8px; font-size: var(--ts-body-medium); line-height: var(--lh-body-medium);
   color: var(--md-sys-color-on-surface-variant); }
 .sheet-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
-/* строки не сжимаются: прокручивается список, а не схлопываются элементы */
 .sheet-scroll > * { flex-shrink: 0; }
 .sheet-actions { display: flex; justify-content: flex-end; gap: 8px; flex: none; }
 
-/* ── Пустое состояние внутри экрана ──────────────────────────────────── */
 .empty .empty-title { font-size: var(--ts-title-medium); line-height: var(--lh-title-medium); font-weight: var(--w-emph);
   color: var(--md-sys-color-on-surface); }
 
-/* ── Закрытые оверлеи скрыты целиком, а не просто сдвинуты за экран:
-   иначе они остаются в дереве доступности и ловят фокус с клавиатуры.
-   visibility переключается с задержкой, чтобы анимация закрытия доигрывала. */
+/* Closed overlays leave the accessibility tree; the visibility delay lets the animation finish */
 .fs-dialog, .sheet { transition: transform var(--dur-long) var(--spring), visibility 0s linear var(--dur-long); }
 .fs-dialog:not(.open), .sheet:not(.open) { visibility: hidden; }
 .fs-dialog.open, .sheet.open { transition: transform var(--dur-long) var(--spring), visibility 0s; }
 
-/* ── Клавиатура открыта: нижняя панель не едет вверх вместе с окном ───── */
+/* Keyboard open */
 body.kb-open .nav-bar { visibility: hidden; transform: translateY(100%); transition: none; }
 body.kb-open .snackbar { bottom: 16px; }
 
-/* ── M3 filled text field: метка внутри поля, всплывает при фокусе/вводе ──
-   Индикатор снизу 1dp, в фокусе 2dp primary. Подсказка-placeholder видна
-   только в фокусе, чтобы не спорить с меткой. Фокус показывает индикатор,
-   а не общее кольцо фокуса. */
+/* Filled field with a floating label; focus marks the indicator, not a ring */
 .tf {
   position: relative; display: flex; align-items: center; height: 56px;
   background: var(--md-sys-color-surface-container-highest);
@@ -881,7 +819,7 @@ body.kb-open .snackbar { bottom: 16px; }
 .tf input:focus + label { color: var(--md-sys-color-primary); }
 .tf > .icon-btn { margin-right: 4px; }
 
-/* ── M3 search bar: 56dp, полностью скруглённый ─────────────────────────── */
+/* M3 search bar */
 .search-bar {
   display: flex; align-items: center; gap: 16px; height: 56px; padding: 0 16px;
   border-radius: var(--shape-full);
@@ -897,7 +835,7 @@ body.kb-open .snackbar { bottom: 16px; }
 .search-bar input:focus-visible { outline: none; }
 .search-bar:has(input:focus-visible) { outline: 3px solid var(--md-sys-color-secondary); outline-offset: 2px; }
 
-/* ── Плашки с выпадающим меню (журналы): стрелка разворачивается при открытии ── */
+/* Dropdown chip: the caret flips while open */
 .chip.dropdown { padding: 0 8px 0 16px; gap: 8px; color: var(--md-sys-color-on-surface); }
 .chip.dropdown svg { transition: transform var(--dur-medium) var(--spring-strong); }
 .chip.dropdown[aria-expanded="true"] {
@@ -906,7 +844,7 @@ body.kb-open .snackbar { bottom: 16px; }
 }
 .chip.dropdown[aria-expanded="true"] svg { transform: rotate(180deg); }
 
-/* ── Drag handle листа: 32×4 в зоне касания 48dp, тянется вниз ──────────── */
+/* Sheet drag handle */
 .sheet-drag {
   appearance: none; border: 0; background: none; cursor: grab; touch-action: none;
   flex: none; align-self: stretch; height: 48px; margin-bottom: -16px;
@@ -915,18 +853,17 @@ body.kb-open .snackbar { bottom: 16px; }
 .sheet-drag:focus-visible { outline: none; }
 .sheet-drag:focus-visible .handle { outline: 3px solid var(--md-sys-color-secondary); outline-offset: 4px; }
 
-/* ── Меню: исчезает за 100ms, а не пропадает мгновенно ──────────────────── */
+/* Menu fades out instead of vanishing */
 .menu.closing { animation: fade-out 100ms var(--emphasized-accelerate) forwards; pointer-events: none; }
 
-/* ── Switch: при нажатии ручка увеличивается до 28dp ────────────────────── */
+/* Handle grows while pressed */
 .switch:active::before { width: 28px; height: 28px; left: 0; }
 .switch:checked:active::before { left: 20px; }
 
-/* ── Диалог: иконка 24dp secondary над заголовком, заголовок тогда по центру ── */
 .dialog:focus { outline: none; }
 .dialog.has-icon .d-title { text-align: center; }
 
-/* overlay host: меню живут здесь и позиционируются от окна */
+/* Overlay host: menus position against the window */
 #layer { position: fixed; inset: 0; z-index: 88; pointer-events: none; }
 #layer > * { pointer-events: auto; }
 
@@ -937,7 +874,5 @@ body.kb-open .snackbar { bottom: 16px; }
   *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; }
 }
 
-/* ── Type-роли M3 ────────────────────────────────────────────────────────
-   В конце файла намеренно: это одноклассовые селекторы, они выигрывают у
-   компонентных правил (.card-title, .li-primary, …) только порядком. */
+/* M3 type roles: last on purpose, they win by source order */
 .t-body-medium { font-size: var(--ts-body-medium); line-height: var(--lh-body-medium); font-weight: var(--w-regular); }

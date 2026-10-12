@@ -1,15 +1,11 @@
-/* nfqws2 WebUI · lists.js — экран «Списки»
-   Скрипты подключаются из index.html обычными <script> по порядку и делят одну
-   глобальную область: функции и let/const одного файла видны в остальных. */
+/* nfqws2 WebUI - lists screen */
 
-/* ══ СПИСКИ ══════════════════════════════════════════════════════════════ */
 const MODE_INFO = {
   auto: 'Обходит домены из user.list и сам добавляет в auto.list те, что оказались заблокированы.',
   list: 'Обходит только домены из user.list.',
   all: 'Обходит всё, кроме доменов из exclude.list.'
 };
-/* Здесь только общие списки. Сервисные (google, youtube, ipset_discord …)
-   принадлежат стратегиям с отдельными профилями и приходят с релизом. */
+/* Only shared lists here; service lists belong to strategies and come with the release */
 const LIST_FILES = [
   ['auto', 'auto.list', 'Выученные автоматически', 'list'],
   ['user', 'user.list', 'Домены для обхода', 'list'],
@@ -41,8 +37,7 @@ function renderListFiles(){
         icon('chevron-right', 's24') + '</span>' +
     '</div>').join(''), false);
 }
-/* Новая версия списка из релиза ждёт, пока пользователь сам решит: его
-   правки установщик не трогает. «Отмена» просто оставляет всё как есть. */
+/* A newer release version waits for the user; the installer never touches their edits */
 async function offerListUpdate(key){
   if(!key) return;
   const ok = await mdConfirm(t('Обновить {0}.list?', key),

@@ -1,9 +1,5 @@
-/* nfqws2 WebUI · settings.js — настройки, домашняя Wi‑Fi, резервная копия
-   Скрипты подключаются из index.html обычными <script> по порядку и делят одну
-   глобальную область: функции и let/const одного файла видны в остальных. */
+/* nfqws2 WebUI - settings, home Wi-Fi, backup */
 
-/* ══ НАСТРОЙКИ ═══════════════════════════════════════════════════════════
-   Как настройки Android: группы с заголовком, у каждой строки — пояснение. */
 function settingsRow(o){
   if(o.sw){
     return '<label class="list-item' + (o.sub ? ' two-line' : '') + ' clickable state">' +
@@ -103,8 +99,7 @@ function addDesktopShortcut(){
   });
 }
 
-/* Ссылку открывает система (браузер по умолчанию): внутри WebView менеджера
-   переход увёл бы со страницы модуля без пути назад. */
+/* Links open in the system app: navigating inside the WebView loses the module page */
 async function openUrl(url){
   const r = await sh('am start -a android.intent.action.VIEW -d ' + q(url) + ' >/dev/null 2>&1', 8000);
   if(r.code) try { window.open(url, '_blank'); } catch(e) {}
@@ -128,8 +123,7 @@ function setLanguage(l){
   store.set('nfq_lang', l);
   rerenderAll();
 }
-/* Смена языка без перезагрузки: статические узлы переводятся по data-t,
-   динамические перерисовываются, видимый экран дочитывает свои данные. */
+/* Language switch without reload: data-t for static nodes, re-render for the rest */
 function rerenderAll(){
   translateStatic();
   renderAppBar(currentPage, false);
@@ -147,7 +141,7 @@ function rerenderAll(){
   if(currentPage === 'config'){ loadImports(); checkConfModified(); }
 }
 
-/* ══ ДОМАШНЯЯ WI-FI ══════════════════════════════════════════════════════ */
+/* Home Wi-Fi */
 let homeList = [], currentSsid = '';
 async function wifiInit(){
   renderWifi();
@@ -211,7 +205,7 @@ async function setHomeWifi(on){
   if(r.code){ toast(errText(r, 'Не удалось сохранить')); $('wifi-toggle').checked = !on; return; }
   await stat(true);
   renderWifi();
-  // Умное предложение: функцию включили, телефон уже в Wi‑Fi, а сеть ещё не в списке.
+  // Offer the current network right after the feature is turned on
   if(on && currentSsid && !homeList.includes(currentSsid)){
     const ok = await mdConfirm(t('Это домашняя сеть?'),
       t('Сейчас телефон подключён к «{0}». Добавить её в домашние — тогда в ней обход будет вставать на паузу.', currentSsid),
@@ -220,7 +214,7 @@ async function setHomeWifi(on){
   }
 }
 
-/* ══ РЕЗЕРВНАЯ КОПИЯ ═════════════════════════════════════════════════════ */
+/* Backup */
 const UI_KEYS = ['m3_seed', 'm3_mode', 'm3_amoled', 'm3_containers', 'm3_monochrome', 'nfq_lang', 'nfq_dev'];
 async function createBackup(){
   let targetDir = (typeof store !== 'undefined' && store.get('nfq_save_dir')) || '/sdcard/Download';

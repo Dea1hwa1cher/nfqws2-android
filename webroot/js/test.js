@@ -1,4 +1,4 @@
-/* nfqws2 WebUI · test.js — DPI Detector & проверка доступности */
+/* nfqws2 WebUI - DPI detector and availability check */
 
 const PROBE_REASON = {
   dns: 'DNS не отвечает',
@@ -63,9 +63,7 @@ function selectTestTab(tab){
   updateTestDesc();
 }
 
-/* net-info отвечает одной строкой: NET <TAB> ip loc isp asn iface gw dns status strategy,
-   неизвестное значение — «—». Раньше её разбирали как пары «ключ<TAB>значение»,
-   и карточка сети всегда показывала «Локальная сеть». */
+/* net-info returns one TAB-separated line: NET ip loc isp asn iface gw dns status strategy; unknown is "-" */
 const NET_FIELDS = ['ip', 'loc', 'isp', 'asn', 'iface', 'gw', 'dns', 'status', 'strategy'];
 function parseNetInfo(out){
   const data = {};
@@ -276,7 +274,7 @@ async function runTest(){
   }
 }
 
-/* Запасной путь: fetch из WebView */
+/* Fallback: fetch from the WebView */
 async function probeFetch(u, signal){
   const t0 = performance.now();
   try {
@@ -315,7 +313,7 @@ async function runTestWebView(){
   }
 }
 
-/* Анализ результатов и автоподбор стратегии */
+/* Result analysis and strategy recommendation */
 function analyzeProbeResults(webRes, tcp16Res, dnsRes){
   const webKeys = Object.keys(webRes || {});
   const tcpKeys = Object.keys(tcp16Res || {});

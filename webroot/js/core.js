@@ -1,11 +1,6 @@
-/* nfqws2 WebUI · core.js — ядро: утилиты, язык, мост к модулю, меню, диалоги, навигация, история «Назад»
-   Скрипты подключаются из index.html обычными <script> по порядку и делят одну
-   глобальную область: функции и let/const одного файла видны в остальных. */
+/* nfqws2 WebUI - core: utilities, locale, module bridge, navigation */
 
-/* ══════════════════════════════════════════════════════════════════════════
-   nfqws2 WebUI · Material Design 3
-   Данные берутся только из bin/nfqws2-ctl; UI деградирует мягко, если моста нет.
-   ══════════════════════════════════════════════════════════════════════════ */
+/* Data comes from bin/nfqws2-ctl only; the UI degrades without it */
 const MOD = '/data/adb/modules/nfqws2-android', CTL = MOD + '/bin/nfqws2-ctl';
 const $ = id => document.getElementById(id);
 let S = {}, seq = 0, pkgs = [], currentEditorTarget = '';
@@ -101,27 +96,18 @@ async function exportBlobFile(blob, filename, mimeType, localFilePath, targetDir
   return true;
 }
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
-/* Значение внутрь JS-строки в HTML-атрибуте, например onclick="f('ИМЯ')".
-   Одного esc() здесь мало: HTML-декодер вернёт &#39; обратно в кавычку ДО того,
-   как строку увидит JS-парсер, и она вырвется из литерала. Поэтому сначала
-   кавычим для JS (JSON.stringify экранирует кавычки, слэши и переводы строк),
-   а потом получившуюся двойную кавычку прячем от HTML через esc(). */
+/* esc() alone is not enough inside onclick: HTML decoding restores &#39; before JS parses it */
 const jsArg = v => esc(JSON.stringify(String(v == null ? '' : v)));
 const icon = (name, cls) => '<svg aria-hidden="true" class="icon ' + (cls || 's20') + '"><use href="#i-' + name + '"/></svg>';
 
-/* localStorage бывает недоступен (приватный режим, запрет сайта) — интерфейс от этого не ломается */
+/* localStorage can be unavailable */
 const store = {
   get(k){ try { return localStorage.getItem(k); } catch(e) { return null; } },
   set(k, v){ try { localStorage.setItem(k, v); } catch(e) {} },
   del(k){ try { localStorage.removeItem(k); } catch(e) {} }
 };
 
-/* ── Язык интерфейса ──────────────────────────────────────────────────────
-   Ключ перевода — сама русская строка: разметка и код остаются читаемыми,
-   а словарь EN (в конце скрипта) отображает её на английскую. Русский —
-   язык по умолчанию независимо от языка системы. Статические узлы помечены
-   data-t (текст) и data-ta (список атрибутов): исходник запоминается при
-   первом проходе, поэтому язык переключается без перезагрузки. */
+/* Keys are the Russian strings themselves; EN maps them. data-t / data-ta mark static nodes */
 let LANG = store.get('nfq_lang') === 'en' ? 'en' : 'ru';
 let EN = {};
 function t(s){
@@ -144,7 +130,7 @@ function translateStatic(){
 }
 const fmtCount = n => Number(n).toLocaleString(LANG === 'en' ? 'en-US' : 'ru-RU');
 
-/* ── Ripple: pointerdown на любой .state, делегирование переживает innerHTML ── */
+/* Ripple, delegated so it survives innerHTML */
 document.addEventListener('pointerdown', e => {
   if(typeof isAnimationsDisabled === 'function' && isAnimationsDisabled()) return;
   let el = e.target.closest && e.target.closest('.state, .nav-dest');
@@ -161,17 +147,13 @@ document.addEventListener('pointerdown', e => {
   setTimeout(() => s.remove(), 520);
 }, {passive: true});
 
-/* div-строки с role="button" обязаны активироваться клавиатурой, как настоящие кнопки */
 document.addEventListener('keydown', e => {
   if(e.key !== 'Enter' && e.key !== ' ') return;
   const el = e.target && e.target.closest && e.target.closest('[role="button"]:not(button)');
   if(el && !el.classList.contains('is-disabled')){ e.preventDefault(); el.click(); }
 });
 
-/* ── Menu: открывается под якорем, переворачивается вверх без места ───────
-   Повторное нажатие на якорь закрывает меню (как anchor.onclick → menu.open =
-   !menu.open в Material Web). Касание вне меню только закрывает его: слой
-   menu-back ловит click целиком, и элемент под пальцем не срабатывает. */
+/* Menu opens under the anchor, flips up when there is no room; outside click only closes */
 let openMenuEntry = null;
 function closeMenu(){ if(openMenuEntry) openMenuEntry.close(); }
 function openMenu(anchor, items){
@@ -236,14 +218,7 @@ function openMenu(anchor, items){
 }
 
 
-/* ── Мост к модулю ─────────────────────────────────────────────────────────
-   ksu.exec(cmd, opts, cb) в KernelSU выполняет команду СИНХРОННО внутри вызова
-   из JS: пока шелл работает, главный поток страницы стоит. Отсюда рывки
-   анимаций при переходе на «Состояние» и «Списки»: json-status успевал
-   заблокировать поток раньше, чем стартовала анимация экрана. ksu.spawn
-   запускает процесс в фоне и присылает вывод построчно, поэтому, если он
-   есть и отвечает, все команды идут через него; exec — запасной путь для
-   менеджеров без spawn. */
+/* ksu.exec blocks the page thread and stutters transitions; use spawn when it answers correctly, exec as fallback */
 let spawnOK = false;
 function makeEmitter(){
   const h = {};
@@ -252,12 +227,7 @@ function makeEmitter(){
     emit(ev){ const a = [].slice.call(arguments, 1); (h[ev] || []).forEach(f => { try { f.apply(null, a); } catch(e) {} }); }
   };
 }
-/* Менеджеры по-разному отдают stdout из spawn: построчно, кусками или
-   строками без переводов строк. Последний вариант склеивал многострочный
-   вывод в одну строку — список стратегий превращался в один «MartinBacker…»,
-   а приложения и импорты — в один элемент. Поэтому вывод обрамляется сам:
-   каждая строка заканчивается разделителем \x1e, код выхода команды идёт
-   последней записью. Переводы строк от менеджера просто выбрасываются. */
+/* spawn stdout arrives inconsistently, so output frames itself: each line ends with \x1e, exit code last */
 const REC = '\x1e', RC_TAG = '__nfq_rc=';
 const frameCmd = cmd => '{ ' + cmd + '\nprintf \'\\n' + RC_TAG + '%s\\n\' "$?"; } | awk \'{ printf "%s\\036\\n", $0; fflush() }\'';
 function spawnRun(cmd, ms, onLine){
@@ -272,7 +242,7 @@ function spawnRun(cmd, ms, onLine){
       setTimeout(() => { delete window[id]; }, 1000);
       if(buf.replace(/[\r\n]/g, '')) take(buf.replace(/[\r\n]/g, ''));
       if(extraErr) err.push(extraErr);
-      while(out.length && out[out.length - 1] === '') out.pop();   // пустая строка перед кодом выхода
+      while(out.length && out[out.length - 1] === '') out.pop();   // trailing blank before the exit code
       res({code: rc != null ? rc : (+c || 0), out: out.join('\n'), err: err.join('\n')});
     };
     const take = rec => {
@@ -290,8 +260,7 @@ function spawnRun(cmd, ms, onLine){
     child.on('error', e => fin(1, String(e)));
     window[id] = child;
     tm = setTimeout(() => fin(-1, t('Таймаут')), ms);
-    // Аргументы KernelSU склеивает пробелами без кавычек, поэтому вся команда
-    // уходит одной строкой, а список аргументов пуст.
+    // KernelSU joins args with spaces and adds no quoting: send one command string, empty arg list
     try { window.ksu.spawn(frameCmd(cmd), '[]', '{}', id); } catch(e) { fin(1, String(e)); }
   });
 }
@@ -315,8 +284,6 @@ async function sh(cmd, ms, onLine){
 }
 async function detectSpawn(){
   if(!window.ksu || typeof window.ksu.spawn !== 'function') return;
-  // Проверяем не только что spawn отвечает, но и что строки и код выхода
-  // доходят без искажений; иначе остаёмся на exec.
   const r = await spawnRun("printf 'nfq_a\\n\\nnfq_b\\n'; (exit 3)", 3000);
   spawnOK = r.code === 3 && r.out === 'nfq_a\n\nnfq_b';
 }
@@ -329,7 +296,7 @@ async function ctl(a, ms){
 async function ctlx(a, ms, onLine){ return await sh(ctlCmd(a), ms, onLine); }
 const errText = (r, fallback) => ((r.err || '').trim() || (r.out || '').trim().split('\n').pop() || t(fallback));
 
-/* ── Snackbar: M3 (label + optional text action, 4s / 8s с действием) ──── */
+/* Snackbar */
 let snackAction = null;
 function toast(m, action){
   $('prompt-msg').textContent = m;
@@ -348,7 +315,7 @@ $('prompt-action').onclick = () => {
   if(a && a.fn) a.fn();
 };
 
-/* ── Индикатор занятости (linear progress под app bar) ─────────────────── */
+/* Busy indicator under the app bar */
 let busyCount = 0;
 function busy(on){
   busyCount = Math.max(0, busyCount + (on ? 1 : -1));
@@ -361,8 +328,7 @@ async function withBusy(a, ms){
   try { return await ctlx(a, ms); } finally { busy(false); }
 }
 
-/* Перерисовка без лишнего мигания: содержимое меняется только если оно
-   действительно другое, а новые строки проявляются, а не возникают. */
+/* Repaint only when the content really differs */
 function setHTML(el, html, animate){
   if(typeof el === 'string') el = $(el);
   if(!el || el._html === html) return false;
@@ -372,10 +338,7 @@ function setHTML(el, html, animate){
   return true;
 }
 
-/* ── Basic dialog (M3) вместо native confirm/prompt ──────────────────────
-   Как md-dialog: фокус удерживается внутри (Tab не уходит под scrim), после
-   закрытия возвращается туда, откуда диалог открыли. Иконка — 24dp цвета
-   secondary над заголовком, заголовок тогда по центру. */
+/* Dialog replacing native confirm/prompt: focus stays inside and returns to the opener */
 let dialogCb = null, dialogReturnFocus = null;
 function dialogResolve(val){
   if(!$('dialog-wrap').classList.contains('open')) return;
@@ -416,7 +379,7 @@ function mdDialog(opts){
       di.value = opts.input.value || '';
       $('d-label').textContent = opts.input.label || t('Значение');
     }
-    /* alertdialog — только для прерывающих подтверждений; ввод значения это обычный dialog */
+    /* alertdialog for interrupting confirmations only; an input is a plain dialog */
     dlg.setAttribute('role', opts.input ? 'dialog' : 'alertdialog');
     $('dialog-wrap').classList.add('open');
     scheduleSync();
@@ -441,11 +404,7 @@ $('dialog-wrap').addEventListener('keydown', e => {
   else if(!e.shiftKey && a === last){ e.preventDefault(); first.focus(); }
 });
 
-/* ══ Навигация: Navigation bar + дочерние экраны ═════════════════════════
-   Разделы верхнего уровня — в Navigation bar, переход между ними fade through.
-   Настройки — дочерний экран за кнопкой-шестерёнкой; из них открываются
-   следующие уровни (приложения, проверка, диагностика, домашняя Wi‑Fi):
-   shared axis X вперёд/назад, стрелка «Назад», панель навигации скрыта. */
+/* Top-level sections live in the navigation bar; settings and below are child screens */
 const PAGE_META = {
   control:  {title: 'Состояние', init: () => { renderStatus(); stat(); initStrategySelector(); }},
   lists:    {title: 'Списки', init: () => { renderMode(); renderListFiles(); stat(); }},
@@ -490,10 +449,7 @@ function renderNavBar(page){
   });
   document.body.classList.toggle('nav-hidden', !!PAGE_META[page].child);
 }
-/* Анимация экрана снимается по animationend, а не по таймеру: если главный
-   поток занят (exec-фолбэк), таймер успевал сработать раньше первого кадра
-   и срезал анимацию — экран появлялся рывком. Запасной таймер остаётся на
-   случай, когда событие не придёт (reduced motion, скрытая вкладка). */
+/* End the screen animation on animationend: a timer can fire before the first frame while the thread is busy */
 function showPage(page, mode){
   if(transitionCleanup) transitionCleanup();
   const from = document.querySelector('.page.active');
@@ -525,9 +481,7 @@ function showPage(page, mode){
   if(animate){ to.addEventListener('animationend', onEnd); timer = setTimeout(cleanup, 1200); }
   else cleanup();
 }
-/* Данные экрана грузятся после того, как анимация пошла: два кадра, чтобы
-   стиль нового экрана точно ушёл в композитор. Без spawn первый вызов ещё и
-   ждёт конца анимации — синхронный exec иначе заморозил бы её первый кадр. */
+/* Load data after the animation starts, so a blocking exec does not freeze the first frame */
 function afterTransition(fn){
   if(typeof isAnimationsDisabled === 'function' && isAnimationsDisabled()){ fn(); return; }
   requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(fn, spawnOK ? 0 : 320)));
@@ -552,11 +506,7 @@ function navigate(page){
 function goBack(){ navigate(PAGE_META[currentPage].parent || lastTop); }
 document.querySelectorAll('.nav-dest').forEach(b => { b.onclick = () => navigate(b.dataset.page); });
 
-/* ── Режим разработчика: долгое нажатие на кнопку настроек ───────────────
-   Показывает на главном экране служебные переключатели, которые обычному
-   пользователю не нужны (контроль работы, wakelock, лимиты пакетов).
-   Обычное нажатие по-прежнему открывает настройки; после долгого нажатия
-   следующий click гасится, чтобы настройки не открылись вдобавок. */
+/* Long press on the settings button toggles developer mode; the click after it is swallowed */
 let devMode = store.get('nfq_dev') === '1';
 (function bindSettingsPress(){
   const b = $('settings-btn');
@@ -578,13 +528,12 @@ let devMode = store.get('nfq_dev') === '1';
   b.addEventListener('click', () => { if(fired){ fired = false; return; } navigate('settings'); });
 })();
 
-/* elevation on scroll: surface → surface-container */
+/* Elevation on scroll */
 addEventListener('scroll', () => $('app-bar').classList.toggle('scrolled', scrollY > 8), {passive: true});
 
-/* ── Modal bottom sheets: один scrim на все листы ──────────────────────── */
+/* Modal bottom sheets share one scrim */
 let openSheetId = null, sheetReturnFocus = null;
-/* Фон за модальным листом должен выходить из порядка обхода и из AT.
-   inert появился в Chromium 102; старше — остаётся только scrim без ловушки. */
+/* Hide the background from tab order and AT (inert is Chromium 102+) */
 function setBackgroundInert(on){
   if(!('inert' in HTMLElement.prototype)) return;
   ['#content', '.app-bar', '.nav-bar'].forEach(sel => {
@@ -618,7 +567,7 @@ function closeSheet(){
 }
 function openMonetModal(){ drawThemeUI(); openSheet('monet-modal'); }
 
-/* ── «Назад»: сначала оверлеи, потом дочерний экран, потом домой, потом выход ── */
+/* Back: overlays, then child screen, then home, then exit */
 function handleBack(allowExit){
   if(openMenuEntry){ closeMenu(); return true; }
   if($('dialog-wrap').classList.contains('open')){ dialogResolve(false); return true; }
@@ -628,30 +577,16 @@ function handleBack(allowExit){
   if(allowExit && currentPage !== 'control'){ navigate('control'); return true; }
   return false;
 }
-/* config.json: backInterceptor = javascript — менеджер сам зовёт этот обработчик */
+/* config.json: backInterceptor = javascript - the manager calls this handler itself */
 window.onBackKeyPressed = function(){
   if(handleBack(true)) return;
   try { window.ksu && window.ksu.exit && window.ksu.exit(); } catch(e) {}
 };
 document.addEventListener('keydown', e => { if(e.key === 'Escape') handleBack(false); });
 
-/* ── Жест «Назад» через историю WebView ──────────────────────────────────
-   KernelSU и KsuWebUI на жест «Назад» делают webView.goBack(), если в
-   истории есть куда идти, иначе закрывают WebUI. Раньше держалась одна
-   «сторожевая» запись, и после каждого жеста она добавлялась заново. Но
-   Chromium помечает пропускаемыми записи, добавленные без действия
-   пользователя (history manipulation intervention): жест «Назад» — не
-   действие, поэтому заново добавленная запись через раз пропускалась, и
-   WebUI закрывался целиком.
-   Теперь в истории по записи на каждый открытый слой (вкладка не
-   «Состояние», дочерние экраны, лист, редактор, диалог, меню) плюс одна
-   запасная. Записи добавляются только пока у страницы есть свежее действие
-   пользователя (касание, клавиша), а жест «Назад» лишь расходует уже
-   имеющиеся: закрыл слой — и записей ровно столько, сколько нужно. Если
-   слой после жеста не закрылся (например, спросили «Закрыть без
-   сохранения?»), выручает запасная запись, а недостача доливается при
-   следующем касании. На главном экране без оверлеев записей нет, и жест
-   закрывает WebUI, как и положено. */
+/* The manager's back gesture is webView.goBack(), closing the WebUI when history is empty.
+      Chromium skips entries pushed without user activation, so keep one entry per open layer plus
+      a spare, pushed only while the page has fresh activation: no layers means no entries. */
 let histDepth = (history.state && history.state.nfq) || 0, histPending = false, syncTimer = 0;
 function uiLayers(){
   let n = pageDepth(currentPage) + (PAGE_META[currentPage].child ? (lastTop !== 'control' ? 1 : 0) : (currentPage !== 'control' ? 1 : 0));
@@ -665,11 +600,11 @@ const canPush = () => !navigator.userActivation || navigator.userActivation.isAc
 function syncHistory(){
   syncTimer = 0;
   updateScrollLock();
-  if(histPending) return;                      // ждём popstate от нашего history.go()
+  if(histPending) return;
   const layers = uiLayers(), target = layers ? layers + 1 : 0;
   try {
     if(target > histDepth){
-      if(!canPush()) return;                   // дольём при следующем касании
+      if(!canPush()) return;
       while(histDepth < target) history.pushState({nfq: ++histDepth}, '');
     } else if(target < histDepth){
       histPending = true;
@@ -677,7 +612,7 @@ function syncHistory(){
     }
   } catch(e) { histPending = false; }
 }
-/* Откладываем на такт: «закрыть меню → открыть экран» должно дать одно итоговое состояние */
+/* Defer a tick: closing a menu and opening a screen must settle in one state */
 function scheduleSync(){ if(!syncTimer) syncTimer = setTimeout(syncHistory, 0); }
 addEventListener('popstate', e => {
   const d = (e.state && e.state.nfq) || 0;
@@ -687,22 +622,16 @@ addEventListener('popstate', e => {
   if(d < was) handleBack(true);
   scheduleSync();
 });
-/* Касание и клавиша дают странице действие пользователя — самое время долить записи */
+/* Touch and key give user activation: the moment to add entries */
 ['pointerdown', 'keydown'].forEach(ev => addEventListener(ev, () => setTimeout(syncHistory, 0), true));
 
-/* ── Пока открыт лист, диалог, меню или редактор, фон не прокручивается ──
-   Без этого свайп по scrim или «дотянутая» прокрутка списка внутри листа
-   уезжала в страницу под ним. */
+/* Lock background scrolling while an overlay is open */
 function updateScrollLock(){
   const lock = !!(openSheetId || editorCtx || openMenuEntry || $('dialog-wrap').classList.contains('open'));
   document.documentElement.classList.toggle('scroll-locked', lock);
 }
 
-/* ── Клавиатура: нижняя панель не поднимается вместе с ней ───────────────
-   При adjustResize окно WebView сжимается, и fixed-панель выезжает над
-   клавиатурой. На время ввода прячем её, как это делают приложения Google.
-   Признак клавиатуры: фокус в текстовом поле и высота окна заметно меньше
-   эталонной; сразу после фокуса — авансом, пока клавиатура выезжает. */
+/* adjustResize pushes the fixed nav bar above the keyboard, so hide it while typing */
 const isTextInput = el => !!el && (el.tagName === 'TEXTAREA' ||
   (el.tagName === 'INPUT' && !/^(checkbox|radio|range|button|submit|file|color)$/i.test(el.type)));
 const vpHeight = () => (window.visualViewport ? visualViewport.height : innerHeight);
@@ -723,7 +652,7 @@ document.addEventListener('focusout', () => setTimeout(updateKeyboard, 60));
 (window.visualViewport || window).addEventListener('resize', updateKeyboard);
 addEventListener('orientationchange', () => { vpBase = 0; setTimeout(updateKeyboard, 300); });
 
-/* ── Bottom sheet: смахивание вниз за drag handle, нажатие на него закрывает ── */
+/* Sheet drag handle: swipe down or tap closes */
 function initSheetDrag(sheet){
   const zone = sheet.querySelector('.sheet-drag');
   let y0 = null, dy = 0, dragged = false;

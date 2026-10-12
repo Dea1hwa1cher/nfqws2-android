@@ -1,8 +1,5 @@
-/* nfqws2 WebUI · apps.js — фильтр приложений
-   Скрипты подключаются из index.html обычными <script> по порядку и делят одну
-   глобальную область: функции и let/const одного файла видны в остальных. */
+/* nfqws2 WebUI - app filter */
 
-/* ══ ПРИЛОЖЕНИЯ ══════════════════════════════════════════════════════════ */
 const APP_MODES = [
   ['off', 'Выключен', 'Обрабатывается трафик всех приложений'],
   ['include', 'Только выбранные', 'Трафик остальных приложений идёт напрямую'],
@@ -34,7 +31,7 @@ async function setAppMode(v){
   renderAppModes();
 }
 async function loadPk(force){
-  clearTimeout(pkTimer);   // отменяем отложенную перерисовку от старого ввода
+  clearTimeout(pkTimer); // cancel the deferred repaint from the previous input
   $('pk').innerHTML = '<div class="list-item"><span class="spinner"></span>' +
     '<span class="li-text"><span class="li-secondary">' + esc(t('Загрузка списка приложений…')) + '</span></span></div>';
   $('pk')._html = null;
@@ -56,11 +53,8 @@ async function loadPk(force){
   }
   await drawPk(true);
 }
-/* Список выбранных приложений кэшируется. drawPk() — обработчик oninput у поля
-   поиска, и без кэша каждая нажатая буква запускала отдельный шелл: на телефоне
-   это заметные рывки при наборе, а результат всё равно не менялся — фильтруется
-   только локальный список пакетов. Кэш сбрасывается там, где список мог
-   измениться помимо togglePkg(): после ручного редактирования в редакторе. */
+/* Cached: drawPk() is the search oninput handler and without the cache every keystroke spawned a
+      shell. Invalidated after manual edits in the editor */
 let appsCache = null;
 let appTypeFilter = 'all';
 
@@ -90,8 +84,7 @@ async function getAppsList(){
   appsCache = new Set((r.code ? '' : r.out).split('\n').map(s => s.trim()).filter(s => s && s[0] !== '#'));
   return appsCache;
 }
-/* Фильтр перерисовывает до 120 строк на каждое нажатие, поэтому ввод
-   придерживается: ctl уже не дёргается (кэш выше), а вот innerHTML — дорогой. */
+/* Debounced: up to 120 rows are rebuilt per keystroke and innerHTML is the expensive part */
 let pkTimer = null;
 function pkSearchInput(){
   clearTimeout(pkTimer);
@@ -125,7 +118,6 @@ async function drawPk(animate){
   $('pk-count').textContent = t('Найдено {0} из {1}, выбрано {2}', shown.length, pkgs.length, s.size) +
     (shown.length > 120 ? '. ' + t('Показаны первые 120, уточните поиск') : '');
   const slice = shown.slice(0, 120);
-  /* class="sel-single sel-first sel-mid sel-last" */
   setHTML('pk', slice.map((item, idx) => {
     const p = typeof item === 'string' ? item : item.pkg;
     const name = typeof item === 'string' ? item : (item.name || item.pkg);
@@ -163,8 +155,7 @@ async function drawPk(animate){
 }
 async function togglePkg(p, want){
   const s = await getAppsList();
-  // s — тот же Set, что лежит в кэше: он мутируется на месте, так что кэш уже
-  // актуален и перечитывать список после сохранения не нужно.
+  // s is the cached Set, mutated in place, so no re-read after saving
   if(want) s.add(p); else s.delete(p);
   const r = await withBusy(['save-list-b64', 'apps', b64([...s].join('\n'))], 30000);
   if(r.code) toast(errText(r, 'Не удалось сохранить'), {label: t('Повторить'), fn: () => togglePkg(p, want)});

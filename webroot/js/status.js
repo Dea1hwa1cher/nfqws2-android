@@ -1,8 +1,6 @@
-/* nfqws2 WebUI · status.js — экран «Состояние» и выбор стратегии
-   Скрипты подключаются из index.html обычными <script> по порядку и делят одну
-   глобальную область: функции и let/const одного файла видны в остальных. */
+/* nfqws2 WebUI - status screen and strategy selection */
 
-/* ── Время работы: tabular-nums, тик раз в секунду ─────────────────────── */
+/* Uptime */
 let uptTimer = null;
 function fmtUptime(sec){
   sec = Math.max(0, Math.floor(sec));
@@ -23,10 +21,7 @@ function startUptTimer(baseSec){
   if(!uptTimer) uptTimer = setInterval(tick, 1000);
 }
 
-/* ══ Стратегии ═══════════════════════════════════════════════════════════
-   Описаний у стратегий нет намеренно: что работает, зависит от провайдера и
-   региона, и описание обещало бы больше, чем может. Вместо них — группы по
-   происхождению, на одном листе, с заголовком над каждой. */
+/* Strategies carry no descriptions: what works depends on provider and region. Grouped by origin */
 let strategies = [{name: 'default', kind: 'builtin', mod: false}], currentStrategy = 'default', pendingStrategy = 'default';
 const STRATEGY_GROUPS = [
   ['base', 'Базовая'], ['alt', 'Flowseal · ALT'], ['fake', 'Flowseal · FAKE TLS AUTO'],
@@ -151,11 +146,9 @@ async function resetStrategy(name){
     name === currentStrategy ? {label: t('Применить'), fn: () => applyStrategy(name)} : null);
 }
 
-/* ══ СОСТОЯНИЕ ═══════════════════════════════════════════════════════════ */
-/* Строки-переключатели — однострочные: только заголовок и сам переключатель.
-   Описания под ними владелец считает лишними, они ломают ритм списка.
-   На главном — только то, что действительно нужно пользователю; служебное
-   (контроль работы, wakelock, лимиты) — в блоке разработчика. */
+/* Status */
+
+/* Toggle rows stay single-line; service switches live in the developer block */
 const SW = [
   ['AUTOSTART', 'Автозапуск при загрузке', 'autostart'],
   ['IPV6_ENABLED', 'Обрабатывать IPv6', 'ipv6'],
@@ -213,8 +206,7 @@ function renderParams(j){
   if($('dev-block')) $('dev-block').hidden = !devMode;
 }
 
-/* Отрисовка из последнего известного статуса: экран показывает данные сразу,
-   а свежие приходят следом, без пустого кадра. */
+/* Paint from the last known status so the screen is never blank */
 function renderStatus(){
   const j = S;
   if(!j || j.running == null){ renderHeroActions(); renderParams({}); return; }
@@ -271,10 +263,7 @@ async function stat(quiet){
   try { return await statPending; } finally { statPending = null; }
 }
 
-/* ── Автообновление статуса: пока экран виден и на нём есть что обновлять ──
-   Падение службы, пауза в домашней сети и рост auto.list видны без
-   перезахода. Опрос тихий — без полосы загрузки, и пропускается, пока
-   открыт редактор или идёт другая команда. */
+/* Quiet auto-refresh while the screen is visible, skipped while busy */
 const POLL_PAGES = {control: 1, lists: 1};
 setInterval(() => {
   if(document.visibilityState !== 'visible' || !POLL_PAGES[currentPage]) return;

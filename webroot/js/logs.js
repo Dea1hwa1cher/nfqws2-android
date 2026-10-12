@@ -1,8 +1,5 @@
-/* nfqws2 WebUI · logs.js — экран «Журналы»
-   Скрипты подключаются из index.html обычными <script> по порядку и делят одну
-   глобальную область: функции и let/const одного файла видны в остальных. */
+/* nfqws2 WebUI - logs screen */
 
-/* ══ ЖУРНАЛЫ ═════════════════════════════════════════════════════════════ */
 const LOG_SOURCES = [['summary', 'Краткая статистика'], ['service', 'Служба'], ['nfqws', 'Процесс'],
   ['auto', 'Автообучение'], ['debug', 'Отладка']];
 let logSource = store.get('nfq_log_src') || 'service', logLines = '100', logErrors = false;

@@ -1,6 +1,4 @@
-/* nfqws2 WebUI · diag.js — диагностика
-   Скрипты подключаются из index.html обычными <script> по порядку и делят одну
-   глобальную область: функции и let/const одного файла видны в остальных. */
+/* nfqws2 WebUI - diagnostics */
 
 let diagRam = '';
 let argsRaw = '';
