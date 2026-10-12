@@ -20,7 +20,7 @@ jobs:
           - android-x86
           - android-x86_64
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Установка сборочных утилит хоста
         run: |
@@ -33,7 +33,7 @@ jobs:
           bash .github/scripts/build-android-binaries.sh "${{ matrix.abi }}"
 
       - name: Сохранить бинарник ${{ matrix.abi }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: nfqws2-${{ matrix.abi }}
           path: binaries/${{ matrix.abi }}/nfqws2
