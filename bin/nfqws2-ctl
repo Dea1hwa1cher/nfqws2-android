@@ -579,7 +579,7 @@ cmd_list_apps() {
 # релизом и в копию не входят), apps.list, домашние сети, правки стратегий,
 # импорты, активная стратегия и настройки WebUI (ui.json, их передаёт WebUI).
 BACKUP_DIR="${NFQWS_BACKUP_DIR:-/sdcard/Download}"
-BACKUP_LISTS="user exclude ipset ipset_exclude auto probe_hosts tcp16 probe_dns probe_tg whitelist_sni"
+BACKUP_LISTS="user exclude ipset ipset_exclude auto probe_hosts tcp16 probe_dns probe_tg probe_bench whitelist_sni"
 tar_cmd() {
   if command -v tar >/dev/null 2>&1; then tar "$@"; else busybox tar "$@"; fi
 }
@@ -1047,6 +1047,155 @@ cmd_probe_cancel() {
   echo OK
 }
 
+cmd_bench_strategies() {
+  local tool kind bin orig_strat orig_running=false
+  tool=$(probe_tool); kind="${tool%% *}"; bin="${tool#* }"
+  printf 'tool\t%s\n' "$kind"
+  [ "$kind" = "none" ] && { echo done; return 0; }
+  mkdir -p "$STATE_DIR"
+  echo "$$" > "$STATE_DIR/probe.pid"
+  setup_probe_app_rule
+
+  orig_strat=$(get_current_strategy)
+  if is_running; then orig_running=true; fi
+  cp -f "$CONFFILE" "$STATE_DIR/bench_orig.conf" 2>/dev/null
+
+  bench_cleanup() {
+    rm -f "$STATE_DIR/probe.pid"
+    cleanup_probe_app_rule
+    if [ -f "$STATE_DIR/bench_orig.conf" ]; then
+      cp -f "$STATE_DIR/bench_orig.conf" "$CONFFILE" 2>/dev/null
+      rm -f "$STATE_DIR/bench_orig.conf"
+      echo "$orig_strat" > "$ACTIVE_FILE" 2>/dev/null
+      if [ "$orig_running" = "true" ]; then
+        "$SERVICE" restart >/dev/null 2>&1
+      else
+        "$SERVICE" stop >/dev/null 2>&1
+      fi
+    fi
+  }
+  trap 'bench_cleanup; exit 130' INT TERM
+  trap 'bench_cleanup' EXIT
+
+  local bench_hosts_file="$LISTS_DIR/probe_bench.list"
+  if [ ! -f "$bench_hosts_file" ] || [ ! -s "$bench_hosts_file" ]; then
+    bench_hosts_file="$STATE_DIR/probe_bench_default.list"
+    printf '%s\n' \
+      www.youtube.com googlevideo.com discord.com gateway.discord.gg \
+      x.com instagram.com rutracker.org meduza.io www.torproject.org cloudflare.com \
+      > "$bench_hosts_file"
+  fi
+
+  local strats
+  strats=$(list_strategies 2>/dev/null | cut -f1 | tr -d '\r' | grep -v '^default$' || true)
+  strats="default $strats"
+
+  local best_name="" best_ok=-1 best_total=0 best_ms=99999
+  local strat_idx=0 total_strats
+  total_strats=$(printf '%s\n' $strats | wc -w | tr -d ' ')
+
+  printf 'BENCH_START\t%s\n' "$total_strats"
+
+  for st in $strats; do
+    [ -z "$st" ] && continue
+    printf 'BENCH_RUN\t%s\t%s\t%s\n' "$strat_idx" "$st" "$total_strats"
+
+    local raw="$STATE_DIR/strat_bench_raw.$$.tmp"
+    local patched="$STATE_DIR/strat_bench.$$.tmp"
+    if [ "$st" = "default" ]; then
+      cp -f "$MODDIR/defaults/nfqws2.conf" "$raw" 2>/dev/null
+    else
+      strategy_file "$st" >/dev/null && cp -f "$(strategy_file "$st")" "$raw" 2>/dev/null
+    fi
+    if [ -f "$raw" ]; then
+      rewrite_keenetic_paths < "$raw" \
+        | sed 's/^NFQWS_EXTRA_ARGS=.*/NFQWS_EXTRA_ARGS="$MODE_ALL"/' > "$patched"
+      rm -f "$raw"
+      cp -f "$patched" "$CONFFILE" 2>/dev/null
+      rm -f "$patched"
+      echo "$st" > "$ACTIVE_FILE" 2>/dev/null
+    fi
+
+    "$SERVICE" restart >/dev/null 2>&1
+
+    local ready=false wait_i=0
+    while [ "$wait_i" -lt 6 ]; do
+      if is_running; then ready=true; break; fi
+      sleep 0.5 2>/dev/null || sleep 1
+      wait_i=$((wait_i + 1))
+    done
+
+    if [ "$ready" != "true" ]; then
+      printf 'BENCH_RES\t%s\t%s\t0\t0\t0\tfailed_start\n' "$strat_idx" "$st"
+      strat_idx=$((strat_idx + 1))
+      continue
+    fi
+
+    local tmp_res="$STATE_DIR/bench_res.$$.tmp"
+    : > "$tmp_res"
+    local h batch=0
+    while IFS= read -r h; do
+      [ -z "$h" ] && continue
+      case "$h" in \#*) continue ;; esac
+      (
+        local k=1
+        while [ "$k" -le 3 ]; do
+          local r
+          r=$(probe_attempt "$kind" "$bin" "$h" "$k")
+          printf '%s\t%s\n' "$k" "$r" >> "$tmp_res"
+          k=$((k + 1))
+        done
+      ) &
+      batch=$((batch + 1))
+      if [ "$batch" -ge 5 ]; then
+        wait
+        batch=0
+      fi
+    done < "$bench_hosts_file"
+    wait
+
+    local ok_cnt=0 total_cnt=0 sum_ms=0 fail_reasons=""
+    while IFS="$(printf '\t')" read -r k r_val; do
+      [ -z "$r_val" ] && continue
+      local r_st="${r_val%% *}" r_detail="${r_val#* }"
+      total_cnt=$((total_cnt + 1))
+      if [ "$r_st" = "ok" ]; then
+        ok_cnt=$((ok_cnt + 1))
+        sum_ms=$((sum_ms + ${r_detail:-0}))
+      else
+        fail_reasons="$fail_reasons $r_detail"
+      fi
+    done < "$tmp_res"
+    rm -f "$tmp_res"
+
+    local avg_ms=0
+    if [ "$ok_cnt" -gt 0 ]; then avg_ms=$((sum_ms / ok_cnt)); fi
+
+    local top_fail="-"
+    if [ -n "$fail_reasons" ]; then
+      top_fail=$(printf '%s\n' $fail_reasons | sort | uniq -c | sort -nr | head -1 | awk '{print $2}')
+      [ -z "$top_fail" ] && top_fail="-"
+    fi
+
+    printf 'BENCH_RES\t%s\t%s\t%s\t%s\t%s\t%s\n' "$strat_idx" "$st" "$ok_cnt" "$total_cnt" "$avg_ms" "$top_fail"
+
+    if [ "$ok_cnt" -gt "$best_ok" ] || { [ "$ok_cnt" -eq "$best_ok" ] && [ "$avg_ms" -lt "$best_ms" ]; }; then
+      best_ok="$ok_cnt"
+      best_total="$total_cnt"
+      best_ms="$avg_ms"
+      best_name="$st"
+    fi
+
+    strat_idx=$((strat_idx + 1))
+  done
+
+  bench_cleanup
+  trap - EXIT INT TERM
+
+  printf 'BENCH_BEST\t%s\t%s\t%s\t%s\n' "$best_name" "$best_ok" "$best_total" "$best_ms"
+  echo done
+}
+
 cmd_probe_dpi() {
   local mode="${1:-all}" tool kind bin
   tool=$(probe_tool); kind="${tool%% *}"; bin="${tool#* }"
@@ -1063,6 +1212,7 @@ cmd_probe_dpi() {
     tcp16) cmd_probe_tcp16 ;;
     dns) cmd_probe_dns ;;
     tg) cmd_probe_tg ;;
+    bench) cmd_bench_strategies ;;
     all|*)
       cmd_net_info
       cmd_probe_all_inner "$kind" "$bin"
@@ -1283,6 +1433,7 @@ case "$1" in
   net-info) cmd_net_info ;;
   probe-dpi) cmd_probe_dpi "${2:-all}" ;;
   probe-tg) cmd_probe_dpi tg ;;
+  bench-strategies|probe-bench) cmd_bench_strategies ;;
   probe-cancel) cmd_probe_cancel ;;
   clear-logs) : > "$SERVICE_LOG"; : > "$NFQWS_LOG"; rm -f "$LOG_DIR/nfqws2-debug.log" "$LOG_DIR/auto.log"; echo OK ;;
   *)
@@ -1290,7 +1441,7 @@ case "$1" in
     echo "         list-strategies get-strategy set-strategy strategy-get-b64 strategy-save-b64 strategy-reset" >&2
     echo "         import-add-b64 list-imports get-import-merged-b64 rename-import delete-import" >&2
     echo "         get-list save-list-b64 list-update add-domain clear-auto reset-lists set set-mode list-apps" >&2
-    echo "         get-logs export-logs clear-logs wifi-ssid backup-create backup-list backup-restore backup-restore-b64 probe-dpi probe-cancel net-info" >&2
+    echo "         get-logs export-logs clear-logs wifi-ssid backup-create backup-list backup-restore backup-restore-b64 probe-dpi probe-cancel net-info bench-strategies" >&2
     echo "         current-network list-net-strategies clear-net-strategies" >&2
     exit 1 ;;
 esac

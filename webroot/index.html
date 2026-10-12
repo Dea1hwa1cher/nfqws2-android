@@ -328,6 +328,7 @@
       <button class="seg state" data-tab="tcp16" onclick="selectTestTab('tcp16')"><span data-t>TCP 16K</span></button>
       <button class="seg state" data-tab="dns" onclick="selectTestTab('dns')"><span data-t>DNS</span></button>
       <button class="seg state" data-tab="tg" onclick="selectTestTab('tg')"><span data-t>Telegram</span></button>
+      <button class="seg state" data-tab="bench" onclick="selectTestTab('bench')"><span data-t>Автоподбор</span></button>
     </div>
 
     <div class="group">
@@ -386,6 +387,15 @@
         <span class="badge" id="test-tg-media-badge" hidden></span>
       </div>
       <div class="list" id="test-tg-list"></div>
+    </div>
+
+    <div id="test-sec-bench" hidden>
+      <div class="subhead-row">
+        <h2 class="subhead" data-t>Рейтинг стратегий по итогам прохода</h2>
+        <span class="badge" id="test-bench-badge" hidden></span>
+      </div>
+      <div id="test-bench-best" class="group" hidden></div>
+      <div class="list" id="test-bench-list"></div>
     </div>
 
     <div class="empty" id="test-empty">

@@ -87,6 +87,15 @@ truthy(tgRowOk.includes('status ok') && tgRowOk.includes('45ms'), 'Telegram ok r
 const tgRowFail = sandbox.renderTgRow(1, 'DC2_Amsterdam', '149.154.167.51', 'fail', 'timeout');
 truthy(tgRowFail.includes('status bad') && tgRowFail.includes('СБОЙ'), 'Telegram fail row renders with status bad');
 
+const benchRowRunning = sandbox.renderBenchRow(0, 'fake_tls_auto', null, null, null, null, true);
+truthy(benchRowRunning.includes('status info') && benchRowRunning.includes('spinner'), 'Bench running row renders with spinner');
+
+const benchRowOk = sandbox.renderBenchRow(1, 'fake_tls_auto', 30, 30, 45, '-', false);
+truthy(benchRowOk.includes('status ok') && benchRowOk.includes('100%') && benchRowOk.includes('45 мс'), 'Bench 100% row renders with status ok and 100%');
+
+const benchRowFail = sandbox.renderBenchRow(2, 'default', 0, 30, 0, 'tls_rst', false);
+truthy(benchRowFail.includes('status bad') && benchRowFail.includes('0%') && benchRowFail.includes('TLS RST'), 'Bench failed row renders with status bad and reason');
+
 // ── 3. Strategy auto-selection logic ───────────────────────────────────────
 sect('strategy auto-selection logic');
 
@@ -191,6 +200,11 @@ tgResults = {
   0: { name: 'DC1_Miami', ip: '149.154.175.53', status: 'ok', ping: '45ms' }
 };
 tgMediaSpeed = { status: 'ok', speed: '2.50 MB/s' };
+benchResults = {
+  default: { idx: 0, name: 'default', ok: 5, total: 30, avg_ms: 120, top_fail: 'tls_rst' },
+  fake_tls_auto: { idx: 1, name: 'fake_tls_auto', ok: 30, total: 30, avg_ms: 42, top_fail: '-' }
+};
+benchBestStrat = { name: 'fake_tls_auto', ok: 30, total: 30, avg_ms: 42 };
 `, sandbox);
 
 let copiedText = '';
@@ -206,6 +220,8 @@ truthy(copiedText.includes('DETECTED @ 16KB'), 'TCP16 test is present in report'
 truthy(copiedText.includes('Telegram датацентры'), 'Telegram section is present in report');
 truthy(copiedText.includes('DC1_Miami'), 'Telegram DC is present in report');
 truthy(copiedText.includes('Рекомендованная стратегия'), 'strategy recommendation is present in report');
+truthy(copiedText.includes('Результаты полного автоподбора стратегий'), 'bench section is present in report');
+truthy(copiedText.includes('fake_tls_auto (30/30, 42 мс)'), 'winning strategy is reported in bench section');
 
 // ── 5. Summary ─────────────────────────────────────────────────────────────
 console.log(`\n----------------------------------------\nPASS  ${pass} checks`);

@@ -35,6 +35,10 @@ let dnsResults = {};
 let tgResults = {};
 let tgMediaSpeed = null;
 let lastRecommendation = null;
+let benchResults = {};
+let benchTotalStrats = 0;
+let benchBestStrat = null;
+let benchRunningStrat = null;
 
 function testInit(){
   updateTestDesc();
@@ -54,6 +58,8 @@ function updateTestDesc(){
     d.textContent = t('Проверка резолверов по UDP:53 и DoH для обнаружения перехвата портов провайдером и подмены IP адресов на заглушки РКН.');
   } else if(currentTestTab === 'tg'){
     d.textContent = t('Проверка доступности датацентров Telegram (DC1-DC5) и скорости загрузки медиа.');
+  } else if(currentTestTab === 'bench'){
+    d.textContent = t('Автоподбор: последовательное тестирование всех доступных стратегий через контрольный набор сайтов (probe_bench.list). Определяет стратегию с наивысшей проходимостью и минимальной задержкой.');
   } else {
     d.textContent = t('Комплексный анализ цензуры DPI: проверка доступности сайтов (HTTP/TLS/QUIC), детекция блокировок TCP 16-20KB, перехват DNS и датацентры Telegram.');
   }
@@ -68,11 +74,19 @@ function selectTestTab(tab){
   const showTcp = tab === 'all' || tab === 'tcp16';
   const showDns = tab === 'all' || tab === 'dns';
   const showTg = tab === 'all' || tab === 'tg';
+  const showBench = tab === 'bench';
 
   if($('test-sec-web')) $('test-sec-web').hidden = !showWeb;
   if($('test-sec-tcp16')) $('test-sec-tcp16').hidden = !showTcp;
   if($('test-sec-dns')) $('test-sec-dns').hidden = !showDns;
   if($('test-sec-tg')) $('test-sec-tg').hidden = !showTg;
+  if($('test-sec-bench')) $('test-sec-bench').hidden = !showBench;
+
+  const tb = $('tb');
+  if(tb && !testRunning){
+    const span = tb.querySelector('span');
+    if(span) span.textContent = tab === 'bench' ? t('Запустить автоподбор') : t('Запустить проверку');
+  }
 
   updateTestDesc();
 }
@@ -207,16 +221,105 @@ function renderTgRow(i, name, ip, status, ping){
   '</div>';
 }
 
+function renderBenchRow(idx, name, ok, total, avg_ms, top_fail, isRunning){
+  const stratTitle = typeof strategyName === 'function' ? strategyName(name) : name;
+  if(isRunning){
+    return '<div class="list-item two-line" id="benchrow' + idx + '">' +
+      '<span class="status info"><span class="spinner" style="width:14px;height:14px;"></span></span>' +
+      '<span class="li-text">' +
+        '<span class="li-primary truncate">' + esc(stratTitle) + ' <span class="muted li-mono">(' + esc(name) + ')</span></span>' +
+        '<span class="li-secondary">' + esc(t('Тестирование соединений…')) + '</span>' +
+      '</span>' +
+      '<span class="li-trail li-value">…</span>' +
+    '</div>';
+  }
+  const isAllOk = total > 0 && ok === total;
+  const isPartOk = ok > 0;
+  const stClass = isAllOk ? 'ok' : (isPartOk ? 'warn' : 'bad');
+  const icName = isAllOk ? 'check' : (isPartOk ? 'warn' : 'close');
+  let sub = '';
+  if(total === 0){
+    sub = t('Не запустилась');
+  } else {
+    sub = t('Успешно: {0}/{1}', ok, total);
+    if(ok > 0) sub += ` · ${avg_ms} ` + t('мс');
+    if(top_fail && top_fail !== '-'){
+      const failReason = t(PROBE_REASON[top_fail] || top_fail);
+      sub += ` · ${failReason}`;
+    }
+  }
+  const pct = total > 0 ? Math.round((ok / total) * 100) + '%' : '0%';
+  return '<div class="list-item two-line" id="benchrow' + idx + '">' +
+    '<span class="status ' + stClass + '">' + icon(icName, 's16') + '</span>' +
+    '<span class="li-text">' +
+      '<span class="li-primary truncate">' + esc(stratTitle) + ' <span class="muted li-mono">(' + esc(name) + ')</span></span>' +
+      '<span class="li-secondary">' + esc(sub) + '</span>' +
+    '</span>' +
+    '<span class="li-trail ' + (isAllOk ? 'li-value ok' : (isPartOk ? 'li-value' : 't-label-medium bad')) + '">' + esc(pct) + '</span>' +
+  '</div>';
+}
+
+function renderBenchBest(name, ok, total, avg_ms){
+  const el = $('test-bench-best');
+  if(!el) return;
+  if(!name || ok <= 0){
+    el.hidden = false;
+    el.innerHTML = '<div class="banner bad">' +
+      icon('alert', 's18') +
+      '<div class="banner-body">' +
+        '<div class="banner-title">' + esc(t('Ни одна стратегия не сработала')) + '</div>' +
+        '<div class="banner-text">' + esc(t('Все протестированные стратегии потерпели неудачу на контрольном наборе сайтов.')) + '</div>' +
+      '</div>' +
+    '</div>';
+    return;
+  }
+  el.hidden = false;
+  const stratTitle = typeof strategyName === 'function' ? strategyName(name) : name;
+  const cur = (typeof currentStrategy !== 'undefined' && currentStrategy) ? currentStrategy : 'default';
+  const isCurrent = cur === name;
+
+  el.innerHTML = '<div class="subhead-row" style="margin-top:0;">' +
+    '<span class="subhead plain">' + esc(t('Лучшая стратегия по результатам прохода')) + '</span>' +
+    '<span class="badge ok">' + esc(t('{0}/{1} хостов ({2} мс)', ok, total, avg_ms)) + '</span>' +
+  '</div>' +
+  '<div class="t-body-medium">' +
+    esc(t('Стратегия «{0}» показала максимальную проходимость и скорость на контрольных ресурсах.', stratTitle)) +
+  '</div>' +
+  '<div class="row" style="margin-top:12px; gap:8px;">' +
+    '<button class="btn with-icon state ' + (isCurrent ? 'tonal' : '') + '" onclick="applyRecommendedStrategy(\'' + esc(name) + '\')"' + (isCurrent ? ' disabled' : '') + '>' +
+      icon(isCurrent ? 'check' : 'tune', 's18') +
+      '<span>' + (isCurrent ? esc(t('Стратегия «{0}» уже действует', stratTitle)) : esc(t('Применить «{0}»', stratTitle))) + '</span>' +
+    '</button>' +
+  '</div>';
+}
+
+function sortBenchList(){
+  const listEl = $('test-bench-list');
+  if(!listEl) return;
+  const sorted = Object.values(benchResults).sort((a, b) => b.ok - a.ok || a.avg_ms - b.avg_ms);
+  listEl.innerHTML = sorted.map(it => renderBenchRow(it.idx, it.name, it.ok, it.total, it.avg_ms, it.top_fail, false)).join('');
+}
+
+function startBenchFromRec(){
+  selectTestTab('bench');
+  runTest();
+}
+
 function resetTestResults(){
-  ['tr', 'test-tcp16-list', 'test-dns-list', 'test-tg-list'].forEach(id => {
+  ['tr', 'test-tcp16-list', 'test-dns-list', 'test-tg-list', 'test-bench-list'].forEach(id => {
     const el = $(id);
     if(el){ el.innerHTML = ''; el._html = ''; }
   });
   webResults = {}; tcp16Results = {}; dnsResults = {}; tgResults = {}; tgMediaSpeed = null; lastRecommendation = null;
+  benchResults = {}; benchTotalStrats = 0; benchBestStrat = null; benchRunningStrat = null;
   const recEl = $('test-recommendation');
   if(recEl){ recEl.hidden = true; recEl.innerHTML = ''; }
   const tgBadge = $('test-tg-media-badge');
   if(tgBadge){ tgBadge.hidden = true; tgBadge.textContent = ''; }
+  const benchBadge = $('test-bench-badge');
+  if(benchBadge){ benchBadge.hidden = true; benchBadge.textContent = ''; }
+  const benchBest = $('test-bench-best');
+  if(benchBest){ benchBest.hidden = true; benchBest.innerHTML = ''; }
 }
 
 async function stopTest(){
@@ -314,20 +417,63 @@ async function runTest(){
         badge.textContent = st === 'ok' ? `${spd}` : t('Медиа: сбой');
         badge.className = 'badge ' + (st === 'ok' ? 'ok' : 'bad');
       }
+    } else if(p[0] === 'BENCH_START') {
+      benchTotalStrats = +p[1] || 0;
+      const badge = $('test-bench-badge');
+      if(badge){
+        badge.hidden = false;
+        badge.className = 'badge primary';
+        badge.textContent = t('Проверка 0/{0}', benchTotalStrats);
+      }
+    } else if(p[0] === 'BENCH_RUN') {
+      const idx = p[1], strat = p[2], total = p[3];
+      benchRunningStrat = strat;
+      const badge = $('test-bench-badge');
+      if(badge){
+        badge.hidden = false;
+        badge.className = 'badge primary';
+        badge.textContent = t('Тест {0}/{1}: {2}', +idx + 1, total, typeof strategyName === 'function' ? strategyName(strat) : strat);
+      }
+      const existing = $('benchrow' + idx);
+      const rowHtml = renderBenchRow(idx, strat, null, null, null, null, true);
+      if(existing) existing.outerHTML = rowHtml;
+      else if($('test-bench-list')) $('test-bench-list').insertAdjacentHTML('beforeend', rowHtml);
+    } else if(p[0] === 'BENCH_RES') {
+      const idx = p[1], strat = p[2], ok = +p[3] || 0, total = +p[4] || 0, avg_ms = +p[5] || 0, top_fail = p[6] || '-';
+      benchResults[strat] = { idx, name: strat, ok, total, avg_ms, top_fail };
+      const existing = $('benchrow' + idx);
+      const rowHtml = renderBenchRow(idx, strat, ok, total, avg_ms, top_fail, false);
+      if(existing) existing.outerHTML = rowHtml;
+      else if($('test-bench-list')) $('test-bench-list').insertAdjacentHTML('beforeend', rowHtml);
+    } else if(p[0] === 'BENCH_BEST') {
+      const strat = p[1], ok = +p[2] || 0, total = +p[3] || 0, avg_ms = +p[4] || 0;
+      benchBestStrat = { name: strat, ok, total, avg_ms };
+      sortBenchList();
+      renderBenchBest(strat, ok, total, avg_ms);
+      const badge = $('test-bench-badge');
+      if(badge){
+        badge.hidden = false;
+        badge.className = 'badge ok';
+        badge.textContent = t('Завершено ({0} стратегий)', benchTotalStrats);
+      }
     }
   };
 
   try {
-    const r = await ctlx(['probe-dpi', currentTestTab], 180000, onLine);
-    if(!testCancelled){
-      if(tool === 'none' || (r.code && !hosts.length && currentTestTab === 'web')) {
-        await runTestWebView();
-      } else {
-        Object.keys(webResults).forEach(i => {
-          if(webResults[i].list.length < 4) {
-            finishTestRow(i, webResults[i].list.length ? webResults[i].list : [{ok: false, reason: 'timeout'}]);
-          }
-        });
+    if(currentTestTab === 'bench'){
+      await ctlx(['bench-strategies'], 300000, onLine);
+    } else {
+      const r = await ctlx(['probe-dpi', currentTestTab], 180000, onLine);
+      if(!testCancelled){
+        if(tool === 'none' || (r.code && !hosts.length && currentTestTab === 'web')) {
+          await runTestWebView();
+        } else {
+          Object.keys(webResults).forEach(i => {
+            if(webResults[i].list.length < 4) {
+              finishTestRow(i, webResults[i].list.length ? webResults[i].list : [{ok: false, reason: 'timeout'}]);
+            }
+          });
+        }
       }
     }
   } finally {
@@ -335,9 +481,12 @@ async function runTest(){
     if(tb){
       tb.classList.remove('danger');
       tb.disabled = false;
-      tb.innerHTML = icon('play', 's18') + '<span>' + esc(t('Проверить снова')) + '</span>';
+      const btnLabel = currentTestTab === 'bench' ? t('Запустить автоподбор') : t('Проверить снова');
+      tb.innerHTML = icon('play', 's18') + '<span>' + esc(btnLabel) + '</span>';
     }
-    renderRecommendation();
+    if(currentTestTab !== 'bench'){
+      renderRecommendation();
+    }
   }
 }
 
@@ -530,6 +679,11 @@ function renderRecommendation(){
     });
   }
 
+  html += '<button class="btn text sm with-icon state" onclick="startBenchFromRec()">' +
+    icon('tune', 's16') +
+    '<span>' + esc(t('Полный автоподбор по всем стратегиям')) + '</span>' +
+  '</button>';
+
   html += '</div>';
 
   el.innerHTML = html;
@@ -591,6 +745,17 @@ function copyTestReport(){
     for(const k of Object.keys(tgResults)){
       const it = tgResults[k];
       rep += `- ${it.name} (${it.ip}): ${it.status === 'ok' ? 'OK (' + it.ping + ')' : 'FAIL (' + it.ping + ')'}\n`;
+    }
+    rep += '\n';
+  }
+  if(Object.keys(benchResults).length > 0){
+    rep += '#### Результаты полного автоподбора стратегий:\n';
+    if(benchBestStrat){
+      rep += `*Победитель:* ${benchBestStrat.name} (${benchBestStrat.ok}/${benchBestStrat.total}, ${benchBestStrat.avg_ms} мс)\n`;
+    }
+    const sorted = Object.values(benchResults).sort((a, b) => b.ok - a.ok || a.avg_ms - b.avg_ms);
+    for(const it of sorted){
+      rep += `- ${it.name}: ${it.ok}/${it.total} (${it.avg_ms} мс)` + (it.top_fail && it.top_fail !== '-' ? ` [сбои: ${it.top_fail}]` : '') + '\n';
     }
     rep += '\n';
   }

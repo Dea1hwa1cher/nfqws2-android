@@ -443,5 +443,22 @@ EN = {
   "Ярлык добавлен на рабочий стол": "Shortcut added to home screen",
   "KernelSU: в списке модулей удерживайте кнопку WebUI на карточке nfqws2 и выберите «Создать ярлык».\nMMRL и KsuWebUI: «Создать ярлык» в меню модуля.\nИконка ярлыка подставится из модуля сама.": "KernelSU: in the module list, long-press the WebUI button on the nfqws2 card and choose “Create shortcut”.\nMMRL and KsuWebUI: “Create shortcut” in the module menu.\nThe shortcut icon is taken from the module automatically.",
   "Понятно": "Got it",
- "убраны параметры, неизвестные nfqws2 этого модуля: {0}": "removed options unknown to this module's nfqws2: {0}"
+ "убраны параметры, неизвестные nfqws2 этого модуля: {0}": "removed options unknown to this module's nfqws2: {0}",
+  "Автоподбор": "Auto-selection",
+  "Запустить автоподбор": "Start auto-selection",
+  "Рейтинг стратегий по итогам прохода": "Strategy ranking from benchmark",
+  "Автоподбор: последовательное тестирование всех доступных стратегий через контрольный набор сайтов (probe_bench.list). Определяет стратегию с наивысшей проходимостью и минимальной задержкой.": "Auto-selection: sequentially tests all available strategies against a curated target list (probe_bench.list). Identifies the strategy with the highest success rate and lowest latency.",
+  "Тестирование соединений…": "Testing connections…",
+  "Не запустилась": "Failed to start",
+  "Успешно: {0}/{1}": "Success: {0}/{1}",
+  "мс": "ms",
+  "Ни одна стратегия не сработала": "No strategy succeeded",
+  "Все протестированные стратегии потерпели неудачу на контрольном наборе сайтов.": "All tested strategies failed on the control set of websites.",
+  "Лучшая стратегия по результатам прохода": "Top strategy from benchmark pass",
+  "{0}/{1} хостов ({2} мс)": "{0}/{1} hosts ({2} ms)",
+  "Стратегия «{0}» показала максимальную проходимость и скорость на контрольных ресурсах.": "Strategy “{0}” demonstrated the highest success rate and speed on control resources.",
+  "Проверка 0/{0}": "Checking 0/{0}",
+  "Тест {0}/{1}: {2}": "Test {0}/{1}: {2}",
+  "Завершено ({0} стратегий)": "Completed ({0} strategies)",
+  "Полный автоподбор по всем стратегиям": "Full auto-selection across all strategies"
 };
