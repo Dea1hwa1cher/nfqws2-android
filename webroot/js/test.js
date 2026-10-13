@@ -687,7 +687,7 @@ function renderRecommendation(){
 
   let html = '<div class="subhead-row" style="margin-top:0;">' +
     '<span class="subhead plain">' + esc(t('Автоподбор стратегии')) + '</span>' +
-    '<span class="pill tonal">' + esc(rec.title) + '</span>' +
+    '<span class="pill tonal badge">' + esc(rec.title) + '</span>' +
   '</div>' +
   '<div class="t-body-medium">' + esc(rec.reason) + '</div>';
 

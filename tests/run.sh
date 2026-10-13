@@ -125,7 +125,11 @@ fi
 # Playwright is not a dependency of the module; point NODE_PATH at a workspace
 # that has it, or the browser suite skips itself
 if [ -z "${NODE_PATH:-}" ] && [ -d "$HOME/.workbuddy-ai/binaries/node/workspace/node_modules" ]; then
-  NODE_PATH="$HOME/.workbuddy-ai/binaries/node/workspace/node_modules"
+  if command -v cygpath >/dev/null 2>&1; then
+    NODE_PATH=$(cygpath -w "$HOME/.workbuddy-ai/binaries/node/workspace/node_modules")
+  else
+    NODE_PATH="$HOME/.workbuddy-ai/binaries/node/workspace/node_modules"
+  fi
 fi
 export NODE_PATH="${NODE_PATH:-}"
 

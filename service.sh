@@ -268,6 +268,7 @@ netwatch() {
 
 watchdog() {
   echo $$ > "$WD_PIDFILE"
+  trap 'rm -f "$WD_PIDFILE"; exit 0' INT TERM EXIT
   protect_process
   local fails=0 tick=0 dpid
   while :; do

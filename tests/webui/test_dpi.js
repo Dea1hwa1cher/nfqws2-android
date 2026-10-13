@@ -39,6 +39,7 @@ const sandbox = {
   setHTML: (id, html) => {},
   ctlx: async () => ({ code: 0, out: '' }),
   toast: () => {},
+  copyText: async (text) => { if (sandbox.navigator.clipboard && sandbox.navigator.clipboard.writeText) await sandbox.navigator.clipboard.writeText(text); },
   S: { running: true, paused: false },
   currentStrategy: 'default',
   strategyName: s => s,

@@ -580,10 +580,19 @@ _firewall_start_restore() {
   FW_PROBE_CMD=""
 
   printf '%s' "$FW_BATCH_BUF" | awk '
-    { i = index($0, "|"); t = substr($0, 1, i - 1)
-      if (t != cur) { if (cur != "") print "COMMIT"; cur = t; print "*" t }
-      print substr($0, i + 1) }
-    END { if (cur != "") print "COMMIT" }' > "$rules"
+    {
+      i = index($0, "|"); t = substr($0, 1, i - 1); line = substr($0, i + 1)
+      if (!(t in seen)) { order[++n] = t; seen[t] = 1 }
+      buf[t] = buf[t] line "\n"
+    }
+    END {
+      for (j = 1; j <= n; j++) {
+        t = order[j]
+        print "*" t
+        printf "%s", buf[t]
+        print "COMMIT"
+      }
+    }' > "$rules"
   FW_BATCH_BUF=""
 
   "${CMD}-restore" --noflush < "$rules"
@@ -1042,7 +1051,13 @@ update_description() { # running | stopped | paused <ssid>
 # $USER_STRATEGIES_DIR overrides it. Reset = delete that copy.
 # Imported configs are selectable as "imp:<name>".
 get_current_strategy() {
-  cat "$ACTIVE_FILE" 2>/dev/null || echo "default"
+  local s
+  s=$(head -n1 "$ACTIVE_FILE" 2>/dev/null | tr -d '\r\n')
+  if [ -n "$s" ]; then
+    printf '%s\n' "$s"
+  else
+    echo "default"
+  fi
 }
 strategy_name_ok() {
   case "$1" in ''|*/*|*'`'*|*'$'*|*'"'*|*\'*|*'\'*|.*) return 1 ;; esac

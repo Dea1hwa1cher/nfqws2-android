@@ -1064,7 +1064,7 @@ cmd_bench_strategies() {
   cp -f "$CONFFILE" "$STATE_DIR/bench_orig.conf" 2>/dev/null
 
   bench_cleanup() {
-    rm -f "$STATE_DIR/probe.pid" "$STATE_DIR/probe_bench_default.list"
+    rm -f "$STATE_DIR/probe.pid" "$STATE_DIR/probe_bench_default.list" "$STATE_DIR/bench_res.$$.tmp" "$STATE_DIR/strat_bench.$$.tmp"
     cleanup_probe_app_rule
     if [ -f "$STATE_DIR/bench_orig.conf" ]; then
       cp -f "$STATE_DIR/bench_orig.conf" "$CONFFILE" 2>/dev/null
@@ -1415,7 +1415,13 @@ case "$1" in
       HOME_WIFI|WATCHDOG) sh "$SERVICE" home_check >/dev/null 2>&1 ;;
       VPN_PAUSE) load_conf >/dev/null 2>&1; sh "$SERVICE" vpn_check >/dev/null 2>&1 ;;
       ENABLE_HOTSPOT) load_conf >/dev/null 2>&1; sh "$SERVICE" firewall_apply >/dev/null 2>&1 ;;
-      NET_STRATEGY|AUTOSTART) ;;
+      NET_STRATEGY) load_conf >/dev/null 2>&1; sh "$SERVICE" net_check >/dev/null 2>&1; sh "$SERVICE" ensure_watchdog >/dev/null 2>&1 ;;
+      WAKELOCK)
+        load_conf >/dev/null 2>&1
+        if is_running; then
+          if [ "$3" = "1" ]; then acquire_wakelock; else release_wakelock; fi
+        fi ;;
+      AUTOSTART) ;;
       *) need_restart_note ;;
     esac ;;
   set-mode)
