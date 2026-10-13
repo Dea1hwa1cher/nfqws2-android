@@ -99,23 +99,6 @@ done
 # ── strategy references ───────────────────────────────────────────────────────
 section "strategy references resolve"
 
-# Mirrors the aliases lib/common.sh creates at runtime, so a strategy may refer
-# to e.g. stun2.bin even though only stun.bin ships.
-blob_alias_target() {
-  case "$1" in
-    quic_initial_www_google_com.bin) echo quic_initial.bin ;;
-    tls_clienthello_www_google_com.bin|tls_clienthello_max_ru.bin|tls_clienthello_sochi_park.bin) echo tls_clienthello.bin ;;
-    stun2.bin) echo stun.bin ;;
-    stun.bin) echo stun2.bin ;;
-    ACTIVE_DISCORD_UDP.bin) echo discord_udp.bin ;;
-    discord_udp.bin) echo ACTIVE_DISCORD_UDP.bin ;;
-    ACTIVE_GAME_UDP.bin) echo ACTIVE_DISCORD_UDP.bin ;;
-    quic_initial_5ka_ru.bin|quic_initial_vk_com.bin|quic_initial_steamcommunity_com.bin) echo quic_initial.bin ;;
-    quic_initial_4pda_to.bin|quic_initial_dbankcloud_ru.bin|quic_initial_my_youtube.bin) echo quic_initial.bin ;;
-    *) echo "" ;;
-  esac
-}
-
 # One grep over every file rather than a grep+sed+sort per file: -H makes it print
 # the file name itself. The per-file version spent about 170 process spawns here,
 # which is a minute of wall clock on Windows for what is a handful of matches.
@@ -128,8 +111,6 @@ for r in $(grep -Ho '\$BLOBS_DIR/[A-Za-z0-9_.-]*' \
   case " $seen_b " in *" $b "*) continue ;; esac
   seen_b="$seen_b $b"
   [ -f "$REPO_DIR/blobs/$b" ] && continue
-  alias=$(blob_alias_target "$b")
-  [ -n "$alias" ] && [ -f "$REPO_DIR/blobs/$alias" ] && continue
   missing_blobs=$((missing_blobs + 1))
   _fail "${f##*/} references missing blob $b"
 done
@@ -145,7 +126,7 @@ for r in $(grep -Ho '\$LISTS_DIR/[A-Za-z0-9_.-]*' \
     _fail "${f##*/} references missing list $l"
   }
 done
-[ "$missing_blobs" = 0 ] && _ok "every referenced blob exists (directly or as a runtime alias)"
+[ "$missing_blobs" = 0 ] && _ok "every referenced blob exists directly in blobs/"
 [ "$missing_lists" = 0 ] && _ok "every referenced list exists"
 
 # ── rewriting keenetic paths has one definition ────────────────────────────────
@@ -361,7 +342,7 @@ assert_match "$installer_flat" \
 
 section "service entry points the WebUI relies on"
 
-for cmd in start stop restart reload status firewall_apply firewall_stop ensure_watchdog; do
+for cmd in start autostart stop restart reload status firewall_apply firewall_stop ensure_watchdog; do
   assert_contains "$(cat "$REPO_DIR/service.sh")" "$cmd)" "service.sh handles $cmd"
 done
 

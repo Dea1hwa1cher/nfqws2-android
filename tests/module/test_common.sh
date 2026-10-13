@@ -294,10 +294,11 @@ section "sync_lists_and_blobs: restoring a missing list"
 
 # A list deleted from the config directory comes back from the module's copy;
 # an existing one, edited by the user, is never overwritten.
-rm -f "$LISTS_DIR/user_extra.list"
+rm -f "$LISTS_DIR/exclude.list"
 printf 'mine\n' > "$LISTS_DIR/youtube.list"
 sync_lists_and_blobs >/dev/null 2>&1
-assert_eq "$(cat "$MODDIR/lists/user_extra.list")" "$(cat "$LISTS_DIR/user_extra.list" 2>/dev/null)" \
+assert_file "$LISTS_DIR/exclude.list" "missing list file is recreated"
+assert_eq "$(cat "$MODDIR/lists/exclude.list")" "$(cat "$LISTS_DIR/exclude.list" 2>/dev/null)" \
   "a missing list is copied from the module"
 assert_eq "mine" "$(cat "$LISTS_DIR/youtube.list")" "an existing list is left alone"
 

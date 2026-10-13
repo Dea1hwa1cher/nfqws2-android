@@ -99,7 +99,7 @@ function systemSeed(){
   const mm = /rgba?\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)/.exec(accent || '');
   if(!mm) return '#6750a4';
   const rgb = [+mm[1], +mm[2], +mm[3]], lab = rgbToLab(rgb);
-  if(rgb[0] === 0 && rgb[0] === 0 && rgb[2] === 0) return '#6750a4';
+  if(rgb[0] === 0 && rgb[1] === 0 && rgb[2] === 0) return '#6750a4';
   if(Math.hypot(lab[1], lab[2]) < 6) return '#6750a4';
   return rgbToHex(rgb[0], rgb[1], rgb[2]).toLowerCase();
 }

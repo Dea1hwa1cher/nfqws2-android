@@ -12,7 +12,6 @@ if [ -n "$wpid" ]; then kill "$wpid" 2>/dev/null; fi
 wnpid=$(cat /data/adb/nfqws2/state/netwatch.pid 2>/dev/null)
 if [ -n "$wnpid" ]; then kill "$wnpid" 2>/dev/null; fi
 sh "$MODDIR/service.sh" stop >/dev/null 2>&1
-sh "$MODDIR/service.sh" firewall_stop >/dev/null 2>&1
 killall -9 nfqws2 2>/dev/null
 rm -f /data/adb/ap/bin/nfqws2-ctl /data/adb/ksu/bin/nfqws2-ctl 2>/dev/null
 # Preserve settings and lists; remove /data/adb/nfqws2 for a full reset

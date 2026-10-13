@@ -39,7 +39,7 @@ list_file() {
     tcp16|tcp16.list) echo "$LISTS_DIR/tcp16.list" ;;
     probe_dns|probe_dns.list) echo "$LISTS_DIR/probe_dns.list" ;;
     probe_tg|probe_tg.list) echo "$LISTS_DIR/probe_tg.list" ;;
-    whitelist_sni|whitelist_sni.list) echo "$LISTS_DIR/whitelist_sni.list" ;;
+    probe_bench|probe_bench.list) echo "$LISTS_DIR/probe_bench.list" ;;
     apps|apps.list) echo "$CONFDIR/apps.list" ;;
     home|home_wifi.list) echo "$HOME_FILE" ;;
     *) return 1 ;;
@@ -85,10 +85,6 @@ list_strategies() {
   list_imports | while IFS= read -r n; do
     [ -n "$n" ] && printf 'imp:%s\timport\t0\n' "$n"
   done
-}
-
-get_current_strategy() {
-  cat "$ACTIVE_FILE" 2>/dev/null || echo "default"
 }
 
 # Готовый nfqws2.conf для стратегии: её текст плюс настройки пользователя из
@@ -423,7 +419,7 @@ cmd_import_add() { # $1 = имя, $2 = путь к файлу с содержи�
 }
 
 # Строки, которые фильтр «Ошибки» в WebUI считает ошибками
-ERR_RE='ошибк|не удал|не запуст|упал|отсутству|отклон|error|fail|fatal|denied|refused|cannot|could not|unable'
+ERR_RE='ошибк|не удал|не запуст|упал|не активен|отсутству|отклон|error|fail|fatal|denied|refused|cannot|could not|unable'
 
 cmd_get_logs() { # <источник> <строк> [errors]
   local n="${2:-100}" f
@@ -454,14 +450,14 @@ cmd_log_summary() {
       /nfqws2 запущен/        { last_start = ts($0); m = msg($0); pid = ""; if (match(m, /PID [0-9]+/)) pid = substr(m, RSTART, RLENGTH); last_ev = "start" }
       /nfqws2 остановлен/     { last_stop = ts($0); last_ev = "stop" }
       /обход приостановлен/   { last_pause = ts($0); last_ev = "pause"; pmsg = msg($0) }
-      /watchdog: nfqws2 упал/ { crash++; last_crash = ts($0) }
+      /watchdog: nfqws2 (упал|не активен)/ { crash++; last_crash = ts($0) }
       /netwatch: сеть изменилась/ { net++ }
       /правила iptables сброшены системой/ { lost++ }
       /Ошибка|не удался|Не удалось/ { err++; last_err = msg($0); last_err_ts = ts($0) }
       END {
         if (last_ev == "start") printf "ok\t%s\t%s\n", T("nfqws2 запущен", "nfqws2 started"), last_start (pid != "" ? " · " pid : "")
         else if (last_ev == "stop") printf "info\t%s\t%s\n", T("nfqws2 остановлен", "nfqws2 stopped"), last_stop
-        else if (last_ev == "pause") printf "info\t%s\t%s\n", T("Пауза в домашней Wi-Fi", "Paused on home Wi-Fi"), last_pause
+        else if (last_ev == "pause") printf "info\t%s\t%s\n", (pmsg ~ /Активен VPN/ ? T("Пауза: активен VPN", "Paused: VPN active") : T("Пауза в домашней Wi-Fi", "Paused on home Wi-Fi")), last_pause
         if (crash) printf "warn\t%s\t%s\n", T("Автоперезапусков: ", "Automatic restarts: ") crash, T("последний ", "last ") last_crash
         if (net) printf "info\t%s\t%s\n", T("Пересборок правил при смене сети: ", "Rule rebuilds on network change: ") net, ""
         if (lost) printf "info\t%s\t%s\n", T("Правила восстановлены после сброса системой: ", "Rules restored after a system reset: ") lost, ""
@@ -549,8 +545,6 @@ cmd_list_apps() {
 
   local target="$MODDIR/bin/pkglist.jar"
   [ -f "$target" ] || target="$MODDIR/bin/pkglist.dex"
-  [ -f "$target" ] || target="$BIN_DIR/pkglist.jar"
-  [ -f "$target" ] || target="$BIN_DIR/pkglist.dex"
 
   if [ -f "$target" ] && command -v app_process >/dev/null 2>&1; then
     mkdir -p "$STATE_DIR" 2>/dev/null
@@ -579,7 +573,7 @@ cmd_list_apps() {
 # релизом и в копию не входят), apps.list, домашние сети, правки стратегий,
 # импорты, активная стратегия и настройки WebUI (ui.json, их передаёт WebUI).
 BACKUP_DIR="${NFQWS_BACKUP_DIR:-/sdcard/Download}"
-BACKUP_LISTS="user exclude ipset ipset_exclude auto probe_hosts tcp16 probe_dns probe_tg probe_bench whitelist_sni"
+BACKUP_LISTS="user exclude ipset ipset_exclude auto probe_hosts tcp16 probe_dns probe_tg probe_bench"
 tar_cmd() {
   if command -v tar >/dev/null 2>&1; then tar "$@"; else busybox tar "$@"; fi
 }
@@ -804,7 +798,7 @@ cmd_net_info() {
   [ -z "$dns1" ] && [ -f /etc/resolv.conf ] && dns1=$(awk '/nameserver/{print $2; exit}' /etc/resolv.conf 2>/dev/null)
 
   local cur_strat
-  cur_strat=$(current_strategy_name)
+  cur_strat=$(get_current_strategy)
 
   printf 'NET\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
     "${ip:-—}" "${loc:-—}" "${isp:-—}" "${asn:-—}" \
@@ -840,7 +834,7 @@ cmd_probe_all_inner() {
 cmd_probe_tcp16() {
   local tool kind bin to=""
   tool=$(probe_tool); kind="${tool%% *}"; bin="${tool#* }"
-  [ "$kind" = "none" ] && return 0
+  [ "$kind" = "curl" ] || return 0
   command -v timeout >/dev/null 2>&1 && to="timeout 8"
 
   local targets=""
@@ -870,52 +864,42 @@ OVH_OVH-01|5.196.63.68|443|"
   printf '%s\n' "$targets" | while IFS='|' read -r provider ip port sni; do
     [ -z "$provider" ] || [ -z "$ip" ] && continue
     [ -z "$port" ] && port=443
-    local host_hdr=""
-    [ -n "$sni" ] && host_hdr="-H Host: $sni"
+    local proto="https" url
+    [ "$port" = "80" ] && proto="http"
+    set -- -s -k -o /dev/null
+    if [ -n "$sni" ]; then
+      set -- "$@" --resolve "$sni:$port:$ip" -H "Host: $sni"
+      url="$proto://$sni:$port/"
+    else
+      url="$proto://$ip:$port/"
+    fi
 
     # Step 1: 0KB probe
     local out0 rc0
-    out0=$($to "$bin" -s -k -m 5 --connect-timeout 4 -o /dev/null -w "%{time_total}" $host_hdr "https://$ip:$port/" 2>&1); rc0=$?
+    out0=$($to "$bin" "$@" -m 5 --connect-timeout 4 -w "%{time_total}" "$url" 2>&1); rc0=$?
     if [ "$rc0" != 0 ] && [ "$rc0" != 22 ]; then
       printf 'T16\t%s\t%s\t%s\t%s\tunreachable\t%s\n' "$idx" "$provider" "$ip" "$port" "0KB"
       idx=$((idx + 1))
       continue
     fi
 
-    # Step 2: 16KB probe
-    local out16 rc16
-    out16=$($to "$bin" -s -k -m 6 --connect-timeout 4 -o /dev/null -H "X-Pad: $pad16" $host_hdr "https://$ip:$port/" 2>&1); rc16=$?
-    if [ "$rc16" != 0 ] && [ "$rc16" != 22 ]; then
-      case "$rc16:$out16" in
-        52:*|56:*|28:*|*:*reset*|*:*timed\ out*|*:*EOF*)
-          printf 'T16\t%s\t%s\t%s\t%s\tdetected\t%s\n' "$idx" "$provider" "$ip" "$port" "16KB"
-          idx=$((idx + 1))
-          continue ;;
-      esac
-    fi
-
-    # Step 3: 24KB probe
-    local out24 rc24
-    out24=$($to "$bin" -s -k -m 6 --connect-timeout 4 -o /dev/null -H "X-Pad: $pad24" $host_hdr "https://$ip:$port/" 2>&1); rc24=$?
-    if [ "$rc24" != 0 ] && [ "$rc24" != 22 ]; then
-      case "$rc24:$out24" in
-        52:*|56:*|28:*|*:*reset*|*:*timed\ out*|*:*EOF*)
-          printf 'T16\t%s\t%s\t%s\t%s\tdetected\t%s\n' "$idx" "$provider" "$ip" "$port" "24KB"
-          idx=$((idx + 1))
-          continue ;;
-      esac
-    fi
-
-    # Step 4: 32KB probe
-    local out32 rc32
-    out32=$($to "$bin" -s -k -m 6 --connect-timeout 4 -o /dev/null -H "X-Pad: $pad32" $host_hdr "https://$ip:$port/" 2>&1); rc32=$?
-    if [ "$rc32" != 0 ] && [ "$rc32" != 22 ]; then
-      case "$rc32:$out32" in
-        52:*|56:*|28:*|*:*reset*|*:*timed\ out*|*:*EOF*)
-          printf 'T16\t%s\t%s\t%s\t%s\tdetected\t%s\n' "$idx" "$provider" "$ip" "$port" "32KB"
-          idx=$((idx + 1))
-          continue ;;
-      esac
+    # Steps 2-4: 16KB / 24KB / 32KB probes
+    local detected="" sz pad outp rcp
+    for sz in 16KB 24KB 32KB; do
+      case "$sz" in 16KB) pad="$pad16" ;; 24KB) pad="$pad24" ;; 32KB) pad="$pad32" ;; esac
+      outp=$($to "$bin" "$@" -m 6 --connect-timeout 4 -H "X-Pad: $pad" "$url" 2>&1); rcp=$?
+      if [ "$rcp" != 0 ] && [ "$rcp" != 22 ]; then
+        case "$rcp:$outp" in
+          52:*|56:*|28:*|*:*reset*|*:*timed\ out*|*:*EOF*)
+            detected="$sz"
+            break ;;
+        esac
+      fi
+    done
+    if [ -n "$detected" ]; then
+      printf 'T16\t%s\t%s\t%s\t%s\tdetected\t%s\n' "$idx" "$provider" "$ip" "$port" "$detected"
+      idx=$((idx + 1))
+      continue
     fi
 
     local ms
@@ -926,10 +910,18 @@ OVH_OVH-01|5.196.63.68|443|"
 }
 
 cmd_probe_dns() {
-  local tool kind bin to=""
+  local tool kind bin to="" ns_cmd="" b
   tool=$(probe_tool); kind="${tool%% *}"; bin="${tool#* }"
   [ "$kind" = "none" ] && return 0
   command -v timeout >/dev/null 2>&1 && to="timeout 6"
+
+  if command -v nslookup >/dev/null 2>&1; then
+    ns_cmd="nslookup"
+  else
+    for b in /data/adb/ksu/bin/busybox /data/adb/ap/bin/busybox /data/adb/magisk/busybox "$(command -v busybox 2>/dev/null)"; do
+      [ -n "$b" ] && [ -x "$b" ] && "$b" nslookup --help >/dev/null 2>&1 && { ns_cmd="$b nslookup"; break; }
+    done
+  fi
 
   local servers=""
   if [ -f "$LISTS_DIR/probe_dns.list" ]; then
@@ -944,11 +936,11 @@ Yandex|77.88.8.8|https://common.dot.dns.yandex.net/dns-query"
   local idx=0
   printf '%s\n' "$servers" | while IFS='|' read -r name ip doh; do
     [ -z "$name" ] || [ -z "$ip" ] && continue
-    local udp_status="ok" doh_status="none" hijacked="no" detail="OK"
+    local udp_status="skip" doh_status="none" hijacked="no" detail="OK"
 
-    if command -v nslookup >/dev/null 2>&1; then
+    if [ -n "$ns_cmd" ]; then
       local ns_out
-      ns_out=$($to nslookup vk.ru "$ip" 2>&1)
+      ns_out=$($to $ns_cmd vk.ru "$ip" 2>&1)
       if [ $? != 0 ] || printf '%s\n' "$ns_out" | grep -qi -e 'timed out' -e 'no answer' -e 'connection refused'; then
         udp_status="fail"
       else
@@ -956,8 +948,8 @@ Yandex|77.88.8.8|https://common.dot.dns.yandex.net/dns-query"
       fi
 
       local ns_chk blocked_ip
-      ns_chk=$($to nslookup rutracker.org "$ip" 2>&1)
-      blocked_ip=$(printf '%s\n' "$ns_chk" | awk '/^Address: / {ip=$2} /Address 1: / {ip=$3} END {print ip}')
+      ns_chk=$($to $ns_cmd rutracker.org "$ip" 2>&1)
+      blocked_ip=$(printf '%s\n' "$ns_chk" | awk '/^Name:/ {seen=1} seen && /^Address( 1)?: / {ip=$NF} END {print ip}')
       case "$blocked_ip" in
         198.18.*|198.19.*)
           hijacked="yes"; detail="Fake-IP ($blocked_ip)" ;;
@@ -1013,12 +1005,24 @@ DC5|91.108.56.130|443"
     [ -z "$port" ] && port=443
 
     local out rc t_ms="0"
-    out=$($to "$bin" -s -k -m 5 --connect-timeout 3 -o /dev/null -w "%{time_connect}" "https://$ip:$port/" 2>&1); rc=$?
-    if [ "$rc" = 0 ] || [ "$rc" = 52 ] || [ "$rc" = 56 ] || [ "$rc" = 22 ]; then
-      t_ms=$(awk -v t="${out:-0}" 'BEGIN { printf "%d", t * 1000 }' 2>/dev/null || echo 0)
-      printf 'TG\t%s\t%s\t%s\tok\t%sms\n' "$idx" "$name" "$ip" "$t_ms"
+    if [ "$kind" = "curl" ]; then
+      out=$($to "$bin" -s -k -m 5 --connect-timeout 3 -o /dev/null -w "%{time_connect}" "https://$ip:$port/" 2>&1); rc=$?
+      if [ "$rc" = 0 ] || [ "$rc" = 52 ] || [ "$rc" = 56 ] || [ "$rc" = 22 ]; then
+        t_ms=$(awk -v t="${out:-0}" 'BEGIN { printf "%d", t * 1000 }' 2>/dev/null || echo 0)
+        printf 'TG\t%s\t%s\t%s\tok\t%sms\n' "$idx" "$name" "$ip" "$t_ms"
+      else
+        printf 'TG\t%s\t%s\t%s\tfail\ttimeout\n' "$idx" "$name" "$ip"
+      fi
     else
-      printf 'TG\t%s\t%s\t%s\tfail\ttimeout\n' "$idx" "$name" "$ip"
+      local t0 t1
+      t0=$(uptime_cs)
+      out=$($to "$bin" wget -q -T 4 -O /dev/null --no-check-certificate "https://$ip:$port/" 2>&1); rc=$?
+      t1=$(uptime_cs)
+      if [ "$rc" = 0 ] || printf '%s' "$out" | grep -q 'server returned error'; then
+        printf 'TG\t%s\t%s\t%s\tok\t%sms\n' "$idx" "$name" "$ip" "$(( (t1 - t0) * 10 ))"
+      else
+        printf 'TG\t%s\t%s\t%s\tfail\ttimeout\n' "$idx" "$name" "$ip"
+      fi
     fi
     idx=$((idx + 1))
   done
@@ -1054,14 +1058,13 @@ cmd_bench_strategies() {
   [ "$kind" = "none" ] && { echo done; return 0; }
   mkdir -p "$STATE_DIR"
   echo "$$" > "$STATE_DIR/probe.pid"
-  setup_probe_app_rule
 
   orig_strat=$(get_current_strategy)
   if is_running; then orig_running=true; fi
   cp -f "$CONFFILE" "$STATE_DIR/bench_orig.conf" 2>/dev/null
 
   bench_cleanup() {
-    rm -f "$STATE_DIR/probe.pid"
+    rm -f "$STATE_DIR/probe.pid" "$STATE_DIR/probe_bench_default.list"
     cleanup_probe_app_rule
     if [ -f "$STATE_DIR/bench_orig.conf" ]; then
       cp -f "$STATE_DIR/bench_orig.conf" "$CONFFILE" 2>/dev/null
@@ -1074,7 +1077,7 @@ cmd_bench_strategies() {
       fi
     fi
   }
-  trap 'bench_cleanup; exit 130' INT TERM
+  trap 'trap - EXIT; bench_cleanup; exit 130' INT TERM
   trap 'bench_cleanup' EXIT
 
   local bench_hosts_file="$LISTS_DIR/probe_bench.list"
@@ -1100,20 +1103,16 @@ cmd_bench_strategies() {
     [ -z "$st" ] && continue
     printf 'BENCH_RUN\t%s\t%s\t%s\n' "$strat_idx" "$st" "$total_strats"
 
-    local raw="$STATE_DIR/strat_bench_raw.$$.tmp"
     local patched="$STATE_DIR/strat_bench.$$.tmp"
-    if [ "$st" = "default" ]; then
-      cp -f "$MODDIR/defaults/nfqws2.conf" "$raw" 2>/dev/null
-    else
-      strategy_file "$st" >/dev/null && cp -f "$(strategy_file "$st")" "$raw" 2>/dev/null
-    fi
-    if [ -f "$raw" ]; then
-      rewrite_keenetic_paths < "$raw" \
-        | sed 's/^NFQWS_EXTRA_ARGS=.*/NFQWS_EXTRA_ARGS="$MODE_ALL"/' > "$patched"
-      rm -f "$raw"
-      cp -f "$patched" "$CONFFILE" 2>/dev/null
+    if build_strategy_conf "$st" "$patched"; then
+      sed 's/^NFQWS_EXTRA_ARGS=.*/NFQWS_EXTRA_ARGS="$MODE_ALL"/' "$patched" > "$CONFFILE" 2>/dev/null
       rm -f "$patched"
       echo "$st" > "$ACTIVE_FILE" 2>/dev/null
+    else
+      rm -f "$patched"
+      printf 'BENCH_RES\t%s\t%s\t0\t0\t0\tfailed_start\n' "$strat_idx" "$st"
+      strat_idx=$((strat_idx + 1))
+      continue
     fi
 
     sh "$SERVICE" restart >/dev/null 2>&1
@@ -1130,6 +1129,8 @@ cmd_bench_strategies() {
       strat_idx=$((strat_idx + 1))
       continue
     fi
+
+    setup_probe_app_rule
 
     local tmp_res="$STATE_DIR/bench_res.$$.tmp"
     : > "$tmp_res"
@@ -1204,7 +1205,8 @@ cmd_probe_dpi() {
   mkdir -p "$STATE_DIR"
   echo "$$" > "$STATE_DIR/probe.pid"
   setup_probe_app_rule
-  trap 'rm -f "$STATE_DIR/probe.pid"; cleanup_probe_app_rule' EXIT INT TERM
+  trap 'rm -f "$STATE_DIR/probe.pid"; cleanup_probe_app_rule' EXIT
+  trap 'trap - EXIT; rm -f "$STATE_DIR/probe.pid"; cleanup_probe_app_rule; exit 130' INT TERM
 
   case "$mode" in
     net) cmd_net_info ;;
@@ -1275,7 +1277,7 @@ case "$1" in
 
   get-conf) cat "$CONFFILE" ;;
   save-conf-b64)
-    t="$STATE_DIR/save.tmp"; b64d "$2" > "$t"
+    t="$STATE_DIR/save.tmp"; b64d "$2" | tr -d '\r' > "$t"
     if [ ! -s "$t" ]; then echo "Пустой конфиг" >&2; rm -f "$t"; exit 1; fi
     if err=$(validate_conf_file "$t" 2>&1); then
       cp -f "$CONFFILE" "$CONFFILE.bak" 2>/dev/null; mv -f "$t" "$CONFFILE"; chmod 0644 "$CONFFILE"; echo OK; need_restart_note
@@ -1358,7 +1360,7 @@ case "$1" in
     echo "$newname" ;;
 
   get-list) f=$(list_file "$2") || { echo "Неизвестный список" >&2; exit 1; }
-    [ -f "$f" ] || cp -f "$MODDIR/defaults/lists/${f##*/}" "$f" 2>/dev/null
+    [ -f "$f" ] || cp -f "$MODDIR/defaults/lists/${f##*/}" "$f" 2>/dev/null || cp -f "$MODDIR/lists/${f##*/}" "$f" 2>/dev/null
     if [ -f "$f" ]; then cat "$f"; fi ;;
   save-list-b64) f=$(list_file "$2") || { echo "Неизвестный список" >&2; exit 1; }
     # Проверяем саму запись: без этого упавший mv (полный диск, права, каталог
@@ -1433,7 +1435,8 @@ case "$1" in
   net-info) cmd_net_info ;;
   probe-dpi) cmd_probe_dpi "${2:-all}" ;;
   probe-tg) cmd_probe_dpi tg ;;
-  bench-strategies|probe-bench) cmd_bench_strategies ;;
+  bench-strategies) cmd_bench_strategies ;;
+  probe-bench) cmd_bench_strategies ;;
   probe-cancel) cmd_probe_cancel ;;
   clear-logs) : > "$SERVICE_LOG"; : > "$NFQWS_LOG"; rm -f "$LOG_DIR/nfqws2-debug.log" "$LOG_DIR/auto.log"; echo OK ;;
   *)

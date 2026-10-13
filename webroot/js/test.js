@@ -252,7 +252,7 @@ function renderBenchRow(idx, name, ok, total, avg_ms, top_fail, isRunning){
       '<span class="li-primary truncate">' + esc(stratTitle) + ' <span class="muted li-mono">(' + esc(name) + ')</span></span>' +
       '<span class="li-secondary">' + esc(sub) + '</span>' +
     '</span>' +
-    '<span class="li-trail ' + (isAllOk ? 'li-value ok' : (isPartOk ? 'li-value' : 't-label-medium bad')) + '">' + esc(pct) + '</span>' +
+    '<span class="li-trail ' + (isAllOk || isPartOk ? 'li-value' : 't-label-medium bad') + '">' + esc(pct) + '</span>' +
   '</div>';
 }
 
@@ -261,13 +261,8 @@ function renderBenchBest(name, ok, total, avg_ms){
   if(!el) return;
   if(!name || ok <= 0){
     el.hidden = false;
-    el.innerHTML = '<div class="banner bad">' +
-      icon('alert', 's18') +
-      '<div class="banner-body">' +
-        '<div class="banner-title">' + esc(t('Ни одна стратегия не сработала')) + '</div>' +
-        '<div class="banner-text">' + esc(t('Все протестированные стратегии потерпели неудачу на контрольном наборе сайтов.')) + '</div>' +
-      '</div>' +
-    '</div>';
+    el.innerHTML = banner('danger', 'error', '<b>' + esc(t('Ни одна стратегия не сработала')) + '</b><br>' +
+      esc(t('Все протестированные стратегии потерпели неудачу на контрольном наборе сайтов.')));
     return;
   }
   el.hidden = false;
@@ -277,13 +272,13 @@ function renderBenchBest(name, ok, total, avg_ms){
 
   el.innerHTML = '<div class="subhead-row" style="margin-top:0;">' +
     '<span class="subhead plain">' + esc(t('Лучшая стратегия по результатам прохода')) + '</span>' +
-    '<span class="badge ok">' + esc(t('{0}/{1} хостов ({2} мс)', ok, total, avg_ms)) + '</span>' +
+    '<span class="pill tonal">' + esc(t('{0}/{1} хостов ({2} мс)', ok, total, avg_ms)) + '</span>' +
   '</div>' +
   '<div class="t-body-medium">' +
     esc(t('Стратегия «{0}» показала максимальную проходимость и скорость на контрольных ресурсах.', stratTitle)) +
   '</div>' +
   '<div class="row" style="margin-top:12px; gap:8px;">' +
-    '<button class="btn with-icon state ' + (isCurrent ? 'tonal' : '') + '" onclick="applyRecommendedStrategy(\'' + esc(name) + '\')"' + (isCurrent ? ' disabled' : '') + '>' +
+    '<button class="btn with-icon state ' + (isCurrent ? 'tonal' : '') + '" onclick="applyRecommendedStrategy(' + jsArg(name) + ')"' + (isCurrent ? ' disabled' : '') + '>' +
       icon(isCurrent ? 'check' : 'tune', 's18') +
       '<span>' + (isCurrent ? esc(t('Стратегия «{0}» уже действует', stratTitle)) : esc(t('Применить «{0}»', stratTitle))) + '</span>' +
     '</button>' +
@@ -412,14 +407,14 @@ async function runTest(){
       if(badge){
         badge.hidden = false;
         badge.textContent = st === 'ok' ? `${spd}` : t('Медиа: сбой');
-        badge.className = 'badge ' + (st === 'ok' ? 'ok' : 'bad');
+        badge.className = 'pill tonal';
       }
     } else if(p[0] === 'BENCH_START') {
       benchTotalStrats = +p[1] || 0;
       const badge = $('test-bench-badge');
       if(badge){
         badge.hidden = false;
-        badge.className = 'badge primary';
+        badge.className = 'pill tonal';
         badge.textContent = t('Проверка 0/{0}', benchTotalStrats);
       }
     } else if(p[0] === 'BENCH_RUN') {
@@ -427,7 +422,7 @@ async function runTest(){
       const badge = $('test-bench-badge');
       if(badge){
         badge.hidden = false;
-        badge.className = 'badge primary';
+        badge.className = 'pill tonal';
         badge.textContent = t('Тест {0}/{1}: {2}', +idx + 1, total, typeof strategyName === 'function' ? strategyName(strat) : strat);
       }
       const existing = $('benchrow' + idx);
@@ -449,7 +444,7 @@ async function runTest(){
       const badge = $('test-bench-badge');
       if(badge){
         badge.hidden = false;
-        badge.className = 'badge ok';
+        badge.className = 'pill tonal';
         badge.textContent = t('Завершено ({0} стратегий)', benchTotalStrats);
       }
     }
@@ -478,7 +473,7 @@ async function runTest(){
       if(currentTestTab === 'bench'){
         const badge = $('test-bench-badge');
         if(badge){
-          badge.className = 'badge warn';
+          badge.className = 'pill tonal';
           badge.textContent = t('Проверка остановлена');
         }
         document.querySelectorAll('#test-bench-list .list-item').forEach(el => {
@@ -692,16 +687,16 @@ function renderRecommendation(){
 
   let html = '<div class="subhead-row" style="margin-top:0;">' +
     '<span class="subhead plain">' + esc(t('Автоподбор стратегии')) + '</span>' +
-    '<span class="badge ' + (rec.isClean ? 'ok' : 'primary') + '">' + esc(rec.title) + '</span>' +
+    '<span class="pill tonal">' + esc(rec.title) + '</span>' +
   '</div>' +
   '<div class="t-body-medium">' + esc(rec.reason) + '</div>';
 
   if(rec.dnsWarning){
-    html += '<div class="helper warn" style="margin-top:8px;">' + icon('warn', 's16') + ' ' + esc(rec.dnsWarning) + '</div>';
+    html += '<div class="helper err" style="margin-top:8px;">' + icon('warn', 's16') + ' ' + esc(rec.dnsWarning) + '</div>';
   }
 
   html += '<div class="row" style="margin-top:12px; flex-wrap:wrap; gap:8px;">' +
-    '<button class="btn with-icon state ' + (isCurrent ? 'tonal' : '') + '" onclick="applyRecommendedStrategy(\'' + esc(rec.strategy) + '\')"' + (isCurrent ? ' disabled' : '') + '>' +
+    '<button class="btn with-icon state ' + (isCurrent ? 'tonal' : '') + '" onclick="applyRecommendedStrategy(' + jsArg(rec.strategy) + ')"' + (isCurrent ? ' disabled' : '') + '>' +
       icon(isCurrent ? 'check' : 'tune', 's18') +
       '<span>' + (isCurrent ? esc(t('Стратегия «{0}» уже действует', stratTitle)) : esc(t('Применить «{0}»', stratTitle))) + '</span>' +
     '</button>';
@@ -710,7 +705,7 @@ function renderRecommendation(){
     rec.altStrategies.forEach(altName => {
       const isAltCur = cur === altName;
       const altTitle = typeof strategyName === 'function' ? strategyName(altName) : altName;
-      html += '<button class="btn tonal sm state" onclick="applyRecommendedStrategy(\'' + esc(altName) + '\')"' + (isAltCur ? ' disabled' : '') + '>' +
+      html += '<button class="btn tonal sm state" onclick="applyRecommendedStrategy(' + jsArg(altName) + ')"' + (isAltCur ? ' disabled' : '') + '>' +
         '<span>' + esc(isAltCur ? altTitle + ' (' + t('действует') + ')' : altTitle) + '</span>' +
       '</button>';
     });
@@ -800,15 +795,5 @@ function copyTestReport(){
     rep += '\n';
   }
 
-  if(navigator.clipboard && navigator.clipboard.writeText){
-    navigator.clipboard.writeText(rep).then(() => toast(t('Отчёт скопирован в буфер обмена')));
-  } else {
-    const ta = document.createElement('textarea');
-    ta.value = rep;
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand('copy');
-    document.body.removeChild(ta);
-    toast(t('Отчёт скопирован в буфер обмена'));
-  }
+  copyText(rep, t('Отчёт скопирован в буфер обмена'), t('Не удалось скопировать: выделите текст вручную'));
 }

@@ -255,6 +255,7 @@ sh "$MODDIR/boot-completed.sh" >/dev/null 2>&1
 assert_file "$PIDFILE" "boot-completed hook maintains running service"
 
 svc stop >/dev/null 2>&1
+[ -f "$WD_PIDFILE" ] && kill "$(cat "$WD_PIDFILE" 2>/dev/null)" 2>/dev/null
 
 section "protect_process"
 

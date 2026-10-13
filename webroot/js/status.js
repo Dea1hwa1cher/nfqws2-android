@@ -188,20 +188,24 @@ function switchRow(k, label, on){
       (on ? ' checked' : '') + ' onchange="setp(' + jsArg(k) + ', this.checked ? 1 : 0)"></span>' +
   '</label>';
 }
+function renderDevRows(j){
+  j = j || {};
+  const lim = LIMITS.map(([k, label, hint, jk]) =>
+    '<div class="list-item two-line clickable state" role="button" tabindex="0" aria-haspopup="dialog"' +
+      ' onclick="editLimit(' + jsArg(k) + ', ' + jsArg(t(label)) + ', ' + (+j[jk] || 15) + ')">' +
+      '<span class="li-text"><span class="li-primary">' + esc(t(label)) + '</span>' +
+        '<span class="li-secondary">' + esc(t(hint)) + '</span></span>' +
+      '<span class="li-trail">' +
+        '<span class="li-value">' + esc(j[jk] != null ? j[jk] : '—') + '</span>' + icon('chevron-right', 's24') +
+      '</span>' +
+    '</div>');
+  return DEV_SW.map(([k, label, jk]) => switchRow(k, label, j[jk] == 1)).concat(lim).join('');
+}
 function renderParams(j){
   j = j || {};
   setHTML('sws', SW.map(([k, label, jk]) => switchRow(k, label, j[jk] == 1)).join(''), false);
   if($('dev-sws') && devMode){
-    const lim = LIMITS.map(([k, label, hint, jk]) =>
-      '<div class="list-item two-line clickable state" role="button" tabindex="0" aria-haspopup="dialog"' +
-        ' onclick="editLimit(' + jsArg(k) + ', ' + jsArg(t(label)) + ', ' + (+j[jk] || 15) + ')">' +
-        '<span class="li-text"><span class="li-primary">' + esc(t(label)) + '</span>' +
-          '<span class="li-secondary">' + esc(t(hint)) + '</span></span>' +
-        '<span class="li-trail">' +
-          '<span class="li-value">' + esc(j[jk] != null ? j[jk] : '—') + '</span>' + icon('chevron-right', 's24') +
-        '</span>' +
-      '</div>');
-    setHTML('dev-sws', DEV_SW.map(([k, label, jk]) => switchRow(k, label, j[jk] == 1)).concat(lim).join(''), false);
+    setHTML('dev-sws', renderDevRows(j), false);
   }
   if($('dev-block')) $('dev-block').hidden = !devMode;
 }

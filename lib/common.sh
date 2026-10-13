@@ -278,7 +278,7 @@ app_uid_count() {
 
 # 0 = app filter applied, 1 = off/not applicable, 2 = error
 app_rules() {
-  local CMD="$1" uids n chunk mark
+  local CMD="$1" REAL_CMD="${FW_PROBE_CMD:-$1}" uids n chunk mark
   if ! app_mode_active; then
     if [ "$CMD" != "_fw_batch_cmd" ]; then
       $CMD -w -t mangle -F $IPT_GROUP_APP 2>/dev/null
@@ -287,13 +287,13 @@ app_rules() {
     rm -f "$APP_UIDS_FILE"
     return 1
   fi
-  if ! app_features_ok "$CMD"; then
-    [ "$CMD" = "iptables" ] && log_msg "Нет xt_owner/xt_CONNMARK — фильтр по приложениям не применяется"
+  if ! app_features_ok "$REAL_CMD"; then
+    [ "$REAL_CMD" = "iptables" ] && log_msg "Нет xt_owner/xt_CONNMARK — фильтр по приложениям не применяется"
     return 2
   fi
   uids=$(resolve_app_uids)
   n=$(printf '%s\n' "$uids" | tr ',' '\n' | grep -cE '^[0-9]+$')
-  if [ "$CMD" = "iptables" ]; then
+  if [ "$REAL_CMD" = "iptables" ]; then
     printf '%s\n' "$uids" > "$APP_UIDS_FILE"
     n=$(app_uid_count)
   fi
@@ -572,7 +572,12 @@ _firewall_start_restore() {
   FW_PROBE_CMD="$CMD"
   FW_BATCH_BUF=""
   # use existing builder to populate same rules
-  _firewall_start _fw_batch_cmd || return 1
+  if ! _firewall_start _fw_batch_cmd; then
+    FW_PROBE_CMD=""
+    FW_BATCH_BUF=""
+    return 1
+  fi
+  FW_PROBE_CMD=""
 
   printf '%s' "$FW_BATCH_BUF" | awk '
     { i = index($0, "|"); t = substr($0, 1, i - 1)
@@ -588,26 +593,8 @@ _firewall_start_restore() {
 }
 
 _fw_iface_rules() {
-  local CMD="$1" OUT="$2" IN="$3"
-  local JNFQ="-j NFQUEUE --queue-num $NFQUEUE_NUM --queue-bypass"
+  local CMD="$1" REAL_CMD="${FW_PROBE_CMD:-$1}" OUT="$2" IN="$3"
   local UP="$IPT_UDP_EFF" TP="$IPT_TCP_PORTS"
-  local CB_OUT="" CB_IN="" LIM_OUT="" LIM_IN=""
-  local TARGET_OUT TARGET_IN
-
-  case "$LIMITER" in
-    connbytes)
-      CB_OUT="-m connbytes --connbytes-dir=original --connbytes-mode=packets --connbytes 1:$PKT_LIMIT_OUT"
-      CB_IN="-m connbytes --connbytes-dir=reply --connbytes-mode=packets --connbytes 1:$PKT_LIMIT_IN"
-      TARGET_OUT="$CB_OUT $JNFQ"
-      TARGET_IN="$CB_IN $JNFQ"
-      ;;
-    connmark_out)
-      LIM_OUT="-j $IPT_GROUP_QOUT"
-      LIM_IN="-j $IPT_GROUP_QIN"
-      TARGET_OUT="$LIM_OUT"
-      TARGET_IN="$LIM_IN"
-      ;;
-  esac
 
   # don't requeue packets already processed by nfqws2
   $CMD -w -t mangle -A $IPT_GROUP_POST $OUT -m mark --mark $MARK_PROCESSED -j RETURN
@@ -624,7 +611,7 @@ _fw_iface_rules() {
   fi
 
   # NAT fix for UDP
-  if [ "$CMD" = "iptables" ] && [ "$NAT_FIX" = "1" ]; then
+  if [ "$REAL_CMD" = "iptables" ] && [ "$NAT_FIX" = "1" ]; then
     $CMD -w -t nat -A $IPT_GROUP_NAT $OUT -p udp -m mark --mark $MARK_PROCESSED -j MASQUERADE
   fi
 
@@ -641,17 +628,29 @@ _fw_iface_rules() {
 }
 
 _firewall_start() {
-  local CMD="$1" IF ex
+  local CMD="$1" REAL_CMD="${FW_PROBE_CMD:-$1}" IF ex
 
   IPT_TCP_PORTS=$(printf '%s' "$TCP_PORTS" | tr '-' ':')
   IPT_UDP_EFF=$(printf '%s' "$UDP_PORTS" | tr '-' ':')
   [ "$BLOCK_QUIC" = "1" ] && IPT_UDP_EFF=$(port_list_without "$IPT_UDP_EFF" 443)
 
-  LIMITER=$(detect_limiter "$CMD")
-  [ "$CMD" = "iptables" ] && echo "$LIMITER" > "$STATE_DIR/limiter" 2>/dev/null
+  LIMITER=$(detect_limiter "$REAL_CMD")
+  [ "$REAL_CMD" = "iptables" ] && echo "$LIMITER" > "$STATE_DIR/limiter" 2>/dev/null
+
+  JNFQ="-j NFQUEUE --queue-num $NFQUEUE_NUM --queue-bypass"
+  case "$LIMITER" in
+    connbytes)
+      TARGET_OUT="-m connbytes --connbytes-dir=original --connbytes-mode=packets --connbytes 1:$PKT_LIMIT_OUT $JNFQ"
+      TARGET_IN="-m connbytes --connbytes-dir=reply --connbytes-mode=packets --connbytes 1:$PKT_LIMIT_IN $JNFQ"
+      ;;
+    connmark_out)
+      TARGET_OUT="-j $IPT_GROUP_QOUT"
+      TARGET_IN="-j $IPT_GROUP_QIN"
+      ;;
+  esac
 
   HAS_MULTIPORT=0
-  has_multiport "$CMD" && HAS_MULTIPORT=1
+  has_multiport "$REAL_CMD" && HAS_MULTIPORT=1
 
   $CMD -w -t mangle -N $IPT_GROUP_POST 2>/dev/null
   $CMD -w -t mangle -F $IPT_GROUP_POST
@@ -666,7 +665,7 @@ _firewall_start() {
     _fw_counter_chain "$CMD" $IPT_GROUP_QIN $CNT_IN_MASK $CNT_IN_STEP "$PKT_LIMIT_IN"
   fi
 
-  if [ "$CMD" = "iptables" ] && [ "$NAT_FIX" = "1" ]; then
+  if [ "$REAL_CMD" = "iptables" ] && [ "$NAT_FIX" = "1" ]; then
     $CMD -w -t nat -N $IPT_GROUP_NAT 2>/dev/null
     $CMD -w -t nat -F $IPT_GROUP_NAT
     while $CMD -w -t nat -D POSTROUTING -j $IPT_GROUP_NAT 2>/dev/null; do :; done
@@ -695,7 +694,7 @@ _firewall_start() {
 
   $CMD -w -t mangle -I POSTROUTING 1 -j $IPT_GROUP_POST
   $CMD -w -t mangle -I PREROUTING 1 -j $IPT_GROUP_PRE
-  if [ "$CMD" = "iptables" ] && [ "$NAT_FIX" = "1" ]; then
+  if [ "$REAL_CMD" = "iptables" ] && [ "$NAT_FIX" = "1" ]; then
     $CMD -w -t nat -I POSTROUTING 1 -j $IPT_GROUP_NAT
   fi
 
@@ -710,20 +709,7 @@ _firewall_start() {
       $CMD -w -t mangle -A $IPT_GROUP_FWD -p udp --dport 443 -j DROP
     fi
 
-    local JNFQ="-j NFQUEUE --queue-num $NFQUEUE_NUM --queue-bypass"
     local UP="$IPT_UDP_EFF" TP="$IPT_TCP_PORTS"
-    local TARGET_OUT TARGET_IN
-    case "$LIMITER" in
-      connbytes)
-        TARGET_OUT="-m connbytes --connbytes-dir=original --connbytes-mode=packets --connbytes 1:$PKT_LIMIT_OUT $JNFQ"
-        TARGET_IN="-m connbytes --connbytes-dir=reply --connbytes-mode=packets --connbytes 1:$PKT_LIMIT_IN $JNFQ"
-        ;;
-      connmark_out)
-        TARGET_OUT="-j $IPT_GROUP_QOUT"
-        TARGET_IN="-j $IPT_GROUP_QIN"
-        ;;
-    esac
-
     [ -n "$UP" ] && _fw_add_rule "$CMD" $IPT_GROUP_FWD "" udp dports "$UP" "" "$TARGET_OUT"
     [ -n "$TP" ] && _fw_add_rule "$CMD" $IPT_GROUP_FWD "" tcp dports "$TP" "" "$TARGET_OUT"
     [ -n "$UP" ] && _fw_add_rule "$CMD" $IPT_GROUP_FWD "" udp sports "$UP" "" "$TARGET_IN"
@@ -907,19 +893,17 @@ list_imports() {
 # all strategies and taken from the live config on switch (see USER_KEYS).
 STRATEGY_KEYS="NFQWS_BASE_ARGS NFQWS_ARGS NFQWS_ARGS_QUIC NFQWS_ARGS_UDP NFQWS_ARGS_IPSET NFQWS_ARGS_CUSTOM"
 
-# foreign options to strip
-FOREIGN_OPTS=""
-
-# Unsupported long options in a file, one per line. FOREIGN_OPTS plus a grep of
-# the binary (option names are strings in it); if the binary isn't nfqws2
-# (no "lua-desync"), FOREIGN_OPTS only.
+# Unsupported long options in a file, one per line, checked against the binary
+# (option names are strings in it); if the binary isn't nfqws2 (no "lua-desync"),
+# nothing is stripped.
 unsupported_opts() { # <file>
-  local n real=0
-  grep -qF lua-desync "$NFQWS_BIN" 2>/dev/null && grep -qF filter-tcp "$NFQWS_BIN" 2>/dev/null && real=1
+  local n
+  if ! grep -qF lua-desync "$NFQWS_BIN" 2>/dev/null || ! grep -qF filter-tcp "$NFQWS_BIN" 2>/dev/null; then
+    return 0
+  fi
   grep -v '^[[:space:]]*#' "$1" 2>/dev/null | grep -oE -e '(^|[[:space:]"])--[A-Za-z0-9][A-Za-z0-9-]*' | sed 's/^.*--//' | sort -u |
   while IFS= read -r n; do
-    case " $FOREIGN_OPTS " in *" $n "*) echo "$n"; continue ;; esac
-    [ "$real" = 1 ] && ! grep -qF -e "$n" "$NFQWS_BIN" 2>/dev/null && echo "$n"
+    ! grep -qF -e "$n" "$NFQWS_BIN" 2>/dev/null && echo "$n"
   done
 }
 
@@ -1057,6 +1041,9 @@ update_description() { # running | stopped | paused <ssid>
 # Built-in strategies ship in the module; a user edit under the same name in
 # $USER_STRATEGIES_DIR overrides it. Reset = delete that copy.
 # Imported configs are selectable as "imp:<name>".
+get_current_strategy() {
+  cat "$ACTIVE_FILE" 2>/dev/null || echo "default"
+}
 strategy_name_ok() {
   case "$1" in ''|*/*|*'`'*|*'$'*|*'"'*|*\'*|*'\'*|.*) return 1 ;; esac
   return 0
@@ -1130,7 +1117,7 @@ merge_user_keys() { # <generated config> <settings source config>  -> stdout
 # Current SSID, rc 1 if not on Wi-Fi. cmd wifi needs Android 11; dumpsys is the fallback.
 current_ssid() {
   local s
-  s=$(cmd wifi status 2>/dev/null | sed -n 's/^Wifi is connected to "\(.*\)"[[:space:]]*$/\1/p' | head -n1)
+  s=$(cmd wifi status </dev/null 2>/dev/null | sed -n 's/^Wifi is connected to "\(.*\)"[[:space:]]*$/\1/p' | head -n1)
   if [ -z "$s" ]; then
     s=$(dumpsys wifi 2>/dev/null | grep -m1 'mWifiInfo SSID: .*Supplicant state: COMPLETED' \
         | sed -e 's/.*mWifiInfo SSID: //' -e 's/, BSSID:.*//' -e 's/^"\(.*\)"$/\1/')
@@ -1163,35 +1150,50 @@ vpn_active() {
 }
 
 # ---------------------------------------------------------------- network strategy caching
-current_network_key() {
+_raw_network_id() {
   local ssid op
   if ssid=$(current_ssid 2>/dev/null) && [ -n "$ssid" ]; then
-    printf 'wifi_%s' "$(printf '%s' "$ssid" | tr -c 'a-zA-Z0-9._-' '_')"
+    printf 'wifi:%s' "$ssid"
     return 0
   fi
   op=$(getprop gsm.operator.alpha 2>/dev/null | cut -d',' -f1 | tr -d '\r\n')
   [ -z "$op" ] && op=$(getprop gsm.sim.operator.alpha 2>/dev/null | cut -d',' -f1 | tr -d '\r\n')
   if [ -n "$op" ]; then
-    printf 'cell_%s' "$(printf '%s' "$op" | tr -c 'a-zA-Z0-9._-' '_')"
+    printf 'cell:%s' "$op"
   else
     printf 'cellular'
   fi
   return 0
 }
 
+current_network_key() {
+  local raw kind val safe hex
+  raw=$(_raw_network_id)
+  case "$raw" in
+    wifi:*|cell:*)
+      kind="${raw%%:*}"
+      val="${raw#*:}"
+      safe=$(printf '%s' "$val" | tr -c 'a-zA-Z0-9._-' '_')
+      if [ "$safe" != "$val" ]; then
+        hex=$(printf '%s' "$val" | od -An -tx1 2>/dev/null | tr -d ' \n')
+        printf '%s_%s_%s' "$kind" "$safe" "$hex"
+      else
+        printf '%s_%s' "$kind" "$safe"
+      fi
+      ;;
+    *) printf 'cellular' ;;
+  esac
+  return 0
+}
+
 current_network_title() {
-  local ssid op
-  if ssid=$(current_ssid 2>/dev/null) && [ -n "$ssid" ]; then
-    printf 'Wi-Fi «%s»' "$ssid"
-    return 0
-  fi
-  op=$(getprop gsm.operator.alpha 2>/dev/null | cut -d',' -f1 | tr -d '\r\n')
-  [ -z "$op" ] && op=$(getprop gsm.sim.operator.alpha 2>/dev/null | cut -d',' -f1 | tr -d '\r\n')
-  if [ -n "$op" ]; then
-    printf 'Мобильная сеть (%s)' "$op"
-  else
-    printf 'Мобильная сеть'
-  fi
+  local raw
+  raw=$(_raw_network_id)
+  case "$raw" in
+    wifi:*) printf 'Wi-Fi «%s»' "${raw#wifi:}" ;;
+    cell:*) printf 'Мобильная сеть (%s)' "${raw#cell:}" ;;
+    *)      printf 'Мобильная сеть' ;;
+  esac
   return 0
 }
 

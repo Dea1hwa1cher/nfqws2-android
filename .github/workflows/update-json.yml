@@ -1,8 +1,6 @@
 name: update-json
 
 on:
-  release:
-    types: [published]
   workflow_dispatch:
     inputs:
       tag:
@@ -21,10 +19,10 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      - name: Build update.json and changelog.md
+      - name: Build update.json
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+          TAG: ${{ inputs.tag }}
         run: |
           set -eu
           git fetch --tags --force
@@ -37,15 +35,13 @@ jobs:
           jq -n --arg v "$ver" --argjson c "$code" --arg z "$zip" \
                 --arg l "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/changelog.md" \
                 '{version: $v, versionCode: $c, zipUrl: $z, changelog: $l}' > update.json
-          body=$(printf '%s' "$rel" | jq -r '.body // ""')
-          if [ -n "$body" ]; then printf '%s\n' "$body" | tr -d '\r' > changelog.md; fi
           cat update.json
 
       - name: Commit to main
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898333+github-actions[bot]@users.noreply.github.com"
-          git add update.json changelog.md
+          git add update.json
           git diff --cached --quiet && { echo "update.json is already up to date"; exit 0; }
-          git commit -m "update.json: ${{ github.event.release.tag_name || inputs.tag }}"
+          git commit -m "update.json: ${{ inputs.tag }}"
           git push origin HEAD:main

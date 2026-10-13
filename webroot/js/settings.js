@@ -50,18 +50,7 @@ function renderSettings(){
   ];
   let devHtml = '';
   if(devMode){
-    const j = S || {};
-    const lim = LIMITS.map(([k, label, hint, jk]) =>
-      '<div class="list-item two-line clickable state" role="button" tabindex="0" aria-haspopup="dialog"' +
-        ' onclick="editLimit(' + jsArg(k) + ', ' + jsArg(t(label)) + ', ' + (+j[jk] || 15) + ')">' +
-        '<span class="li-text"><span class="li-primary">' + esc(t(label)) + '</span>' +
-          '<span class="li-secondary">' + esc(t(hint)) + '</span></span>' +
-        '<span class="li-trail">' +
-          '<span class="li-value">' + esc(j[jk] != null ? j[jk] : '—') + '</span>' + icon('chevron-right', 's24') +
-        '</span>' +
-      '</div>');
-    const rows = DEV_SW.map(([k, label, jk]) => switchRow(k, label, j[jk] == 1)).concat(lim).join('');
-    devHtml = '<div class="stack" id="dev-block"><h2 class="subhead">' + esc(t('Для разработчиков')) + '</h2><div class="list" id="dev-sws">' + rows + '</div></div>';
+    devHtml = '<div class="stack" id="dev-block"><h2 class="subhead">' + esc(t('Для разработчиков')) + '</h2><div class="list" id="dev-sws">' + renderDevRows(S) + '</div></div>';
   }
   setHTML('settings-body', groups.map(([title, rows]) =>
     '<div class="stack"><h2 class="subhead">' + esc(t(title)) + '</h2><div class="list">' + rows.map(settingsRow).join('') + '</div></div>').join('') +
@@ -217,20 +206,8 @@ async function setHomeWifi(on){
 /* Backup */
 const UI_KEYS = ['m3_seed', 'm3_mode', 'm3_amoled', 'm3_containers', 'm3_monochrome', 'nfq_lang', 'nfq_dev'];
 async function createBackup(){
-  let targetDir = (typeof store !== 'undefined' && store.get('nfq_save_dir')) || '/sdcard/Download';
-  if(typeof window !== 'undefined' && window.ksu && typeof mdPrompt === 'function'){
-    const chosen = await mdPrompt(
-      t('Сохранить копию'),
-      t('Укажите папку для сохранения архива:'),
-      targetDir,
-      t('Папка для сохранения'),
-      { ok: t('Сохранить') }
-    );
-    if(chosen === null) return;
-    targetDir = (chosen || targetDir).trim().replace(/\/+$/, '') || '/sdcard/Download';
-    if(!targetDir.startsWith('/')) targetDir = '/sdcard/' + targetDir;
-    if(typeof store !== 'undefined') store.set('nfq_save_dir', targetDir);
-  }
+  const targetDir = await promptSaveDir('Сохранить копию');
+  if(!targetDir) return;
   const ui = {};
   UI_KEYS.forEach(k => { const v = store.get(k); if(v != null) ui[k] = v; });
   const r = await withBusy(['backup-create', b64(JSON.stringify(ui))], 60000);
@@ -306,13 +283,6 @@ async function restoreBackup(name){
   if(r.code){ toast(errText(r, 'Не удалось восстановить копию')); return; }
   applyRestoredUi(r.out);
   toast(t('Копия восстановлена'));
-}
-
-async function toggleHotspot(checked){
-  const on = typeof checked === 'boolean' ? checked : (S.enable_hotspot != 1);
-  const r = await withBusy(['set', 'ENABLE_HOTSPOT', on ? '1' : '0'], 40000);
-  if(r.code) toast(errText(r, 'Не удалось переключить точку доступа'));
-  else { S.enable_hotspot = on ? 1 : 0; if(typeof renderStatus === 'function') renderStatus(); stat(); }
 }
 
 async function toggleNetStrategy(checked){

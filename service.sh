@@ -212,7 +212,8 @@ netwatch() {
 
   EVFILE="$STATE_DIR/netwatch_events"
   rm -f "$EVFILE"
-  local prev="" acted="" backoff=2 saw=0 sz mon
+  local prev="" acted="" backoff=2 saw=0 sz mon=""
+  trap 'kill -TERM "$mon" 2>/dev/null; rm -f "$WN_PIDFILE" "$EVFILE"; exit 0' INT TERM EXIT
   # The monitor writes events to a file, reaction is on its size changing
   # A file, not a pipe, so kill -TERM reaps ip monitor itself instead of a
   # wrapper that would leave an orphan. Poll every 2s to spare battery
@@ -262,6 +263,7 @@ netwatch() {
   done
   kill -TERM "$mon" 2>/dev/null
   rm -f "$WN_PIDFILE" "$EVFILE"
+  trap - INT TERM EXIT
 }
 
 watchdog() {
@@ -423,6 +425,35 @@ manual_start() {
   start
 }
 
+# Boot/autostart respects disable, VPN pause, and Home Wi-Fi pause without
+# setting user override files.
+autostart_service() {
+  [ -f "$CONFDIR/disable" ] && { log_msg "Найден $CONFDIR/disable — автозапуск пропущен"; return 0; }
+  local ssid
+  if [ "$AUTOSTART" = "1" ] || [ -f "$DESIRED_FILE" ]; then
+    if [ "$VPN_PAUSE" = "1" ] && vpn_active; then
+      if [ ! -f "$VPN_PAUSED_FILE" ]; then
+        log_msg "Активен VPN — автозапуск отложен"
+        printf 'vpn' > "$VPN_PAUSED_FILE"
+        update_description paused vpn
+      fi
+    else
+      if [ "$HOME_WIFI" = "1" ] && ssid=$(current_ssid) && ssid_is_home "$ssid"; then
+        if [ ! -f "$HOME_PAUSED_FILE" ]; then
+          log_msg "Домашняя Wi-Fi «$ssid» — автозапуск отложен до выхода из неё"
+          printf '%s' "$ssid" > "$HOME_PAUSED_FILE"
+          update_description paused "$ssid"
+        fi
+      else
+        is_running || start || log_msg "Автозапуск не удался"
+      fi
+    fi
+  else
+    is_running || update_description stopped
+  fi
+  ensure_watchdog
+}
+
 status_service() {
   if is_running; then
     echo "Служба NFQWS2 запущена (PID $(cat "$PIDFILE"))"
@@ -433,6 +464,7 @@ status_service() {
 
 case "$1" in
   start)              manual_start ;;
+  autostart)          autostart_service ;;
   stop)               rm -f "$HOME_PAUSED_FILE" "$HOME_OVERRIDE_FILE" "$VPN_PAUSED_FILE" "$VPN_OVERRIDE_FILE"; stop ;;
   vpn_check)          vpn_check; ensure_watchdog ;;
   home_check)         home_check; ensure_watchdog ;;
@@ -446,30 +478,12 @@ case "$1" in
   firewall_apply)     firewall_start ;;
   firewall_stop)      firewall_stop ;;
   *)
-    until [ "$(getprop sys.boot_completed 2>/dev/null)" = "1" ]; do sleep 3; done
-    sleep 4
-    [ -f "$CONFDIR/disable" ] && { log_msg "Найден $CONFDIR/disable — автозапуск пропущен"; exit 0; }
     rm -f "$HOME_PAUSED_FILE" "$HOME_OVERRIDE_FILE" "$VPN_PAUSED_FILE" "$VPN_OVERRIDE_FILE"
     rmdir "$STATE_DIR/home.lock" "$STATE_DIR/vpn.lock" 2>/dev/null
-    if [ "$AUTOSTART" = "1" ]; then
-      if [ "$VPN_PAUSE" = "1" ] && vpn_active; then
-        log_msg "Активен VPN — автозапуск отложен"
-        printf 'vpn' > "$VPN_PAUSED_FILE"
-        update_description paused vpn
-      else
-        ssid=$(current_ssid)
-        if [ "$HOME_WIFI" = "1" ] && ssid_is_home "$ssid"; then
-          log_msg "Домашняя Wi-Fi «$ssid» — автозапуск отложен до выхода из неё"
-          printf '%s' "$ssid" > "$HOME_PAUSED_FILE"
-          update_description paused "$ssid"
-        else
-          start || log_msg "Автозапуск не удался"
-        fi
-      fi
-    else
-      update_description stopped
-    fi
-    ensure_watchdog
+    until [ "$(getprop sys.boot_completed 2>/dev/null)" = "1" ]; do sleep 3; done
+    sleep 4
+    load_conf >/dev/null 2>&1
+    autostart_service
     ;;
 esac
 # Exit with the command status, not always 0: nfqws2-ctl passes it through,

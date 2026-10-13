@@ -80,7 +80,7 @@ for src in "$MODPATH"/lists/*.list; do
   elif [ -f "$DIST/$f" ] && cmp -s "$dst" "$DIST/$f"; then
     cp -f "$src" "$dst" || abort "! Failed to update $f"
     rm -f "$PEND/$f"
-  elif [ ! -f "$DIST/$f" ]; then
+  else
     case " user exclude ipset ipset_exclude probe_hosts " in
       *" ${f%.list} "*)
         cp -f "$src" "$PEND/$f" || abort "! Failed to save pending update for $f"
@@ -91,9 +91,6 @@ for src in "$MODPATH"/lists/*.list; do
         rm -f "$PEND/$f"
         ;;
     esac
-  else
-    cp -f "$src" "$PEND/$f" || abort "! Failed to save pending update for $f"
-    ui_print "- $f has local changes; the release version is available in the WebUI"
   fi
 
   cp -f "$src" "$DIST/$f" || abort "! Failed to save release copy of $f"

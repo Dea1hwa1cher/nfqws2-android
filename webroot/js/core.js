@@ -3,7 +3,7 @@
 /* Data comes from bin/nfqws2-ctl only; the UI degrades without it */
 const MOD = '/data/adb/modules/nfqws2-android', CTL = MOD + '/bin/nfqws2-ctl';
 const $ = id => document.getElementById(id);
-let S = {}, seq = 0, pkgs = [], currentEditorTarget = '';
+let S = {}, seq = 0, pkgs = [];
 const q = s => "'" + String(s).replace(/'/g, "'\\''") + "'";
 const b64 = s => btoa(unescape(encodeURIComponent(s)));
 const unb64 = s => { try { return decodeURIComponent(escape(atob(s))); } catch(e) { return atob(s); } };
@@ -25,6 +25,41 @@ function blobToB64(blob){
     r.onerror = reject;
     r.readAsDataURL(blob);
   });
+}
+async function promptSaveDir(titleKey){
+  let targetDir = (typeof store !== 'undefined' && store.get('nfq_save_dir')) || '/sdcard/Download';
+  if(typeof window !== 'undefined' && window.ksu && typeof mdPrompt === 'function'){
+    const chosen = await mdPrompt(
+      t(titleKey),
+      t('Укажите папку для сохранения архива:'),
+      targetDir,
+      t('Папка для сохранения'),
+      { ok: t('Сохранить') }
+    );
+    if(chosen === null) return null;
+    targetDir = (chosen || targetDir).trim().replace(/\/+$/, '') || '/sdcard/Download';
+    if(!targetDir.startsWith('/')) targetDir = '/sdcard/' + targetDir;
+    if(typeof store !== 'undefined') store.set('nfq_save_dir', targetDir);
+  }
+  return targetDir;
+}
+async function copyText(text, okMsg, errMsg){
+  let ok = false;
+  try {
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      await navigator.clipboard.writeText(text);
+      ok = true;
+    } else throw new Error();
+  } catch(e){
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
+    document.body.append(ta);
+    ta.select();
+    try { ok = document.execCommand('copy'); } catch(e2) {}
+    ta.remove();
+  }
+  toast(ok ? okMsg : (errMsg || t('Не удалось скопировать: выделите текст вручную')));
 }
 async function exportBlobFile(blob, filename, mimeType, localFilePath, targetDir){
   mimeType = mimeType || 'application/x-tar';

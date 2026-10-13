@@ -58,20 +58,8 @@ async function loadLog(){
   lg.scrollTop = lg.scrollHeight;
 }
 async function exportLogs(){
-  let targetDir = (typeof store !== 'undefined' && store.get('nfq_save_dir')) || '/sdcard/Download';
-  if(typeof window !== 'undefined' && window.ksu && typeof mdPrompt === 'function'){
-    const chosen = await mdPrompt(
-      t('Экспорт журналов'),
-      t('Укажите папку для сохранения архива:'),
-      targetDir,
-      t('Папка для сохранения'),
-      { ok: t('Сохранить') }
-    );
-    if(chosen === null) return;
-    targetDir = (chosen || targetDir).trim().replace(/\/+$/, '') || '/sdcard/Download';
-    if(!targetDir.startsWith('/')) targetDir = '/sdcard/' + targetDir;
-    if(typeof store !== 'undefined') store.set('nfq_save_dir', targetDir);
-  }
+  const targetDir = await promptSaveDir('Экспорт журналов');
+  if(!targetDir) return;
   const r = await withBusy(['export-logs'], 30000);
   if(r.code){ toast(errText(r, 'Не удалось экспортировать журналы')); return; }
   const parts = r.out.trim().split('\n')[0].split('\t');

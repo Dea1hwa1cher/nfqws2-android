@@ -250,7 +250,7 @@ sect('inline handlers quote their arguments for JS');
 // converted, including the ones whose values come from hardcoded lists today —
 // those are not exploitable, but the moment one of them becomes dynamic the hole
 // would come back silently.
-eq(0, (html.match(/on[a-z]+="[^"]*\\''\s*\+/g) || []).length,
+eq(0, ((html + '\n' + script).match(/on[a-z]+="[^"]*\\''\s*\+/g) || []).length,
   'no handler splices an unquoted value into a JS string');
 truthy(script.includes('const jsArg ='), 'jsArg exists for the handlers that need it');
 

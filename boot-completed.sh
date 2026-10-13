@@ -8,12 +8,15 @@ case "$MODDIR" in /*) ;; *) MODDIR="$(cd "$MODDIR" 2>/dev/null && pwd)" ;; esac
 load_conf >/dev/null 2>&1
 
 log_msg "boot-completed: запуск хука (sys.boot_completed=1)"
+[ -f "$CONFDIR/disable" ] && exit 0
 
 # restore the service after boot if it should be running
 if [ "$AUTOSTART" = "1" ] || [ -f "$DESIRED_FILE" ]; then
   if ! is_running; then
-    log_msg "boot-completed: nfqws2 не активен после старта системы — восстанавливаю..."
-    sh "$MODDIR/service.sh" start >/dev/null 2>&1
+    if [ ! -f "$HOME_PAUSED_FILE" ] && [ ! -f "$VPN_PAUSED_FILE" ]; then
+      log_msg "boot-completed: nfqws2 не активен после старта системы — восстанавливаю..."
+      sh "$MODDIR/service.sh" autostart >/dev/null 2>&1
+    fi
   else
     protect_process "$(cat "$PIDFILE" 2>/dev/null)"
     if ! firewall_ok; then
