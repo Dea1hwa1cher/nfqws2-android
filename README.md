@@ -7,7 +7,7 @@
 [![KernelSU](https://img.shields.io/badge/KernelSU-Supported-brightgreen.svg)](https://github.com/tiann/KernelSU)
 [![Magisk](https://img.shields.io/badge/Magisk-Supported-blue.svg)](https://github.com/topjohnwu/Magisk)
 [![APatch](https://img.shields.io/badge/APatch-Supported-orange.svg)](https://github.com/bmax121/APatch)
-[![Release](https://img.shields.io/github/v/release/Dea1hwa1cher/nfqws2-android?label=Release)](../../releases/latest)
+[![Release](https://img.shields.io/github/v/release/Dea1hwa1cher/nfqws2-android?label=Release)](https://github.com/Dea1hwa1cher/nfqws2-android/releases/latest)
 [![Telegram](https://img.shields.io/badge/Telegram-чат_проекта-26A5E4?logo=telegram&logoColor=white)](https://t.me/nfqws2android)
 [![License](https://img.shields.io/badge/License-MIT-lightgrey.svg)](LICENSE)
 
@@ -15,7 +15,7 @@
 
 Вопросы, подбор стратегий и новости — в Telegram-чате проекта: **[t.me/nfqws2android](https://t.me/nfqws2android)**
 
-![WebUI: состояние, выбор стратегии, списки](screenshots/light.jpg)
+![WebUI: состояние, выбор стратегии, списки](docs/screenshots/light.jpg)
 
 ## Особенности
 
@@ -30,7 +30,7 @@
 * **WebUI в стиле Material Design 3**: светлая, тёмная и AMOLED-тема, выбор акцента с обоев или на цветовом круге, русский и английский язык.
 * **Управление из терминала**: глобальная команда `nfqws2-ctl` в `/system/bin` — статус, смена стратегий, журналы и проверка параметров через `su -c nfqws2-ctl ...`.
 
-![WebUI: журналы, настройки, тема оформления](screenshots/dark.jpg)
+![WebUI: журналы, настройки, тема оформления](docs/screenshots/dark.jpg)
 
 ## Требования
 
@@ -45,7 +45,7 @@
 
 ## Установка
 
-1. Скачайте последний `.zip` архив из раздела [Releases](../../releases/latest).
+1. Скачайте последний `.zip` архив из раздела [Releases](https://github.com/Dea1hwa1cher/nfqws2-android/releases/latest).
 2. Установите модуль через Ваш root-менеджер.
 3. Перезагрузите устройство.
 4. Служба запустится автоматически при загрузке системы.
