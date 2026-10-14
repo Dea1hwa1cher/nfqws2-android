@@ -537,30 +537,55 @@ cmd_list_apps() {
   case "${1:-}" in refresh|--refresh|-f) refresh=1 ;; esac
   [ -f "$cache" ] || refresh=1
 
-  # Быстрый возврат из кэша (0-2 мс)
+  # Автоматическая проверка актуальности кэша при установке/удалении приложений
   if [ "$refresh" = "0" ] && [ -s "$cache" ]; then
-    cat "$cache"
-    return 0
-  fi
-
-  local target="$MODDIR/bin/pkglist.jar"
-  [ -f "$target" ] || target="$MODDIR/bin/pkglist.dex"
-
-  if [ -f "$target" ] && command -v app_process >/dev/null 2>&1; then
-    mkdir -p "$STATE_DIR" 2>/dev/null
-    local out
-    out=$(CLASSPATH="$target" app_process /system/bin com.deathwatcher.PkgList --out "$cache" --apps-list "$CONFDIR/apps.list" 2>/dev/null)
-    if [ -s "$cache" ]; then
+    local ref
+    for ref in /data/system/packages.list /data/system/packages.xml /data/app; do
+      if [ -e "$ref" ] && [ "$ref" -nt "$cache" ] 2>/dev/null; then
+        refresh=1
+        break
+      fi
+    done
+    if [ "$refresh" = "0" ]; then
       cat "$cache"
-      return 0
-    elif [ -n "$out" ] && [ "${out#\[}" != "$out" ]; then
-      printf '%s\n' "$out"
-      printf '%s\n' "$out" > "$cache" 2>/dev/null
       return 0
     fi
   fi
 
-  # Резервный вариант через pm (без названий и иконок)
+  local target="$MODDIR/bin/pkglist.jar"
+  [ -f "$target" ] || target="$MODDIR/bin/pkglist.dex"
+  [ -f "$target" ] || target="/data/adb/modules/nfqws2-android/bin/pkglist.jar"
+  [ -f "$target" ] || target="/data/adb/modules/nfqws2-android/bin/pkglist.dex"
+
+  if [ -f "$target" ] && command -v app_process >/dev/null 2>&1; then
+    mkdir -p "$STATE_DIR" 2>/dev/null
+    local tmp="$cache.tmp.$$"
+    rm -f "$tmp" 2>/dev/null
+    CLASSPATH="$target" app_process /system/bin com.deathwatcher.PkgList --out "$tmp" --apps-list "$CONFDIR/apps.list" >/dev/null 2>&1
+    if [ -s "$tmp" ] && grep -q '^\[' "$tmp" 2>/dev/null; then
+      mv -f "$tmp" "$cache"
+      cat "$cache"
+      return 0
+    fi
+    rm -f "$tmp" 2>/dev/null
+
+    local out
+    out=$(CLASSPATH="$target" app_process /system/bin com.deathwatcher.PkgList --apps-list "$CONFDIR/apps.list" 2>/dev/null)
+    if [ -n "$out" ] && [ "${out#\[}" != "$out" ]; then
+      printf '%s\n' "$out" > "$cache" 2>/dev/null
+      printf '%s\n' "$out"
+      return 0
+    fi
+  fi
+
+  # Если генерация не удалась, но у нас уже есть сохраненный кэш — сохраняем его,
+  # чтобы не сбрасывать пользователю названия и иконки приложений
+  if [ -s "$cache" ]; then
+    cat "$cache"
+    return 0
+  fi
+
+  # Резервный вариант через pm (только если кэша вообще не было и app_process недоступен)
   local PM=pm
   command -v pm >/dev/null 2>&1 || PM=/system/bin/pm
   if command -v "$PM" >/dev/null 2>&1; then

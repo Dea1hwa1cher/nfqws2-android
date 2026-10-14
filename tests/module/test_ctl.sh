@@ -458,4 +458,39 @@ assert_rc 1 $? "system wrapper rejects non-root user"
 assert_contains "$out" "требуется root" "wrapper prints root reminder"
 rm -rf "$non_root_bin"
 
+# ── list-apps ────────────────────────────────────────────────────────────────
+section "list-apps"
+
+mkdir -p "$STATE_DIR"
+cat > "$STATE_DIR/apps_cache.json" <<'EOF'
+[{"pkg":"com.example.test","name":"Test App","icon":"","system":false}]
+EOF
+
+ctl list-apps
+assert_rc 0 "$ctl_rc" "list-apps returns 0 when cache exists"
+assert_contains "$ctl_out" "com.example.test" "list-apps outputs cached json"
+
+# Auto-invalidation check: if a simulated ref file is newer, it detects it
+fake_ref="$SANDBOX/fake_packages.list"
+touch "$fake_ref"
+# Even if refresh triggers without app_process, it preserves existing rich cache
+ctl list-apps refresh
+assert_rc 0 "$ctl_rc" "list-apps refresh exits 0"
+assert_contains "$ctl_out" "com.example.test" "refresh preserves rich cache when generator unavailable"
+
+# Cold start with pm fallback
+rm -f "$STATE_DIR/apps_cache.json"
+mock_pm="$MOCKBIN/pm"
+cat > "$mock_pm" <<'EOF'
+#!/bin/sh
+echo "package:com.fallback.one"
+echo "package:com.fallback.two"
+EOF
+chmod 0755 "$mock_pm"
+
+ctl list-apps
+assert_rc 0 "$ctl_rc" "list-apps with pm fallback exits 0"
+assert_contains "$ctl_out" "com.fallback.one" "list-apps fallback outputs package without prefix"
+rm -f "$mock_pm"
+
 harness_finish

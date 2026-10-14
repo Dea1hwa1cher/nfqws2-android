@@ -7,7 +7,26 @@ const APP_MODES = [
 ];
 async function appsInit(){
   renderAppModes();
-  if(pkgs.length) drawPk(); else loadPk();
+  if(pkgs.length){
+    drawPk();
+    // Фоновая проверка: если на устройстве изменились пакеты, обновляем без спиннера
+    ctlx(['list-apps']).then(r => {
+      if(!r.code && r.out){
+        const raw = r.out.trim();
+        if(raw.startsWith('[')){
+          try {
+            const next = JSON.parse(raw);
+            if(JSON.stringify(next) !== JSON.stringify(pkgs)){
+              pkgs = next;
+              drawPk(false);
+            }
+          } catch(_){}
+        }
+      }
+    });
+  } else {
+    loadPk();
+  }
   await stat(true);
   renderAppModes();
 }
@@ -37,7 +56,7 @@ async function loadPk(force){
   $('pk')._html = null;
   const r = force ? await ctlx(['list-apps', 'refresh'], 30000) : await ctlx(['list-apps'], 30000);
   if(r.code){
-    pkgs = [];
+    if(!pkgs.length) pkgs = [];
     toast(errText(r, 'Не удалось получить список приложений'));
   } else {
     const raw = (r.out || '').trim();
@@ -45,10 +64,16 @@ async function loadPk(force){
       try {
         pkgs = JSON.parse(raw);
       } catch(_){
-        pkgs = raw.split('\n').map(s => s.trim()).filter(Boolean);
+        if(!pkgs.length) pkgs = raw.split('\n').map(s => s.trim()).filter(Boolean);
       }
     } else {
-      pkgs = raw.split('\n').map(s => s.trim()).filter(Boolean);
+      const rawLines = raw.split('\n').map(s => s.trim()).filter(Boolean);
+      if(pkgs.length && typeof pkgs[0] === 'object'){
+        const known = new Map(pkgs.map(it => [it.pkg, it]));
+        pkgs = rawLines.map(p => known.get(p) || p);
+      } else {
+        pkgs = rawLines;
+      }
     }
   }
   await drawPk(true);

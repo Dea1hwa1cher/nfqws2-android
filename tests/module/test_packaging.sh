@@ -76,7 +76,7 @@ PY
 import os, sys, zipfile
 names = set(zipfile.ZipFile(sys.argv[1]).namelist())
 for n in ('module.prop', 'icon.png', 'customize.sh', 'service.sh', 'action.sh', 'boot-completed.sh', 'uninstall.sh',
-          'bin/nfqws2-ctl', 'system/bin/nfqws2-ctl', 'lib/common.sh', 'defaults/nfqws2.conf',
+          'bin/nfqws2-ctl', 'bin/pkglist.jar', 'system/bin/nfqws2-ctl', 'lib/common.sh', 'defaults/nfqws2.conf',
           'webroot/index.html', 'webroot/config.json'):
     print(('OK  ' if n in names else 'MISSING ') + n)
 if os.path.isdir(os.path.join(sys.argv[2], 'binaries')):
