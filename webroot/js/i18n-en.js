@@ -407,7 +407,7 @@ EN = {
  "Нет ответа (таймаут / сброс)": "No response (timeout / reset)",
  "Медиа: сбой": "Media: failed",
  "Прервано": "Aborted",
- "Комплексный анализ цензуры DPI: проверка доступности сайтов (HTTP/TLS/QUIC), детекция блокировок TCP 16-20KB, перехват DNS и датацентры Telegram.": "Comprehensive DPI censorship analysis: website reachability (HTTP/TLS/QUIC), TCP 16-20KB drop detection, DNS hijacking, and Telegram datacenters.",
+ "Комплексный анализ цензуры DPI: проверка доступности сайтов (HTTP/TLS/QUIC), детекция блокировок TCP 16-20KB и перехват DNS.": "Comprehensive DPI censorship analysis: website reachability (HTTP/TLS/QUIC), TCP 16-20KB drop detection, and DNS hijacking.",
  "Каждый адрес из probe_hosts.list проверяется по 4 протоколам (HTTP, TLS 1.2, TLS 1.3, QUIC). Анализируются активные сбросы (TLS RST), инжекции TLS Alert, тихий дроп и блокировки UDP/QUIC.": "Each address from probe_hosts.list is tested across 4 protocols (HTTP, TLS 1.2, TLS 1.3, QUIC). Active resets (TLS RST), TLS Alert injections, silent drops, and UDP/QUIC blocking are analyzed.",
  "Тестирование соединений к зарубежным CDN и хостингам (Cloudflare, Hetzner, DO, OVH) с нарастающим объёмом данных до 32 КБ для выявления фильтра TCP 16-20KB.": "Testing connections to foreign CDNs and hostings (Cloudflare, Hetzner, DO, OVH) with increasing payload up to 32 KB to detect the TCP 16-20KB filter.",
  "Проверка резолверов по UDP:53 и DoH для обнаружения перехвата портов провайдером и подмены IP адресов на заглушки РКН.": "Checking resolvers over UDP:53 and DoH to detect ISP port interception and IP address substitution.",
@@ -455,5 +455,8 @@ EN = {
   "Проверка 0/{0}": "Checking 0/{0}",
   "Тест {0}/{1}: {2}": "Test {0}/{1}: {2}",
   "Завершено ({0} стратегий)": "Completed ({0} strategies)",
-  "Полный автоподбор по всем стратегиям": "Full auto-selection across all strategies"
+  "Полный автоподбор по всем стратегиям": "Full auto-selection across all strategies",
+  "Автоподбор стратегий": "Strategy auto-selection",
+  "Последовательное тестирование всех доступных стратегий через контрольный набор сайтов (probe_bench.list). Определяет стратегию с наивысшей проходимостью и минимальной задержкой.": "Sequentially tests all available strategies against a curated target list (probe_bench.list). Identifies the strategy with the highest success rate and lowest latency.",
+  "Нет результатов для отчёта": "No results for report"
 };

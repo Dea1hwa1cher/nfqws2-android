@@ -1245,7 +1245,6 @@ cmd_probe_dpi() {
       cmd_probe_all_inner "$kind" "$bin"
       cmd_probe_tcp16
       cmd_probe_dns
-      cmd_probe_tg
       ;;
   esac
 

@@ -299,3 +299,229 @@ async function toggleVpnPause(checked){
   else { S.vpn_pause = on ? 1 : 0; renderSettings(); stat(); }
 }
 
+/* Strategy Auto-selection (Benchmark) */
+let benchRunning = false;
+let benchCancelled = false;
+let benchResults = {};
+let benchTotalStrats = 0;
+let benchBestStrat = null;
+
+function renderBenchRow(idx, name, ok, total, avg_ms, top_fail, isRunning){
+  const stratTitle = typeof strategyName === 'function' ? strategyName(name) : name;
+  if(isRunning){
+    return '<div class="list-item two-line" id="benchrow' + idx + '">' +
+      '<span class="status info"><span class="spinner" style="width:14px;height:14px;"></span></span>' +
+      '<span class="li-text">' +
+        '<span class="li-primary truncate">' + esc(stratTitle) + ' <span class="muted li-mono">(' + esc(name) + ')</span></span>' +
+        '<span class="li-secondary">' + esc(t('Тестирование соединений…')) + '</span>' +
+      '</span>' +
+      '<span class="li-trail li-value">…</span>' +
+    '</div>';
+  }
+  const isAllOk = total > 0 && ok === total;
+  const isPartOk = ok > 0;
+  const stClass = isAllOk ? 'ok' : (isPartOk ? 'warn' : 'bad');
+  const icName = isAllOk ? 'check' : (isPartOk ? 'warn' : 'close');
+  let sub = '';
+  if(total === 0){
+    sub = t('Не запустилась');
+  } else {
+    sub = t('Успешно: {0}/{1}', ok, total);
+    if(ok > 0) sub += ` · ${avg_ms} ` + t('мс');
+    if(top_fail && top_fail !== '-'){
+      const reasonsDict = typeof PROBE_REASON !== 'undefined' ? PROBE_REASON : {};
+      const failReason = t(reasonsDict[top_fail] || top_fail);
+      sub += ` · ${failReason}`;
+    }
+  }
+  const pct = total > 0 ? Math.round((ok / total) * 100) + '%' : '0%';
+  return '<div class="list-item two-line" id="benchrow' + idx + '">' +
+    '<span class="status ' + stClass + '">' + icon(icName, 's16') + '</span>' +
+    '<span class="li-text">' +
+      '<span class="li-primary truncate">' + esc(stratTitle) + ' <span class="muted li-mono">(' + esc(name) + ')</span></span>' +
+      '<span class="li-secondary">' + esc(sub) + '</span>' +
+    '</span>' +
+    '<span class="li-trail ' + (isAllOk || isPartOk ? 'li-value' : 't-label-medium bad') + '">' + esc(pct) + '</span>' +
+  '</div>';
+}
+
+function renderBenchBest(name, ok, total, avg_ms){
+  const el = $('bench-best');
+  if(!el) return;
+  if(!name || ok <= 0){
+    el.hidden = false;
+    el.innerHTML = banner('danger', 'error', '<b>' + esc(t('Ни одна стратегия не сработала')) + '</b><br>' +
+      esc(t('Все протестированные стратегии потерпели неудачу на контрольном наборе сайтов.')));
+    return;
+  }
+  el.hidden = false;
+  const stratTitle = typeof strategyName === 'function' ? strategyName(name) : name;
+  const cur = (typeof currentStrategy !== 'undefined' && currentStrategy) ? currentStrategy : 'default';
+  const isCurrent = cur === name;
+
+  el.innerHTML = '<div class="subhead-row" style="margin-top:0;">' +
+    '<span class="subhead plain">' + esc(t('Лучшая стратегия по результатам прохода')) + '</span>' +
+    '<span class="pill tonal">' + esc(t('{0}/{1} хостов ({2} мс)', ok, total, avg_ms)) + '</span>' +
+  '</div>' +
+  '<div class="t-body-medium">' +
+    esc(t('Стратегия «{0}» показала максимальную проходимость и скорость на контрольных ресурсах.', stratTitle)) +
+  '</div>' +
+  '<div class="row" style="margin-top:12px; gap:8px;">' +
+    '<button class="btn with-icon state ' + (isCurrent ? 'tonal' : '') + '" onclick="applyBenchStrategy(' + jsArg(name) + ')"' + (isCurrent ? ' disabled' : '') + '>' +
+      icon(isCurrent ? 'check' : 'tune', 's18') +
+      '<span>' + (isCurrent ? esc(t('Стратегия «{0}» уже действует', stratTitle)) : esc(t('Применить «{0}»', stratTitle))) + '</span>' +
+    '</button>' +
+  '</div>';
+}
+
+function sortBenchList(){
+  const listEl = $('bench-list');
+  if(!listEl) return;
+  const sorted = Object.values(benchResults).sort((a, b) => b.ok - a.ok || a.avg_ms - b.avg_ms);
+  listEl.innerHTML = sorted.map(it => renderBenchRow(it.idx, it.name, it.ok, it.total, it.avg_ms, it.top_fail, false)).join('');
+}
+
+function resetBenchResults(){
+  const listEl = $('bench-list');
+  if(listEl){ listEl.innerHTML = ''; listEl._html = ''; }
+  benchResults = {};
+  benchTotalStrats = 0;
+  benchBestStrat = null;
+  const badge = $('bench-badge');
+  if(badge){ badge.hidden = true; badge.textContent = ''; }
+  const best = $('bench-best');
+  if(best){ best.hidden = true; best.innerHTML = ''; }
+}
+
+async function stopBench(){
+  if(!benchRunning) return;
+  benchCancelled = true;
+  const btn = $('bench-btn');
+  if(btn){
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span><span>' + esc(t('Остановка…')) + '</span>';
+  }
+  await ctlx(['probe-cancel']);
+  toast(t('Проверка остановлена'));
+}
+
+async function runBench(){
+  if(benchRunning){
+    await stopBench();
+    return;
+  }
+  benchRunning = true;
+  benchCancelled = false;
+  resetBenchResults();
+
+  const btn = $('bench-btn');
+  if(btn){
+    btn.disabled = false;
+    btn.classList.add('danger');
+    btn.innerHTML = icon('stop', 's18') + '<span>' + esc(t('Остановить')) + '</span>';
+  }
+
+  const onLine = l => {
+    if(benchCancelled) return;
+    const p = l.split('\t');
+    if(p[0] === 'BENCH_START') {
+      benchTotalStrats = +p[1] || 0;
+      const badge = $('bench-badge');
+      if(badge){
+        badge.hidden = false;
+        badge.className = 'pill tonal';
+        badge.textContent = t('Проверка 0/{0}', benchTotalStrats);
+      }
+    } else if(p[0] === 'BENCH_RUN') {
+      const idx = p[1], strat = p[2], total = p[3];
+      const badge = $('bench-badge');
+      if(badge){
+        badge.hidden = false;
+        badge.className = 'pill tonal';
+        badge.textContent = t('Тест {0}/{1}: {2}', +idx + 1, total, typeof strategyName === 'function' ? strategyName(strat) : strat);
+      }
+      const existing = $('benchrow' + idx);
+      const rowHtml = renderBenchRow(idx, strat, null, null, null, null, true);
+      if(existing) existing.outerHTML = rowHtml;
+      else if($('bench-list')) $('bench-list').insertAdjacentHTML('beforeend', rowHtml);
+    } else if(p[0] === 'BENCH_RES') {
+      const idx = p[1], strat = p[2], ok = +p[3] || 0, total = +p[4] || 0, avg_ms = +p[5] || 0, top_fail = p[6] || '-';
+      benchResults[strat] = { idx, name: strat, ok, total, avg_ms, top_fail };
+      const existing = $('benchrow' + idx);
+      const rowHtml = renderBenchRow(idx, strat, ok, total, avg_ms, top_fail, false);
+      if(existing) existing.outerHTML = rowHtml;
+      else if($('bench-list')) $('bench-list').insertAdjacentHTML('beforeend', rowHtml);
+    } else if(p[0] === 'BENCH_BEST') {
+      const strat = p[1], ok = +p[2] || 0, total = +p[3] || 0, avg_ms = +p[4] || 0;
+      benchBestStrat = { name: strat, ok, total, avg_ms };
+      sortBenchList();
+      renderBenchBest(strat, ok, total, avg_ms);
+      const badge = $('bench-badge');
+      if(badge){
+        badge.hidden = false;
+        badge.className = 'pill tonal';
+        badge.textContent = t('Завершено ({0} стратегий)', benchTotalStrats);
+      }
+    }
+  };
+
+  try {
+    await ctlx(['bench-strategies'], 300000, onLine);
+  } finally {
+    benchRunning = false;
+    if(benchCancelled){
+      const badge = $('bench-badge');
+      if(badge){
+        badge.className = 'pill tonal';
+        badge.textContent = t('Проверка остановлена');
+      }
+      document.querySelectorAll('#bench-list .list-item').forEach(el => {
+        if(el.querySelector('.spinner')){
+          const liSec = el.querySelector('.li-secondary');
+          if(liSec) liSec.textContent = t('Прервано');
+          const liTrail = el.querySelector('.li-trail');
+          if(liTrail) liTrail.textContent = '—';
+          const st = el.querySelector('.status');
+          if(st){
+            st.className = 'status warn';
+            st.innerHTML = icon('close', 's16');
+          }
+        }
+      });
+    }
+    if(btn){
+      btn.classList.remove('danger');
+      btn.disabled = false;
+      btn.innerHTML = icon('play', 's18') + '<span>' + esc(t('Запустить автоподбор')) + '</span>';
+    }
+  }
+}
+
+async function applyBenchStrategy(name){
+  if(typeof applyStrategy === 'function'){
+    await applyStrategy(name);
+    if(benchBestStrat){
+      renderBenchBest(benchBestStrat.name, benchBestStrat.ok, benchBestStrat.total, benchBestStrat.avg_ms);
+    }
+  }
+}
+
+function copyBenchReport(){
+  let rep = '### ' + t('Автоподбор стратегий') + ' (nfqws2-android)\n\n';
+  if(benchBestStrat){
+    const bestTitle = typeof strategyName === 'function' ? strategyName(benchBestStrat.name) : benchBestStrat.name;
+    rep += `*Победитель:* ${bestTitle} (${benchBestStrat.name}) — ${benchBestStrat.ok}/${benchBestStrat.total}, ${benchBestStrat.avg_ms} мс\n\n`;
+  }
+  const sorted = Object.values(benchResults).sort((a, b) => b.ok - a.ok || a.avg_ms - b.avg_ms);
+  if(!sorted.length){
+    toast(t('Нет результатов для отчёта'));
+    return;
+  }
+  for(const it of sorted){
+    const title = typeof strategyName === 'function' ? strategyName(it.name) : it.name;
+    const reasonsDict = typeof PROBE_REASON !== 'undefined' ? PROBE_REASON : {};
+    rep += `- ${title} (${it.name}): ${it.ok}/${it.total} (${it.avg_ms} мс)` + (it.top_fail && it.top_fail !== '-' ? ` [${t(reasonsDict[it.top_fail] || it.top_fail)}]` : '') + '\n';
+  }
+  copyText(rep, t('Отчёт скопирован в буфер обмена'), t('Не удалось скопировать: выделите текст вручную'));
+}
+

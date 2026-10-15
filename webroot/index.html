@@ -255,6 +255,26 @@
   <!-- Settings -->
   <section class="page" data-page="settings" aria-label="Настройки" data-ta="aria-label">
     <div class="settings-grid" id="settings-body"></div>
+
+    <div class="stack" id="bench-block">
+      <div class="subhead-row">
+        <h2 class="subhead" data-t>Автоподбор стратегий</h2>
+        <span class="pill tonal" id="bench-badge" hidden></span>
+      </div>
+      <div class="group">
+        <div class="t-body-medium muted" data-t>Последовательное тестирование всех доступных стратегий через контрольный набор сайтов (probe_bench.list). Определяет стратегию с наивысшей проходимостью и минимальной задержкой.</div>
+        <div class="row">
+          <button class="btn with-icon state" id="bench-btn" onclick="runBench()">
+            <svg aria-hidden="true" class="icon s18"><use href="#i-play"/></svg><span data-t>Запустить автоподбор</span>
+          </button>
+          <button class="btn tonal with-icon state" id="bench-copy-btn" onclick="copyBenchReport()" aria-label="Копировать отчёт" data-ta="aria-label">
+            <svg aria-hidden="true" class="icon s18"><use href="#i-copy"/></svg><span data-t>Копировать отчёт</span>
+          </button>
+        </div>
+      </div>
+      <div id="bench-best" class="group" hidden></div>
+      <div class="list" id="bench-list"></div>
+    </div>
   </section>
 
   <!-- Home Wi-Fi -->
@@ -327,8 +347,6 @@
       <button class="seg state" data-tab="web" onclick="selectTestTab('web')"><span data-t>Сайты</span></button>
       <button class="seg state" data-tab="tcp16" onclick="selectTestTab('tcp16')"><span data-t>TCP 16K</span></button>
       <button class="seg state" data-tab="dns" onclick="selectTestTab('dns')"><span data-t>DNS</span></button>
-      <button class="seg state" data-tab="tg" onclick="selectTestTab('tg')"><span data-t>Telegram</span></button>
-      <button class="seg state" data-tab="bench" onclick="selectTestTab('bench')"><span data-t>Автоподбор</span></button>
     </div>
 
     <div class="group">
@@ -381,22 +399,6 @@
       <div class="list" id="test-dns-list"></div>
     </div>
 
-    <div id="test-sec-tg" hidden>
-      <div class="subhead-row">
-        <h2 class="subhead" data-t>Датацентры Telegram</h2>
-        <span class="pill tonal" id="test-tg-media-badge" hidden></span>
-      </div>
-      <div class="list" id="test-tg-list"></div>
-    </div>
-
-    <div id="test-sec-bench" hidden>
-      <div class="subhead-row">
-        <h2 class="subhead" data-t>Рейтинг стратегий по итогам прохода</h2>
-        <span class="pill tonal" id="test-bench-badge" hidden></span>
-      </div>
-      <div id="test-bench-best" class="group" hidden></div>
-      <div class="list" id="test-bench-list"></div>
-    </div>
 
     <div class="empty" id="test-empty">
       <span class="empty-icon"><svg aria-hidden="true" class="icon"><use href="#i-wifi"/></svg></span>

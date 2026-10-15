@@ -32,12 +32,7 @@ let netInfoData = null;
 let webResults = {};
 let tcp16Results = {};
 let dnsResults = {};
-let tgResults = {};
-let tgMediaSpeed = null;
 let lastRecommendation = null;
-let benchResults = {};
-let benchTotalStrats = 0;
-let benchBestStrat = null;
 
 function testInit(){
   updateTestDesc();
@@ -55,12 +50,8 @@ function updateTestDesc(){
     d.textContent = t('Тестирование соединений к зарубежным CDN и хостингам (Cloudflare, Hetzner, DO, OVH) с нарастающим объёмом данных до 32 КБ для выявления фильтра TCP 16-20KB.');
   } else if(currentTestTab === 'dns'){
     d.textContent = t('Проверка резолверов по UDP:53 и DoH для обнаружения перехвата портов провайдером и подмены IP адресов на заглушки РКН.');
-  } else if(currentTestTab === 'tg'){
-    d.textContent = t('Проверка доступности датацентров Telegram (DC1-DC5) и скорости загрузки медиа.');
-  } else if(currentTestTab === 'bench'){
-    d.textContent = t('Автоподбор: последовательное тестирование всех доступных стратегий через контрольный набор сайтов (probe_bench.list). Определяет стратегию с наивысшей проходимостью и минимальной задержкой.');
   } else {
-    d.textContent = t('Комплексный анализ цензуры DPI: проверка доступности сайтов (HTTP/TLS/QUIC), детекция блокировок TCP 16-20KB, перехват DNS и датацентры Telegram.');
+    d.textContent = t('Комплексный анализ цензуры DPI: проверка доступности сайтов (HTTP/TLS/QUIC), детекция блокировок TCP 16-20KB и перехват DNS.');
   }
 }
 
@@ -72,20 +63,10 @@ function selectTestTab(tab){
   const showWeb = tab === 'all' || tab === 'web';
   const showTcp = tab === 'all' || tab === 'tcp16';
   const showDns = tab === 'all' || tab === 'dns';
-  const showTg = tab === 'all' || tab === 'tg';
-  const showBench = tab === 'bench';
 
   if($('test-sec-web')) $('test-sec-web').hidden = !showWeb;
   if($('test-sec-tcp16')) $('test-sec-tcp16').hidden = !showTcp;
   if($('test-sec-dns')) $('test-sec-dns').hidden = !showDns;
-  if($('test-sec-tg')) $('test-sec-tg').hidden = !showTg;
-  if($('test-sec-bench')) $('test-sec-bench').hidden = !showBench;
-
-  const tb = $('tb');
-  if(tb && !testRunning){
-    const span = tb.querySelector('span');
-    if(span) span.textContent = tab === 'bench' ? t('Запустить автоподбор') : t('Запустить проверку');
-  }
 
   updateTestDesc();
 }
@@ -203,115 +184,23 @@ function renderDnsRow(i, name, ip, udp, doh, hijacked, detail){
   '</div>';
 }
 
-function renderTgRow(i, name, ip, status, ping){
-  const isOk = status === 'ok';
-  const stClass = isOk ? 'ok' : 'bad';
-  const icName = isOk ? 'check' : 'close';
-  const trail = isOk ? (ping || 'OK') : t('СБОЙ');
-  return '<div class="list-item two-line" id="tgrow' + i + '">' +
-    '<span class="status ' + stClass + '">' + icon(icName, 's16') + '</span>' +
-    '<span class="li-text">' +
-      '<span class="li-primary truncate">' + esc(name.replace(/_/g, ' ')) + ' <span class="muted li-mono">(' + esc(ip) + ')</span></span>' +
-      '<span class="li-secondary">' + (isOk ? t('Соединение установлено') : t('Нет ответа (таймаут / сброс)')) + '</span>' +
-    '</span>' +
-    '<span class="li-trail ' + (isOk ? 'li-value' : 't-label-medium bad') + '">' + esc(trail) + '</span>' +
-  '</div>';
-}
-
-function renderBenchRow(idx, name, ok, total, avg_ms, top_fail, isRunning){
-  const stratTitle = typeof strategyName === 'function' ? strategyName(name) : name;
-  if(isRunning){
-    return '<div class="list-item two-line" id="benchrow' + idx + '">' +
-      '<span class="status info"><span class="spinner" style="width:14px;height:14px;"></span></span>' +
-      '<span class="li-text">' +
-        '<span class="li-primary truncate">' + esc(stratTitle) + ' <span class="muted li-mono">(' + esc(name) + ')</span></span>' +
-        '<span class="li-secondary">' + esc(t('Тестирование соединений…')) + '</span>' +
-      '</span>' +
-      '<span class="li-trail li-value">…</span>' +
-    '</div>';
-  }
-  const isAllOk = total > 0 && ok === total;
-  const isPartOk = ok > 0;
-  const stClass = isAllOk ? 'ok' : (isPartOk ? 'warn' : 'bad');
-  const icName = isAllOk ? 'check' : (isPartOk ? 'warn' : 'close');
-  let sub = '';
-  if(total === 0){
-    sub = t('Не запустилась');
-  } else {
-    sub = t('Успешно: {0}/{1}', ok, total);
-    if(ok > 0) sub += ` · ${avg_ms} ` + t('мс');
-    if(top_fail && top_fail !== '-'){
-      const failReason = t(PROBE_REASON[top_fail] || top_fail);
-      sub += ` · ${failReason}`;
-    }
-  }
-  const pct = total > 0 ? Math.round((ok / total) * 100) + '%' : '0%';
-  return '<div class="list-item two-line" id="benchrow' + idx + '">' +
-    '<span class="status ' + stClass + '">' + icon(icName, 's16') + '</span>' +
-    '<span class="li-text">' +
-      '<span class="li-primary truncate">' + esc(stratTitle) + ' <span class="muted li-mono">(' + esc(name) + ')</span></span>' +
-      '<span class="li-secondary">' + esc(sub) + '</span>' +
-    '</span>' +
-    '<span class="li-trail ' + (isAllOk || isPartOk ? 'li-value' : 't-label-medium bad') + '">' + esc(pct) + '</span>' +
-  '</div>';
-}
-
-function renderBenchBest(name, ok, total, avg_ms){
-  const el = $('test-bench-best');
-  if(!el) return;
-  if(!name || ok <= 0){
-    el.hidden = false;
-    el.innerHTML = banner('danger', 'error', '<b>' + esc(t('Ни одна стратегия не сработала')) + '</b><br>' +
-      esc(t('Все протестированные стратегии потерпели неудачу на контрольном наборе сайтов.')));
-    return;
-  }
-  el.hidden = false;
-  const stratTitle = typeof strategyName === 'function' ? strategyName(name) : name;
-  const cur = (typeof currentStrategy !== 'undefined' && currentStrategy) ? currentStrategy : 'default';
-  const isCurrent = cur === name;
-
-  el.innerHTML = '<div class="subhead-row" style="margin-top:0;">' +
-    '<span class="subhead plain">' + esc(t('Лучшая стратегия по результатам прохода')) + '</span>' +
-    '<span class="pill tonal">' + esc(t('{0}/{1} хостов ({2} мс)', ok, total, avg_ms)) + '</span>' +
-  '</div>' +
-  '<div class="t-body-medium">' +
-    esc(t('Стратегия «{0}» показала максимальную проходимость и скорость на контрольных ресурсах.', stratTitle)) +
-  '</div>' +
-  '<div class="row" style="margin-top:12px; gap:8px;">' +
-    '<button class="btn with-icon state ' + (isCurrent ? 'tonal' : '') + '" onclick="applyRecommendedStrategy(' + jsArg(name) + ')"' + (isCurrent ? ' disabled' : '') + '>' +
-      icon(isCurrent ? 'check' : 'tune', 's18') +
-      '<span>' + (isCurrent ? esc(t('Стратегия «{0}» уже действует', stratTitle)) : esc(t('Применить «{0}»', stratTitle))) + '</span>' +
-    '</button>' +
-  '</div>';
-}
-
-function sortBenchList(){
-  const listEl = $('test-bench-list');
-  if(!listEl) return;
-  const sorted = Object.values(benchResults).sort((a, b) => b.ok - a.ok || a.avg_ms - b.avg_ms);
-  listEl.innerHTML = sorted.map(it => renderBenchRow(it.idx, it.name, it.ok, it.total, it.avg_ms, it.top_fail, false)).join('');
-}
-
 function startBenchFromRec(){
-  selectTestTab('bench');
-  runTest();
+  navigate('settings');
+  setTimeout(() => {
+    const el = $('bench-block');
+    if(el) el.scrollIntoView({ behavior: 'smooth' });
+    if(typeof runBench === 'function') runBench();
+  }, 150);
 }
 
 function resetTestResults(){
-  ['tr', 'test-tcp16-list', 'test-dns-list', 'test-tg-list', 'test-bench-list'].forEach(id => {
+  ['tr', 'test-tcp16-list', 'test-dns-list'].forEach(id => {
     const el = $(id);
     if(el){ el.innerHTML = ''; el._html = ''; }
   });
-  webResults = {}; tcp16Results = {}; dnsResults = {}; tgResults = {}; tgMediaSpeed = null; lastRecommendation = null;
-  benchResults = {}; benchTotalStrats = 0; benchBestStrat = null;
+  webResults = {}; tcp16Results = {}; dnsResults = {}; lastRecommendation = null;
   const recEl = $('test-recommendation');
   if(recEl){ recEl.hidden = true; recEl.innerHTML = ''; }
-  const tgBadge = $('test-tg-media-badge');
-  if(tgBadge){ tgBadge.hidden = true; tgBadge.textContent = ''; }
-  const benchBadge = $('test-bench-badge');
-  if(benchBadge){ benchBadge.hidden = true; benchBadge.textContent = ''; }
-  const benchBest = $('test-bench-best');
-  if(benchBest){ benchBest.hidden = true; benchBest.innerHTML = ''; }
 }
 
 async function stopTest(){
@@ -393,125 +282,45 @@ async function runTest(){
       const rowHtml = renderDnsRow(idx, name, ip, udp, doh, hijacked, detail);
       if(existing) existing.outerHTML = rowHtml;
       else if($('test-dns-list')) $('test-dns-list').insertAdjacentHTML('beforeend', rowHtml);
-    } else if(p[0] === 'TG') {
-      const idx = p[1], name = p[2], ip = p[3], st = p[4], ping = p[5];
-      tgResults[idx] = {name, ip, status: st, ping};
-      const existing = $('tgrow' + idx);
-      const rowHtml = renderTgRow(idx, name, ip, st, ping);
-      if(existing) existing.outerHTML = rowHtml;
-      else if($('test-tg-list')) $('test-tg-list').insertAdjacentHTML('beforeend', rowHtml);
-    } else if(p[0] === 'TG_MEDIA') {
-      const st = p[1], spd = p[2];
-      tgMediaSpeed = {status: st, speed: spd};
-      const badge = $('test-tg-media-badge');
-      if(badge){
-        badge.hidden = false;
-        badge.textContent = st === 'ok' ? `${spd}` : t('Медиа: сбой');
-        badge.className = 'pill tonal';
-      }
-    } else if(p[0] === 'BENCH_START') {
-      benchTotalStrats = +p[1] || 0;
-      const badge = $('test-bench-badge');
-      if(badge){
-        badge.hidden = false;
-        badge.className = 'pill tonal';
-        badge.textContent = t('Проверка 0/{0}', benchTotalStrats);
-      }
-    } else if(p[0] === 'BENCH_RUN') {
-      const idx = p[1], strat = p[2], total = p[3];
-      const badge = $('test-bench-badge');
-      if(badge){
-        badge.hidden = false;
-        badge.className = 'pill tonal';
-        badge.textContent = t('Тест {0}/{1}: {2}', +idx + 1, total, typeof strategyName === 'function' ? strategyName(strat) : strat);
-      }
-      const existing = $('benchrow' + idx);
-      const rowHtml = renderBenchRow(idx, strat, null, null, null, null, true);
-      if(existing) existing.outerHTML = rowHtml;
-      else if($('test-bench-list')) $('test-bench-list').insertAdjacentHTML('beforeend', rowHtml);
-    } else if(p[0] === 'BENCH_RES') {
-      const idx = p[1], strat = p[2], ok = +p[3] || 0, total = +p[4] || 0, avg_ms = +p[5] || 0, top_fail = p[6] || '-';
-      benchResults[strat] = { idx, name: strat, ok, total, avg_ms, top_fail };
-      const existing = $('benchrow' + idx);
-      const rowHtml = renderBenchRow(idx, strat, ok, total, avg_ms, top_fail, false);
-      if(existing) existing.outerHTML = rowHtml;
-      else if($('test-bench-list')) $('test-bench-list').insertAdjacentHTML('beforeend', rowHtml);
-    } else if(p[0] === 'BENCH_BEST') {
-      const strat = p[1], ok = +p[2] || 0, total = +p[3] || 0, avg_ms = +p[4] || 0;
-      benchBestStrat = { name: strat, ok, total, avg_ms };
-      sortBenchList();
-      renderBenchBest(strat, ok, total, avg_ms);
-      const badge = $('test-bench-badge');
-      if(badge){
-        badge.hidden = false;
-        badge.className = 'pill tonal';
-        badge.textContent = t('Завершено ({0} стратегий)', benchTotalStrats);
-      }
     }
   };
 
   try {
-    if(currentTestTab === 'bench'){
-      await ctlx(['bench-strategies'], 300000, onLine);
-    } else {
-      const r = await ctlx(['probe-dpi', currentTestTab], 180000, onLine);
-      if(!testCancelled){
-        if(tool === 'none' || (r.code && !hosts.length && currentTestTab === 'web')) {
-          await runTestWebView();
-        } else {
-          Object.keys(webResults).forEach(i => {
-            if(webResults[i].list.length < 4) {
-              finishTestRow(i, webResults[i].list.length ? webResults[i].list : [{ok: false, reason: 'timeout'}]);
-            }
-          });
-        }
+    const r = await ctlx(['probe-dpi', currentTestTab], 180000, onLine);
+    if(!testCancelled){
+      if(tool === 'none' || (r.code && !hosts.length && currentTestTab === 'web')) {
+        await runTestWebView();
+      } else {
+        Object.keys(webResults).forEach(i => {
+          if(webResults[i].list.length < 4) {
+            finishTestRow(i, webResults[i].list.length ? webResults[i].list : [{ok: false, reason: 'timeout'}]);
+          }
+        });
       }
     }
   } finally {
     testRunning = false;
     if(testCancelled){
-      if(currentTestTab === 'bench'){
-        const badge = $('test-bench-badge');
-        if(badge){
-          badge.className = 'pill tonal';
-          badge.textContent = t('Проверка остановлена');
+      document.querySelectorAll('#tr .list-item, #test-tcp16-list .list-item, #test-dns-list .list-item').forEach(el => {
+        if(el.querySelector('.spinner')){
+          const liSec = el.querySelector('.li-secondary');
+          if(liSec) liSec.textContent = t('Прервано');
+          const liTrail = el.querySelector('.li-trail');
+          if(liTrail) liTrail.textContent = '—';
+          const st = el.querySelector('.status');
+          if(st){
+            st.className = 'status warn';
+            st.innerHTML = icon('close', 's16');
+          }
         }
-        document.querySelectorAll('#test-bench-list .list-item').forEach(el => {
-          if(el.querySelector('.spinner')){
-            const liSec = el.querySelector('.li-secondary');
-            if(liSec) liSec.textContent = t('Прервано');
-            const liTrail = el.querySelector('.li-trail');
-            if(liTrail) liTrail.textContent = '—';
-            const st = el.querySelector('.status');
-            if(st){
-              st.className = 'status warn';
-              st.innerHTML = icon('close', 's16');
-            }
-          }
-        });
-      } else {
-        document.querySelectorAll('#tr .list-item, #test-tcp16-list .list-item, #test-dns-list .list-item, #test-tg-list .list-item').forEach(el => {
-          if(el.querySelector('.spinner')){
-            const liSec = el.querySelector('.li-secondary');
-            if(liSec) liSec.textContent = t('Прервано');
-            const liTrail = el.querySelector('.li-trail');
-            if(liTrail) liTrail.textContent = '—';
-            const st = el.querySelector('.status');
-            if(st){
-              st.className = 'status warn';
-              st.innerHTML = icon('close', 's16');
-            }
-          }
-        });
-      }
+      });
     }
     if(tb){
       tb.classList.remove('danger');
       tb.disabled = false;
-      const btnLabel = currentTestTab === 'bench' ? t('Запустить автоподбор') : t('Проверить снова');
-      tb.innerHTML = icon('play', 's18') + '<span>' + esc(btnLabel) + '</span>';
+      tb.innerHTML = icon('play', 's18') + '<span>' + esc(t('Проверить снова')) + '</span>';
     }
-    if(currentTestTab !== 'bench' && !testCancelled){
+    if(!testCancelled){
       renderRecommendation();
     }
   }
@@ -725,7 +534,7 @@ async function applyRecommendedStrategy(name){
   if(typeof applyStrategy === 'function'){
     await applyStrategy(name);
     renderRecommendation();
-    if(benchBestStrat){
+    if(typeof renderBenchBest === 'function' && typeof benchBestStrat !== 'undefined' && benchBestStrat){
       renderBenchBest(benchBestStrat.name, benchBestStrat.ok, benchBestStrat.total, benchBestStrat.avg_ms);
     }
   }
@@ -769,28 +578,6 @@ function copyTestReport(){
     for(const k of Object.keys(dnsResults)){
       const it = dnsResults[k];
       rep += `- ${it.name} (${it.ip}): UDP=${it.udp}, DoH=${it.doh}, Перехват=${it.hijacked === 'yes' ? 'ДА (' + it.detail + ')' : 'НЕТ'}\n`;
-    }
-    rep += '\n';
-  }
-  if(Object.keys(tgResults).length > 0){
-    rep += '#### Telegram датацентры:\n';
-    if(tgMediaSpeed && tgMediaSpeed.status === 'ok'){
-      rep += `*Скорость загрузки медиа:* ${tgMediaSpeed.speed}\n`;
-    }
-    for(const k of Object.keys(tgResults)){
-      const it = tgResults[k];
-      rep += `- ${it.name} (${it.ip}): ${it.status === 'ok' ? 'OK (' + it.ping + ')' : 'FAIL (' + it.ping + ')'}\n`;
-    }
-    rep += '\n';
-  }
-  if(Object.keys(benchResults).length > 0){
-    rep += '#### Результаты полного автоподбора стратегий:\n';
-    if(benchBestStrat){
-      rep += `*Победитель:* ${benchBestStrat.name} (${benchBestStrat.ok}/${benchBestStrat.total}, ${benchBestStrat.avg_ms} мс)\n`;
-    }
-    const sorted = Object.values(benchResults).sort((a, b) => b.ok - a.ok || a.avg_ms - b.avg_ms);
-    for(const it of sorted){
-      rep += `- ${it.name}: ${it.ok}/${it.total} (${it.avg_ms} мс)` + (it.top_fail && it.top_fail !== '-' ? ` [сбои: ${it.top_fail}]` : '') + '\n';
     }
     rep += '\n';
   }

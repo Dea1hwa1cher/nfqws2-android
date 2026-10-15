@@ -14,6 +14,7 @@ const vm = require('vm');
 
 const REPO = path.resolve(__dirname, '..', '..');
 const TEST_JS = path.join(REPO, 'webroot', 'js', 'test.js');
+const SETTINGS_JS = path.join(REPO, 'webroot', 'js', 'settings.js');
 
 let pass = 0;
 const failures = [];
@@ -53,8 +54,8 @@ const sandbox = {
 };
 
 vm.createContext(sandbox);
-const code = fs.readFileSync(TEST_JS, 'utf8');
-vm.runInContext(code, sandbox);
+vm.runInContext(fs.readFileSync(TEST_JS, 'utf8'), sandbox);
+vm.runInContext(fs.readFileSync(SETTINGS_JS, 'utf8'), sandbox);
 
 // ── 1. Error classification dictionary ─────────────────────────────────────
 sect('DPI error classification');
@@ -81,12 +82,6 @@ truthy(dnsRow.includes('status ok') && dnsRow.includes('UDP: OK'), 'DNS clean ro
 
 const dnsHijacked = sandbox.renderDnsRow(1, 'ISP DNS', '192.168.1.1', 'ok', 'none', 'yes', 'Заглушка');
 truthy(dnsHijacked.includes('status bad') && dnsHijacked.includes('ПЕРЕХВАТ'), 'DNS hijacked row renders with status bad');
-
-const tgRowOk = sandbox.renderTgRow(0, 'DC1_Miami', '149.154.175.53', 'ok', '45ms');
-truthy(tgRowOk.includes('status ok') && tgRowOk.includes('45ms'), 'Telegram ok row renders with status ok');
-
-const tgRowFail = sandbox.renderTgRow(1, 'DC2_Amsterdam', '149.154.167.51', 'fail', 'timeout');
-truthy(tgRowFail.includes('status bad') && tgRowFail.includes('СБОЙ'), 'Telegram fail row renders with status bad');
 
 const benchRowRunning = sandbox.renderBenchRow(0, 'fake_tls_auto', null, null, null, null, true);
 truthy(benchRowRunning.includes('status info') && benchRowRunning.includes('spinner'), 'Bench running row renders with spinner');
@@ -197,10 +192,6 @@ tcp16Results = {
 dnsResults = {
   0: { name: 'Cloudflare', ip: '1.1.1.1', udp: 'ok', doh: 'ok', hijacked: 'no', detail: 'OK' }
 };
-tgResults = {
-  0: { name: 'DC1_Miami', ip: '149.154.175.53', status: 'ok', ping: '45ms' }
-};
-tgMediaSpeed = { status: 'ok', speed: '2.50 MB/s' };
 benchResults = {
   default: { idx: 0, name: 'default', ok: 5, total: 30, avg_ms: 120, top_fail: 'tls_rst' },
   fake_tls_auto: { idx: 1, name: 'fake_tls_auto', ok: 30, total: 30, avg_ms: 42, top_fail: '-' }
@@ -218,11 +209,16 @@ truthy(copiedText.includes('### DPI Detector (nfqws2-android)'), 'report header 
 truthy(copiedText.includes('5.18.158.84') && copiedText.includes('Z-Telecom'), 'network info is present in report');
 truthy(copiedText.includes('youtube.com'), 'web test is present in report');
 truthy(copiedText.includes('DETECTED @ 16KB'), 'TCP16 test is present in report');
-truthy(copiedText.includes('Telegram датацентры'), 'Telegram section is present in report');
-truthy(copiedText.includes('DC1_Miami'), 'Telegram DC is present in report');
+truthy(!copiedText.includes('Telegram датацентры'), 'Telegram section is removed from DPI report');
 truthy(copiedText.includes('Рекомендованная стратегия'), 'strategy recommendation is present in report');
-truthy(copiedText.includes('Результаты полного автоподбора стратегий'), 'bench section is present in report');
-truthy(copiedText.includes('fake_tls_auto (30/30, 42 мс)'), 'winning strategy is reported in bench section');
+
+let copiedBench = '';
+sandbox.navigator.clipboard = {
+  writeText: async txt => { copiedBench = txt; }
+};
+sandbox.copyBenchReport();
+truthy(copiedBench.includes('Автоподбор стратегий'), 'bench header is present in bench report');
+truthy(copiedBench.includes('fake_tls_auto (fake_tls_auto) — 30/30, 42 мс'), 'winning strategy is reported in bench report');
 
 // ── 5. Summary ─────────────────────────────────────────────────────────────
 console.log(`\n----------------------------------------\nPASS  ${pass} checks`);
