@@ -51,6 +51,7 @@ NET_STRATEGIES_DIR="$CONFDIR/net_strategies"
 IPT_CAP_CACHE="$STATE_DIR/iptables-capabilities"
 RECEIPT_FILE="$STATE_DIR/compiled.receipt"
 LIST_COUNTS_CACHE="$STATE_DIR/list_counts.cache"
+SNAPSHOT_DIR="$STATE_DIR/snapshot_working"
 
 # xt_owner allows max 128 ranges per rule
 APP_UID_MAX=128
@@ -610,6 +611,54 @@ save_strategy_receipt() { # [conffile]
   r=$(generate_strategy_receipt "${1:-$CONFFILE}" 2>/dev/null) || return 1
   [ -n "$r" ] && printf '%s\n' "$r" > "$RECEIPT_FILE"
 }
+
+topology_fingerprint() { # [conffile]
+  local conf="${1:-$CONFFILE}"
+  local tp="" up="" ap="" bq="" lim="" am="" qn="" lims=""
+  if [ -f "$conf" ]; then
+    tp=$(grep -m1 -E '^[[:space:]]*TCP_PORTS=' "$conf" 2>/dev/null | sed 's/.*=//; s/["'\'' ]//g')
+    up=$(grep -m1 -E '^[[:space:]]*UDP_PORTS=' "$conf" 2>/dev/null | sed 's/.*=//; s/["'\'' ]//g')
+    ap=$(grep -m1 -E '^[[:space:]]*AUTO_PORTS=' "$conf" 2>/dev/null | sed 's/.*=//; s/["'\'' ]//g')
+    bq=$(grep -m1 -E '^[[:space:]]*BLOCK_QUIC=' "$conf" 2>/dev/null | sed 's/.*=//; s/["'\'' ]//g')
+    lim=$(grep -m1 -E '^[[:space:]]*LIMITER=' "$conf" 2>/dev/null | sed 's/.*=//; s/["'\'' ]//g')
+    am=$(grep -m1 -E '^[[:space:]]*APP_MODE=' "$conf" 2>/dev/null | sed 's/.*=//; s/["'\'' ]//g')
+    qn=$(grep -m1 -E '^[[:space:]]*NFQUEUE_NUM=' "$conf" 2>/dev/null | sed 's/.*=//; s/["'\'' ]//g')
+    lims=$(grep -E '^[#[:space:]]*NFQWS2_(TCP|UDP)_PKT_(OUT|IN)=' "$conf" 2>/dev/null | sort | tr '\n' ';')
+  fi
+  printf '%s|%s|%s|%s|%s|%s|%s|%s' "$tp" "$up" "${ap:-0}" "${bq:-0}" "$lim" "${am:-off}" "${qn:-300}" "$lims"
+}
+
+save_working_snapshot() { # [conffile]
+  local conf="${1:-$CONFFILE}"
+  mkdir -p "$SNAPSHOT_DIR" 2>/dev/null
+  if [ -f "$conf" ]; then
+    cp -f "$conf" "$SNAPSHOT_DIR/nfqws2.conf" 2>/dev/null || true
+  fi
+  if [ -f "$ACTIVE_FILE" ]; then
+    cp -f "$ACTIVE_FILE" "$SNAPSHOT_DIR/active" 2>/dev/null || true
+  fi
+  if [ -f "$RECEIPT_FILE" ]; then
+    cp -f "$RECEIPT_FILE" "$SNAPSHOT_DIR/compiled.receipt" 2>/dev/null || true
+  fi
+  date +%s > "$SNAPSHOT_DIR/saved_at" 2>/dev/null || true
+}
+
+rollback_to_snapshot() {
+  if [ ! -f "$SNAPSHOT_DIR/nfqws2.conf" ]; then
+    echo "Нет сохранённого рабочего снимка для отката" >&2
+    return 1
+  fi
+  cp -f "$SNAPSHOT_DIR/nfqws2.conf" "$CONFFILE" 2>/dev/null || return 1
+  if [ -f "$SNAPSHOT_DIR/active" ]; then
+    cp -f "$SNAPSHOT_DIR/active" "$ACTIVE_FILE" 2>/dev/null || true
+  fi
+  if [ -f "$SNAPSHOT_DIR/compiled.receipt" ]; then
+    cp -f "$SNAPSHOT_DIR/compiled.receipt" "$RECEIPT_FILE" 2>/dev/null || true
+  fi
+  rm -f "$STATE_DIR/rollback_armed" 2>/dev/null || true
+  return 0
+}
+
 
 
 kernel_modules() {

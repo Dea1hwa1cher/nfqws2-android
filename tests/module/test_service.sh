@@ -266,4 +266,38 @@ assert_rc 0 $? "protect_process handles empty pid gracefully"
 protect_process "99999999"
 assert_rc 0 $? "protect_process handles non-existent pid gracefully"
 
+section "topology_fingerprint and working snapshots"
+
+fp1=$(topology_fingerprint "$CONFFILE")
+assert_contains "$fp1" "80,443" "fingerprint captures TCP ports"
+save_working_snapshot "$CONFFILE"
+assert_file "$CONFDIR/state/snapshot_working/nfqws2.conf" "snapshot saved nfqws2.conf"
+
+section "zero-downtime daemon replace"
+
+svc start >/dev/null 2>&1
+assert_file "$PIDFILE" "service is running before replace"
+old_pid=$(cat "$PIDFILE")
+
+svc replace
+assert_rc 0 "$svc_rc" "replace succeeds"
+new_pid=$(cat "$PIDFILE")
+assert_file "$PIDFILE" "pidfile exists after replace"
+if [ "$old_pid" != "$new_pid" ]; then
+  _ok "replace switched daemon PID"
+else
+  _fail "replace did not switch PID"
+fi
+assert_file "$MOCK_IPT_STORE/iptables/mangle/nfqws_post" "mangle rules are preserved across replace"
+
+section "rollback engine"
+
+echo "GARBAGE_CONFIG_TEST=1" > "$CONFFILE"
+svc rollback
+assert_rc 0 "$svc_rc" "rollback succeeds"
+assert_not_contains "$(cat "$CONFFILE")" "GARBAGE_CONFIG_TEST" "rollback restored working config"
+assert_file "$CONFDIR/state/last_rollback.json" "last_rollback.json is written"
+
+svc stop >/dev/null 2>&1
+
 harness_finish

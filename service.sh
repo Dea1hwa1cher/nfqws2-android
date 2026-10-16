@@ -125,6 +125,8 @@ start() {
     echo 1 > "$DESIRED_FILE"
     log_msg "nfqws2 запущен (PID $pid, Native Daemon)"
     update_description running
+    save_working_snapshot
+    printf '%s' "$(topology_fingerprint "$CONFFILE")" > "$STATE_DIR/last_topology"
     ensure_watchdog
     return 0
   }
@@ -133,6 +135,148 @@ start() {
   _start_internal || ret=$?
   rmdir "$lock" 2>/dev/null
   return $ret
+}
+
+replace_daemon() {
+  if ! is_running; then
+    start
+    return $?
+  fi
+
+  local lock="$STATE_DIR/service.lock"
+  if ! mkdir "$lock" 2>/dev/null; then
+    local wait_lock=0
+    while [ "$wait_lock" -lt 15 ]; do
+      sleep 0.2
+      [ -d "$lock" ] || break
+      wait_lock=$((wait_lock + 1))
+    done
+    mkdir "$lock" 2>/dev/null || true
+  fi
+
+  _replace_internal() {
+    local old_pid
+    old_pid=$(cat "$PIDFILE" 2>/dev/null)
+    [ -n "$old_pid" ] || { start; return $?; }
+
+    local err
+    err=$(validate_args_conf) || { log_msg "$err"; return 1; }
+    err=$(validate_strategy_blob_references "$CONFFILE") || { log_msg "$err"; return 1; }
+
+    log_msg "Бесшовное переключение демона (Zero-Downtime Daemon Replace)..."
+    rotate_logs start
+
+    local args
+    args=$(_startup_args)
+    printf '%s\n' "$args" > "$ARGS_FILE"
+
+    local dry_err
+    if ! dry_err=$(dry_run_check "$args"); then
+      log_msg "Ошибка: проверка nfqws2 --dry-run не пройдена"
+      printf '%s\n' "$dry_err" >> "$NFQWS_LOG"
+      log_msg "Параметры новой стратегии некорректны — прежний процесс PID $old_pid сохранён без простоя."
+      return 1
+    fi
+    save_strategy_receipt "$CONFFILE" 2>/dev/null || true
+
+    cd "$MODDIR/bin" || return 1
+    set -f
+
+    # Start new daemon with temporary pidfile
+    local new_pidfile="$PIDFILE.new"
+    rm -f "$new_pidfile"
+    "$NFQWS_BIN" --daemon --pidfile="$new_pidfile" $args >> "$NFQWS_LOG" 2>&1
+    local res=$?
+    set +f
+
+    if [ "$res" -ne 0 ]; then
+      log_msg "Ошибка: новый nfqws2 завершился с кодом $res — оставляем старый процесс PID $old_pid"
+      rm -f "$new_pidfile"
+      return 1
+    fi
+
+    local new_pid=""
+    [ -f "$new_pidfile" ] && new_pid=$(cat "$new_pidfile" 2>/dev/null)
+    if [ -z "$new_pid" ] || ! wait_for_process "$new_pid" up 24; then
+      log_msg "Ошибка: новый nfqws2 не запустился — оставляем старый процесс PID $old_pid"
+      rm -f "$new_pidfile"
+      return 1
+    fi
+
+    # Atomically replace pidfile
+    mv -f "$new_pidfile" "$PIDFILE"
+    protect_process "$new_pid"
+    date +%s > "$STARTED_FILE"
+
+    # Check topology change
+    local old_fp new_fp
+    old_fp=$(cat "$STATE_DIR/last_topology" 2>/dev/null)
+    new_fp=$(topology_fingerprint "$CONFFILE")
+    if [ "$old_fp" != "$new_fp" ]; then
+      log_msg "Топология фаервола изменилась — плавное обновление правил iptables"
+      firewall_start
+    else
+      log_msg "Топология неизменна — правила iptables сохранены без перезагрузки (Zero Downtime)"
+    fi
+    printf '%s' "$new_fp" > "$STATE_DIR/last_topology"
+
+    # Gracefully stop old daemon
+    if [ -n "$old_pid" ] && kill -0 "$old_pid" 2>/dev/null; then
+      kill -TERM "$old_pid" 2>/dev/null
+      wait_for_process "$old_pid" down 10 || kill -KILL "$old_pid" 2>/dev/null
+    fi
+
+    acquire_wakelock
+    echo 1 > "$DESIRED_FILE"
+    log_msg "nfqws2 успешно обновлён (Новый PID $new_pid, Zero-Downtime Replace)"
+    update_description running
+    ensure_watchdog
+
+    touch "$STATE_DIR/rollback_armed"
+    (
+      sleep 5
+      if [ -f "$STATE_DIR/rollback_armed" ]; then
+        if is_running; then
+          rm -f "$STATE_DIR/rollback_armed" 2>/dev/null
+          save_working_snapshot
+          log_msg "Watchdog Gate: новая конфигурация успешно стабилизирована (5s)"
+        else
+          log_msg "Watchdog Gate: падение нового процесса в течение 5s — запуск автоотката!"
+          rm -f "$STATE_DIR/rollback_armed" 2>/dev/null
+          rollback
+        fi
+      fi
+    ) >/dev/null 2>&1 &
+
+    return 0
+  }
+
+  local ret=0
+  _replace_internal || ret=$?
+  rmdir "$lock" 2>/dev/null
+  return $ret
+}
+
+rollback() {
+  if [ ! -f "$SNAPSHOT_DIR/nfqws2.conf" ]; then
+    log_msg "Rollback: нет сохранённого снимка для отката"
+    return 1
+  fi
+  log_msg "ВНИМАНИЕ: Запущен гарантированный откат к предыдущей рабочей конфигурации"
+  rollback_to_snapshot || return 1
+  load_conf >/dev/null 2>&1
+  local res=0
+  if is_running; then
+    replace_daemon || { stop; start; res=$?; }
+  else
+    start || res=$?
+  fi
+  if [ "$res" -eq 0 ]; then
+    log_msg "Rollback: служба успешно восстановлена из рабочего снимка"
+    printf '{"time":%d,"strategy":"%s","status":"restored"}\n' \
+      "$(date +%s 2>/dev/null || echo 0)" "$(get_current_strategy)" > "$STATE_DIR/last_rollback.json"
+  fi
+  return $res
 }
 
 stop() {
@@ -164,6 +308,7 @@ stop() {
   update_description stopped
   return 0
 }
+
 
 reload_lists() {
   is_running || { echo "Служба не запущена"; return 1; }
@@ -286,6 +431,12 @@ watchdog() {
     [ -f "$DESIRED_FILE" ] || continue
 
     if ! is_running; then
+      if [ -f "$STATE_DIR/rollback_armed" ]; then
+        log_msg "watchdog: обнаружено падение при взведённом rollback_armed — инициирую автооткат"
+        rm -f "$STATE_DIR/rollback_armed" 2>/dev/null
+        rollback
+        continue
+      fi
       fails=$((fails + 1))
       log_msg "watchdog: nfqws2 не активен, автоперезапуск (#$fails)..."
       firewall_stop
@@ -472,7 +623,15 @@ case "$1" in
   vpn_check)          vpn_check; ensure_watchdog ;;
   home_check)         home_check; ensure_watchdog ;;
   net_check)          network_strategy_check ;;
-  restart)            stop; start ;;
+  restart)
+    if is_running; then
+      replace_daemon || { stop; start; }
+    else
+      start
+    fi
+    ;;
+  replace)            replace_daemon ;;
+  rollback)           rollback ;;
   reload)             reload_lists ;;
   status)             status_service ;;
   ensure_watchdog)    ensure_watchdog ;;

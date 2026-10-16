@@ -112,6 +112,7 @@ set_strategy() {
     return 1
   fi
   cp -f "$CONFFILE" "$CONFFILE.bak" 2>/dev/null
+  save_working_snapshot "$CONFFILE" 2>/dev/null || true
   mv -f "$tmp" "$CONFFILE"
   chmod 0644 "$CONFFILE"
   echo "$name" > "$ACTIVE_FILE"
@@ -1335,6 +1336,8 @@ case "$1" in
   json-status) cmd_json_status ;;
   is-running) is_running ;;
   start|stop|restart|reload) sh "$SERVICE" "$1" ;;
+  replace) sh "$SERVICE" replace ;;
+  rollback) sh "$SERVICE" rollback ;;
   doctor) cmd_doctor ;;
 
   check|dry-run)
