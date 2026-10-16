@@ -81,6 +81,10 @@ start() {
     fi
     save_strategy_receipt "$CONFFILE" 2>/dev/null || true
 
+    export Z2K_TCP16_ASN="$STATE_DIR/tcp16_asn.txt"
+    export Z2K_TCP16_NETS="$STATE_DIR/tcp16_nets.txt"
+    export Z2K_TCP16_SNI="$STATE_DIR/tcp16_sni.txt"
+    export Z2K_SNI_PIN="$LISTS_DIR/whitelist_sni.list"
     cd "$MODDIR/bin" || return 1
     set -f
 
@@ -179,6 +183,10 @@ replace_daemon() {
     fi
     save_strategy_receipt "$CONFFILE" 2>/dev/null || true
 
+    export Z2K_TCP16_ASN="$STATE_DIR/tcp16_asn.txt"
+    export Z2K_TCP16_NETS="$STATE_DIR/tcp16_nets.txt"
+    export Z2K_TCP16_SNI="$STATE_DIR/tcp16_sni.txt"
+    export Z2K_SNI_PIN="$LISTS_DIR/whitelist_sni.list"
     cd "$MODDIR/bin" || return 1
     set -f
 

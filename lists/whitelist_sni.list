@@ -1,0 +1,8 @@
+# whitelist_sni.list — белые домены для обхода DPI и подстановки SNI (TCP 16KB / TLS SNI)
+ya.ru
+yandex.ru
+vk.com
+gosuslugi.ru
+300.ya.ru
+ad.adriver.ru
+hcaptcha.com

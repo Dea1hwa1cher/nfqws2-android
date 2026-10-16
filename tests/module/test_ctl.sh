@@ -528,4 +528,22 @@ ctl check-domain "bad domain name!!!"
 assert_rc 1 "$ctl_rc" "check-domain rejects invalid domain"
 assert_contains "$ctl_out" "INVALID" "reports INVALID"
 
+section "tcp16-status and record_tcp16_detection"
+
+ctl tcp16-status
+assert_rc 0 "$ctl_rc" "tcp16-status succeeds"
+assert_contains "$ctl_out" "asns" "tcp16-status returns JSON with asns"
+
+record_tcp16_detection "Hetzner_Cloud" "91.98.156.82" "16KB"
+assert_file "$CONFDIR/state/tcp16_asn.txt" "tcp16_asn.txt is created"
+assert_contains "$(cat "$CONFDIR/state/tcp16_asn.txt")" "24940" "Hetzner ASN is recorded"
+assert_file "$CONFDIR/state/tcp16_nets.txt" "tcp16_nets.txt is created"
+assert_contains "$(cat "$CONFDIR/state/tcp16_nets.txt")" "91.98.0.0/16" "prefix is recorded"
+assert_file "$CONFDIR/state/tcp16_sni.txt" "tcp16_sni.txt is created"
+assert_contains "$(cat "$CONFDIR/state/tcp16_sni.txt")" "24940" "SNI map contains ASN"
+
+ctl tcp16-status
+assert_rc 0 "$ctl_rc" "tcp16-status reflects recorded ASNs"
+assert_contains "$ctl_out" "24940" "tcp16-status includes ASN 24940"
+
 harness_finish

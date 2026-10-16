@@ -659,6 +659,63 @@ rollback_to_snapshot() {
   return 0
 }
 
+record_tcp16_detection() { # <provider> <ip> <detected_size>
+  local provider="$1" ip="$2" sz="$3"
+  [ -n "$ip" ] || return 0
+  mkdir -p "$STATE_DIR" 2>/dev/null
+
+  local o1 o2 prefix
+  o1=$(printf '%s' "$ip" | cut -d. -f1)
+  o2=$(printf '%s' "$ip" | cut -d. -f2)
+  if [ -z "$o1" ] || [ -z "$o2" ]; then return 0; fi
+  prefix="${o1}.${o2}.0.0/16"
+
+  local asn=0 sni="300.ya.ru"
+  case "$provider" in
+    *Hetzner*) asn=24940; sni="300.ya.ru" ;;
+    *Cloudflare*) asn=13335; sni="hcaptcha.com" ;;
+    *CDN77*) asn=60068; sni="ad.adriver.ru" ;;
+    *Akamai*) asn=20940; sni="300.ya.ru" ;;
+    *AWS*) asn=16509; sni="hcaptcha.com" ;;
+    *OVH*) asn=16276; sni="300.ya.ru" ;;
+    *Fastly*) asn=54113; sni="release-assets.githubusercontent.com" ;;
+    *Oracle*) asn=31898; sni="300.ya.ru" ;;
+    *Google*) asn=15169; sni="ya.ru" ;;
+    *) asn=99999; sni="ya.ru" ;;
+  esac
+
+  if [ -f "$LISTS_DIR/whitelist_sni.list" ]; then
+    local custom_sni
+    custom_sni=$(grep -v -E '^[[:space:]]*(#|$)' "$LISTS_DIR/whitelist_sni.list" 2>/dev/null | head -n1 | tr -d '\r')
+    if [ -n "$custom_sni" ]; then
+      sni="$custom_sni"
+    fi
+  fi
+
+  # 1. ASN list: $STATE_DIR/tcp16_asn.txt
+  if [ -f "$STATE_DIR/tcp16_asn.txt" ]; then
+    grep -qx "$asn" "$STATE_DIR/tcp16_asn.txt" 2>/dev/null || echo "$asn" >> "$STATE_DIR/tcp16_asn.txt"
+  else
+    echo "$asn" > "$STATE_DIR/tcp16_asn.txt"
+  fi
+
+  # 2. Nets list: $STATE_DIR/tcp16_nets.txt
+  local netline="$asn	$prefix"
+  if [ -f "$STATE_DIR/tcp16_nets.txt" ]; then
+    grep -qx "$netline" "$STATE_DIR/tcp16_nets.txt" 2>/dev/null || printf '%s\n' "$netline" >> "$STATE_DIR/tcp16_nets.txt"
+  else
+    printf '%s\n' "$netline" > "$STATE_DIR/tcp16_nets.txt"
+  fi
+
+  # 3. SNI list: $STATE_DIR/tcp16_sni.txt
+  local sniline="$asn	$sni"
+  if [ -f "$STATE_DIR/tcp16_sni.txt" ]; then
+    grep -qx "$sniline" "$STATE_DIR/tcp16_sni.txt" 2>/dev/null || printf '%s\n' "$sniline" >> "$STATE_DIR/tcp16_sni.txt"
+  else
+    printf '%s\n' "$sniline" > "$STATE_DIR/tcp16_sni.txt"
+  fi
+}
+
 
 
 kernel_modules() {
@@ -713,6 +770,123 @@ ipt_probe() {
   $CMD -w -t mangle -X nfqws_test >/dev/null 2>&1
   [ "$rc" -eq 0 ] || printf '%s' "$err" | tail -n1
   return $rc
+}
+
+ipt_wait_flag() { # <cmd>
+  local cmd="${1:-iptables}"
+  if [ -n "$IPT_WAIT_CHECKED" ]; then
+    printf '%s' "$IPT_WAIT_FLAG"
+    return 0
+  fi
+  IPT_WAIT_CHECKED=1
+  IPT_WAIT_FLAG=""
+  if "$cmd" -w 1 -L -n >/dev/null 2>&1; then
+    IPT_WAIT_FLAG="-w"
+  elif "$cmd" -w -L -n >/dev/null 2>&1; then
+    IPT_WAIT_FLAG="-w"
+  fi
+  printf '%s' "$IPT_WAIT_FLAG"
+}
+
+ipt_exec() { # <cmd> <args...>
+  local cmd="$1"; shift
+  if [ "$cmd" = "_fw_batch_cmd" ]; then
+    _fw_batch_cmd "$@"
+    return $?
+  fi
+  case "$1" in
+    -w) shift ;;
+  esac
+  local wflag
+  wflag=$(ipt_wait_flag "$cmd")
+  local attempt=1 max_attempts=5 delay=0.1
+  local err rc
+
+  while [ "$attempt" -le "$max_attempts" ]; do
+    if [ -n "$wflag" ]; then
+      err=$("$cmd" "$wflag" "$@" 2>&1)
+      rc=$?
+    else
+      err=$("$cmd" "$@" 2>&1)
+      rc=$?
+    fi
+
+    if [ "$rc" -eq 0 ]; then
+      return 0
+    fi
+
+    case "$err" in
+      *xtables*|*lock*|*temporarily\ unavailable*)
+        sleep "$delay"
+        case "$attempt" in
+          1) delay=0.15 ;;
+          2) delay=0.20 ;;
+          3) delay=0.25 ;;
+          4) delay=0.30 ;;
+        esac
+        attempt=$((attempt + 1))
+        continue
+        ;;
+    esac
+
+    break
+  done
+
+  if [ -n "$err" ]; then
+    printf '%s\n' "$err" >&2
+  fi
+  return "$rc"
+}
+
+ipt_restore_exec() { # <cmd: iptables|ip6tables> <rules_file>
+  local cmd="$1" rules="$2"
+  local restore_bin="${cmd}-restore"
+  command -v "$restore_bin" >/dev/null 2>&1 || return 1
+
+  local wait_arg=""
+  if "$restore_bin" -w 1 < /dev/null >/dev/null 2>&1; then
+    wait_arg="-w 5"
+  elif "$restore_bin" -w < /dev/null >/dev/null 2>&1; then
+    wait_arg="-w"
+  fi
+
+  local attempt=1 max_attempts=5 delay=0.1
+  local err rc
+
+  while [ "$attempt" -le "$max_attempts" ]; do
+    if [ -n "$wait_arg" ]; then
+      err=$("$restore_bin" $wait_arg --noflush < "$rules" 2>&1)
+      rc=$?
+    else
+      err=$("$restore_bin" --noflush < "$rules" 2>&1)
+      rc=$?
+    fi
+
+    if [ "$rc" -eq 0 ]; then
+      return 0
+    fi
+
+    case "$err" in
+      *xtables*|*lock*|*temporarily\ unavailable*)
+        sleep "$delay"
+        case "$attempt" in
+          1) delay=0.15 ;;
+          2) delay=0.20 ;;
+          3) delay=0.25 ;;
+          4) delay=0.30 ;;
+        esac
+        attempt=$((attempt + 1))
+        continue
+        ;;
+    esac
+
+    break
+  done
+
+  if [ -n "$err" ]; then
+    printf '%s\n' "$err" >&2
+  fi
+  return "$rc"
 }
 
 detect_limiter() {
@@ -798,7 +972,16 @@ _fw_batch_cmd() {
   if [ "$1" = "-t" ]; then table="$2"; shift 2; fi
   case "$1" in
     -D) return 1 ;;
-    -N|-F|-X|-A|-I)
+    -I)
+      case "$2" in
+        POSTROUTING|PREROUTING) return 0 ;;
+        *)
+          FW_BATCH_BUF="$FW_BATCH_BUF$table|$*
+"
+          return 0 ;;
+      esac
+      ;;
+    -N|-F|-X|-A)
       FW_BATCH_BUF="$FW_BATCH_BUF$table|$*
 "
       return 0 ;;
@@ -811,7 +994,6 @@ _firewall_start_restore() {
   rules="${FW_RESTORE_DIR}/${CMD}.input"
 
   command -v "${CMD}-restore" >/dev/null 2>&1 || return 1
-  _firewall_stop "$CMD" || true
   FW_PROBE_CMD="$CMD"
   FW_BATCH_BUF=""
   # use existing builder to populate same rules
@@ -826,7 +1008,12 @@ _firewall_start_restore() {
     {
       i = index($0, "|"); t = substr($0, 1, i - 1); line = substr($0, i + 1)
       if (!(t in seen)) { order[++n] = t; seen[t] = 1 }
-      buf[t] = buf[t] line "\n"
+      if (line ~ /^-N /) {
+        ch = substr(line, 4)
+        buf[t] = buf[t] ":" ch " - [0:0]\n"
+      } else {
+        buf[t] = buf[t] line "\n"
+      }
     }
     END {
       for (j = 1; j <= n; j++) {
@@ -838,9 +1025,25 @@ _firewall_start_restore() {
     }' > "$rules"
   FW_BATCH_BUF=""
 
-  "${CMD}-restore" --noflush < "$rules"
-  local rc=$?
+  local rc
+  ipt_restore_exec "$CMD" "$rules"
+  rc=$?
   rm -f "$rules"
+
+  if [ "$rc" -eq 0 ]; then
+    ipt_exec "$CMD" -t mangle -C POSTROUTING -j "$IPT_GROUP_POST" 2>/dev/null || \
+      ipt_exec "$CMD" -t mangle -I POSTROUTING 1 -j "$IPT_GROUP_POST"
+    ipt_exec "$CMD" -t mangle -C PREROUTING -j "$IPT_GROUP_PRE" 2>/dev/null || \
+      ipt_exec "$CMD" -t mangle -I PREROUTING 1 -j "$IPT_GROUP_PRE"
+    ipt_exec "$CMD" -t mangle -C POSTROUTING -m mark --mark "$MARK_PROCESSED" -j MARK --set-xmark 0x0/0x40000000 2>/dev/null || \
+      ipt_exec "$CMD" -t mangle -I POSTROUTING 2 -m mark --mark "$MARK_PROCESSED" -j MARK --set-xmark 0x0/0x40000000 2>/dev/null
+    if [ "$CMD" = "iptables" ]; then
+      if [ "$NAT_FIX" = "1" ]; then
+        ipt_exec "$CMD" -t nat -C POSTROUTING -j "$IPT_GROUP_NAT" 2>/dev/null || \
+          ipt_exec "$CMD" -t nat -I POSTROUTING 1 -j "$IPT_GROUP_NAT"
+      fi
+    fi
+  fi
   return "$rc"
 }
 
@@ -975,6 +1178,7 @@ _firewall_start() {
 
   $CMD -w -t mangle -I POSTROUTING 1 -j $IPT_GROUP_POST
   $CMD -w -t mangle -I PREROUTING 1 -j $IPT_GROUP_PRE
+  $CMD -w -t mangle -I POSTROUTING 2 -m mark --mark $MARK_PROCESSED -j MARK --set-xmark 0x0/0x40000000 2>/dev/null || true
   if [ "$REAL_CMD" = "iptables" ] && [ "$NAT_FIX" = "1" ]; then
     $CMD -w -t nat -I POSTROUTING 1 -j $IPT_GROUP_NAT
   fi
@@ -1003,6 +1207,7 @@ _firewall_start() {
 
 _firewall_stop() {
   local CMD="$1"
+  while $CMD -w -t mangle -D POSTROUTING -m mark --mark $MARK_PROCESSED -j MARK --set-xmark 0x0/0x40000000 2>/dev/null; do :; done
   while $CMD -w -t mangle -D POSTROUTING -j $IPT_GROUP_POST 2>/dev/null; do :; done
   while $CMD -w -t mangle -D PREROUTING -j $IPT_GROUP_PRE 2>/dev/null; do :; done
   while $CMD -w -t mangle -D FORWARD -j $IPT_GROUP_FWD 2>/dev/null; do :; done

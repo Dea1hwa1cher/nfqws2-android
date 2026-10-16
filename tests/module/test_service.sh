@@ -300,4 +300,19 @@ assert_file "$CONFDIR/state/last_rollback.json" "last_rollback.json is written"
 
 svc stop >/dev/null 2>&1
 
+section "atomic firewall helpers and desync mark unmarking"
+
+svc start >/dev/null 2>&1
+assert_file "$PIDFILE" "service is running for firewall helpers check"
+post_rules=$(ipt_rules POSTROUTING)
+assert_contains "$post_rules" "MARK --set-xmark 0x0/0x40000000" "POSTROUTING contains desync mark cleaner"
+
+wflag=$(ipt_wait_flag iptables)
+assert_rc 0 $? "ipt_wait_flag returns 0"
+
+ipt_exec iptables -t mangle -C POSTROUTING -j nfqws_post 2>/dev/null
+assert_rc 0 $? "ipt_exec can probe existing rule"
+
+svc stop >/dev/null 2>&1
+
 harness_finish
