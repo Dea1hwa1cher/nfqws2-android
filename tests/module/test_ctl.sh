@@ -493,4 +493,39 @@ assert_rc 0 "$ctl_rc" "list-apps with pm fallback exits 0"
 assert_contains "$ctl_out" "com.fallback.one" "list-apps fallback outputs package without prefix"
 rm -f "$mock_pm"
 
+# ── check-domain ─────────────────────────────────────────────────────────────
+section "check-domain"
+
+ctl add-domain "rutracker.org"
+assert_rc 0 "$ctl_rc" "add-domain rutracker.org succeeds"
+
+printf 'cdn.discordapp.com\n' >> "$LISTS_DIR/exclude.list"
+
+ctl check-domain "rutracker.org"
+assert_rc 0 "$ctl_rc" "check-domain finds domain in user.list"
+assert_contains "$ctl_out" "FOUND" "reports FOUND"
+assert_contains "$ctl_out" "user" "identifies user list"
+
+ctl check-domain "https://www.rutracker.org/forum/viewtopic.php"
+assert_rc 0 "$ctl_rc" "check-domain normalizes URL to domain"
+assert_contains "$ctl_out" "FOUND" "reports FOUND for normalized URL"
+assert_contains "$ctl_out" "user" "identifies user list"
+
+ctl check-domain "sub.rutracker.org"
+assert_rc 0 "$ctl_rc" "check-domain matches parent domain in list"
+assert_contains "$ctl_out" "FOUND" "reports FOUND for subdomain"
+assert_contains "$ctl_out" "user" "identifies user list"
+
+ctl check-domain "cdn.discordapp.com"
+assert_rc 0 "$ctl_rc" "check-domain finds domain in exclude.list"
+assert_contains "$ctl_out" "exclude" "identifies exclude list"
+
+ctl check-domain "completely-unknown-domain-xyz.net"
+assert_rc 0 "$ctl_rc" "check-domain succeeds for unknown domain"
+assert_contains "$ctl_out" "NOT_FOUND" "reports NOT_FOUND"
+
+ctl check-domain "bad domain name!!!"
+assert_rc 1 "$ctl_rc" "check-domain rejects invalid domain"
+assert_contains "$ctl_out" "INVALID" "reports INVALID"
+
 harness_finish

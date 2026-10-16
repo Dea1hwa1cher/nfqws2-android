@@ -1076,7 +1076,53 @@ cmd_probe_cancel() {
   echo OK
 }
 
+cmd_check_domain() {
+  local raw="$1" d
+  d=$(printf '%s' "$raw" | tr 'A-Z' 'a-z' | sed 's#^[a-z]*://##; s#/.*##; s/:[0-9]*$//; s/^www\.//')
+  case "$d" in
+    ''|*[!a-z0-9.-]*)
+      echo "INVALID"
+      return 1
+      ;;
+  esac
+
+  local found_lists=""
+  local list_name f d_esc
+  d_esc=$(printf '%s' "$d" | sed 's/\./\\./g')
+  for list_name in user exclude auto probe_bench probe_hosts; do
+    f="$LISTS_DIR/$list_name.list"
+    [ -f "$f" ] || continue
+
+    if grep -Eq "^(www\.)?$d_esc\r?$" "$f" 2>/dev/null; then
+      found_lists="$found_lists${found_lists:+,}$list_name"
+      continue
+    fi
+
+    local parent="$d"
+    while case "$parent" in *.*) true ;; *) false ;; esac; do
+      parent="${parent#*.}"
+      case "$parent" in
+        *.*)
+          local p_esc
+          p_esc=$(printf '%s' "$parent" | sed 's/\./\\./g')
+          if grep -Eq "^(www\.)?$p_esc\r?$" "$f" 2>/dev/null; then
+            found_lists="$found_lists${found_lists:+,}$list_name"
+            break
+          fi
+          ;;
+      esac
+    done
+  done
+
+  if [ -n "$found_lists" ]; then
+    printf 'FOUND\t%s\t%s\n' "$d" "$found_lists"
+  else
+    printf 'NOT_FOUND\t%s\n' "$d"
+  fi
+}
+
 cmd_bench_strategies() {
+  local target_domain="$1"
   local tool kind bin orig_strat orig_running=false
   tool=$(probe_tool); kind="${tool%% *}"; bin="${tool#* }"
   printf 'tool\t%s\n' "$kind"
@@ -1089,7 +1135,7 @@ cmd_bench_strategies() {
   cp -f "$CONFFILE" "$STATE_DIR/bench_orig.conf" 2>/dev/null
 
   bench_cleanup() {
-    rm -f "$STATE_DIR/probe.pid" "$STATE_DIR/probe_bench_default.list" "$STATE_DIR/bench_res.$$.tmp" "$STATE_DIR/strat_bench.$$.tmp"
+    rm -f "$STATE_DIR/probe.pid" "$STATE_DIR/probe_bench_default.list" "$STATE_DIR/probe_bench_custom.$$.list" "$STATE_DIR/bench_res.$$.tmp" "$STATE_DIR/strat_bench.$$.tmp"
     cleanup_probe_app_rule
     if [ -f "$STATE_DIR/bench_orig.conf" ]; then
       cp -f "$STATE_DIR/bench_orig.conf" "$CONFFILE" 2>/dev/null
@@ -1106,7 +1152,12 @@ cmd_bench_strategies() {
   trap 'bench_cleanup' EXIT
 
   local bench_hosts_file="$LISTS_DIR/probe_bench.list"
-  if [ ! -f "$bench_hosts_file" ] || [ ! -s "$bench_hosts_file" ]; then
+  if [ -n "$target_domain" ]; then
+    target_domain=$(printf '%s' "$target_domain" | tr 'A-Z' 'a-z' | sed 's#^[a-z]*://##; s#/.*##; s/:[0-9]*$//; s/^www\.//')
+    case "$target_domain" in ''|*[!a-z0-9.-]*) echo "Некорректный домен" >&2; return 1 ;; esac
+    bench_hosts_file="$STATE_DIR/probe_bench_custom.$$.list"
+    printf '%s\n' "$target_domain" > "$bench_hosts_file"
+  elif [ ! -f "$bench_hosts_file" ] || [ ! -s "$bench_hosts_file" ]; then
     bench_hosts_file="$STATE_DIR/probe_bench_default.list"
     printf '%s\n' \
       www.youtube.com googlevideo.com discord.com gateway.discord.gg \
@@ -1239,7 +1290,7 @@ cmd_probe_dpi() {
     tcp16) cmd_probe_tcp16 ;;
     dns) cmd_probe_dns ;;
     tg) cmd_probe_tg ;;
-    bench) cmd_bench_strategies ;;
+    bench) cmd_bench_strategies "$2" ;;
     all|*)
       cmd_net_info
       cmd_probe_all_inner "$kind" "$bin"
@@ -1465,8 +1516,9 @@ case "$1" in
   net-info) cmd_net_info ;;
   probe-dpi) cmd_probe_dpi "${2:-all}" ;;
   probe-tg) cmd_probe_dpi tg ;;
-  bench-strategies) cmd_bench_strategies ;;
-  probe-bench) cmd_bench_strategies ;;
+  bench-strategies) cmd_bench_strategies "$2" ;;
+  probe-bench) cmd_bench_strategies "$2" ;;
+  check-domain) cmd_check_domain "$2" ;;
   probe-cancel) cmd_probe_cancel ;;
   clear-logs) : > "$SERVICE_LOG"; : > "$NFQWS_LOG"; rm -f "$LOG_DIR/nfqws2-debug.log" "$LOG_DIR/auto.log"; echo OK ;;
   *)
@@ -1474,7 +1526,7 @@ case "$1" in
     echo "         list-strategies get-strategy set-strategy strategy-get-b64 strategy-save-b64 strategy-reset" >&2
     echo "         import-add-b64 list-imports get-import-merged-b64 rename-import delete-import" >&2
     echo "         get-list save-list-b64 list-update add-domain clear-auto reset-lists set set-mode list-apps" >&2
-    echo "         get-logs export-logs clear-logs wifi-ssid backup-create backup-list backup-restore backup-restore-b64 probe-dpi probe-cancel net-info bench-strategies" >&2
+    echo "         get-logs export-logs clear-logs wifi-ssid backup-create backup-list backup-restore backup-restore-b64 probe-dpi probe-cancel net-info bench-strategies check-domain" >&2
     echo "         current-network list-net-strategies clear-net-strategies" >&2
     exit 1 ;;
 esac

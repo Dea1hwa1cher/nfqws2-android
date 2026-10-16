@@ -258,20 +258,52 @@
 
     <div class="stack" id="bench-block">
       <div class="subhead-row">
-        <h2 class="subhead" data-t>Автоподбор стратегий</h2>
+        <h2 class="subhead" data-t>Тестирование стратегий</h2>
         <span class="pill tonal" id="bench-badge" hidden></span>
       </div>
-      <div class="group">
+
+      <div class="segmented" id="bench-tabs" role="tablist" aria-label="Режим тестирования" data-ta="aria-label">
+        <button class="seg on state" data-tab="all" onclick="selectBenchTab('all')"><span data-t>Общее</span></button>
+        <button class="seg state" data-tab="domain" onclick="selectBenchTab('domain')"><span data-t>Отдельный домен</span></button>
+      </div>
+
+      <div class="group" id="bench-sec-all">
         <div class="t-body-medium muted" data-t>Последовательное тестирование всех доступных стратегий через контрольный набор сайтов (probe_bench.list). Определяет стратегию с наивысшей проходимостью и минимальной задержкой.</div>
         <div class="row">
           <button class="btn with-icon state" id="bench-btn" onclick="runBench()">
-            <svg aria-hidden="true" class="icon s18"><use href="#i-play"/></svg><span data-t>Запустить автоподбор</span>
+            <svg aria-hidden="true" class="icon s18"><use href="#i-play"/></svg><span data-t>Запустить тестирование</span>
           </button>
           <button class="btn tonal with-icon state" id="bench-copy-btn" onclick="copyBenchReport()" aria-label="Копировать отчёт" data-ta="aria-label">
             <svg aria-hidden="true" class="icon s18"><use href="#i-copy"/></svg><span data-t>Копировать отчёт</span>
           </button>
         </div>
       </div>
+
+      <div class="group" id="bench-sec-domain" hidden>
+        <div class="t-body-medium muted" data-t>Тестирование стратегий на одном выбранном ресурсе. Позволяет подобрать оптимальную стратегию для конкретного сайта или сервиса.</div>
+        <div class="field" style="margin-top:12px;">
+          <div class="tf">
+            <input type="text" id="bench-domain" placeholder="например, rutracker.org" data-ta="placeholder" autocapitalize="off" autocorrect="off"
+                   spellcheck="false" enterkeyhint="done" oninput="onBenchDomainInput(this.value)" onkeydown="if(event.key==='Enter')runBench()"
+                   aria-describedby="bench-domain-status">
+            <label for="bench-domain" data-t>Целевой домен</label>
+            <button class="icon-btn state tone-primary" id="bench-domain-clear" aria-label="Очистить" data-ta="aria-label" onclick="clearBenchDomain()" hidden>
+              <svg aria-hidden="true" class="icon s24"><use href="#i-close"/></svg>
+            </button>
+          </div>
+          <div class="helper" id="bench-domain-status"></div>
+        </div>
+        <div id="bench-domain-action" class="row" style="margin-top:4px; gap:8px;" hidden></div>
+        <div class="row" style="margin-top:8px;">
+          <button class="btn with-icon state" id="bench-domain-btn" onclick="runBench()">
+            <svg aria-hidden="true" class="icon s18"><use href="#i-play"/></svg><span data-t>Запустить для домена</span>
+          </button>
+          <button class="btn tonal with-icon state" id="bench-domain-copy-btn" onclick="copyBenchReport()" aria-label="Копировать отчёт" data-ta="aria-label">
+            <svg aria-hidden="true" class="icon s18"><use href="#i-copy"/></svg><span data-t>Копировать отчёт</span>
+          </button>
+        </div>
+      </div>
+
       <div id="bench-best" class="group" hidden></div>
       <div class="list" id="bench-list"></div>
     </div>
