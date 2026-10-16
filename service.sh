@@ -62,6 +62,7 @@ start() {
     fi
     local err
     err=$(validate_args_conf) || { log_msg "$err"; return 1; }
+    err=$(validate_strategy_blob_references "$CONFFILE") || { log_msg "$err"; return 1; }
 
     log_msg "Запуск nfqws2..."
     kernel_modules
@@ -78,6 +79,7 @@ start() {
       start_failed "Ошибка: параметры запуска nfqws2 некорректны (проверка --dry-run отклонена)."
       return 1
     fi
+    save_strategy_receipt "$CONFFILE" 2>/dev/null || true
 
     cd "$MODDIR/bin" || return 1
     set -f

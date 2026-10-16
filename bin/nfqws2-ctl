@@ -115,6 +115,7 @@ set_strategy() {
   mv -f "$tmp" "$CONFFILE"
   chmod 0644 "$CONFFILE"
   echo "$name" > "$ACTIVE_FILE"
+  save_strategy_receipt "$CONFFILE" 2>/dev/null || true
   if [ "$NET_STRATEGY" = "1" ]; then
     save_net_strategy "$name" >/dev/null 2>&1
   fi
@@ -1445,11 +1446,53 @@ case "$1" in
     { b64d "$3" | tr -d '\r' > "$f.tmp"; } && mv -f "$f.tmp" "$f" ||
       { rm -f "$f.tmp"; echo "Не удалось сохранить ${f##*/}" >&2; exit 1; }
     chmod 0644 "$f"
+    rm -f "$LIST_COUNTS_CACHE" 2>/dev/null
     # Пользователь сам привёл список к новой версии — предлагать её больше незачем.
     cmp -s "$f" "$LISTS_PENDING_DIR/${f##*/}" 2>/dev/null && rm -f "$LISTS_PENDING_DIR/${f##*/}"
     if [ "$2" = "apps" ]; then cmd_apply_apps; exit $?; fi
     if [ "$2" = "home" ]; then sh "$SERVICE" home_check >/dev/null 2>&1; echo OK; exit 0; fi
     reload_after_change; echo OK ;;
+  save-list-chunk-b64)
+    f=$(list_file "$2") || { echo "Неизвестный список" >&2; exit 1; }
+    chunk_idx="$3"
+    total_chunks="$4"
+    b64_data="$5"
+    tmp="$f.chunk_tmp"
+    if [ "$chunk_idx" = "1" ]; then
+      rm -f "$tmp"
+      { b64d "$b64_data" | tr -d '\r' > "$tmp"; } || { rm -f "$tmp"; echo "Не удалось записать чанк 1" >&2; exit 1; }
+    else
+      { b64d "$b64_data" | tr -d '\r' >> "$tmp"; } || { rm -f "$tmp"; echo "Не удалось дописать чанк $chunk_idx" >&2; exit 1; }
+    fi
+    if [ "$chunk_idx" -ge "$total_chunks" ]; then
+      mv -f "$tmp" "$f" && chmod 0644 "$f" || { rm -f "$tmp"; echo "Не удалось сохранить ${f##*/}" >&2; exit 1; }
+      rm -f "$LIST_COUNTS_CACHE" 2>/dev/null
+      cmp -s "$f" "$LISTS_PENDING_DIR/${f##*/}" 2>/dev/null && rm -f "$LISTS_PENDING_DIR/${f##*/}"
+      if [ "$2" = "apps" ]; then cmd_apply_apps; exit $?; fi
+      if [ "$2" = "home" ]; then sh "$SERVICE" home_check >/dev/null 2>&1; echo OK; exit 0; fi
+      reload_after_change; echo OK
+    else
+      echo "CHUNK $chunk_idx/$total_chunks OK"
+    fi ;;
+  get-list-chunk)
+    f=$(list_file "$2") || { echo "Неизвестный список" >&2; exit 1; }
+    [ -f "$f" ] || cp -f "$MODDIR/defaults/lists/${f##*/}" "$f" 2>/dev/null || cp -f "$MODDIR/lists/${f##*/}" "$f" 2>/dev/null
+    if [ -f "$f" ]; then
+      offset="${3:-1}"
+      limit="${4:-5000}"
+      tail -n "+$offset" "$f" 2>/dev/null | head -n "$limit"
+    fi ;;
+  list-line-count)
+    f=$(list_file "$2") || { echo 0; exit 1; }
+    list_line_count "$f" ;;
+  collect-ports)
+    collect_capture_ports "${2:-tcp}" ;;
+  verify-receipt)
+    if verify_strategy_receipt; then
+      echo "VALID $(cat "$RECEIPT_FILE" 2>/dev/null)"
+    else
+      echo "INVALID $(generate_strategy_receipt 2>/dev/null)"
+    fi ;;
   list-update) cmd_list_update "$2" ;;
   add-domain)
     d=$(printf '%s' "$2" | tr 'A-Z' 'a-z' | sed 's#^[a-z]*://##; s#/.*##; s/^www\.//')

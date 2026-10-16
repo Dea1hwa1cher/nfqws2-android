@@ -49,6 +49,8 @@ IPT_GROUP_APP="nfqws_app"
 IPT_GROUP_FWD="nfqws_fwd"
 NET_STRATEGIES_DIR="$CONFDIR/net_strategies"
 IPT_CAP_CACHE="$STATE_DIR/iptables-capabilities"
+RECEIPT_FILE="$STATE_DIR/compiled.receipt"
+LIST_COUNTS_CACHE="$STATE_DIR/list_counts.cache"
 
 # xt_owner allows max 128 ranges per rule
 APP_UID_MAX=128
@@ -85,6 +87,7 @@ set_defaults() {
   : "${ENABLE_HOTSPOT:=1}"
   : "${NET_STRATEGY:=0}"
   : "${VPN_PAUSE:=0}"
+  : "${AUTO_PORTS:=0}"
 }
 
 log_msg() {
@@ -202,6 +205,13 @@ is_running() {
   return 0
 }
 
+list_line_count() {
+  [ -f "$1" ] || { printf 0; return; }
+  local n
+  n=$(wc -l < "$1" 2>/dev/null | tr -d ' ')
+  printf '%s' "${n:-0}"
+}
+
 list_count() {
   [ -f "$1" ] || { printf 0; return; }
   local c
@@ -210,21 +220,52 @@ list_count() {
 }
 
 # list_count for many files in one grep; counts space-separated, 0 if missing.
-# grep not awk: toybox awk is 4x slower on large ipset lists.
+# Uses mtime+size signature cache to avoid redundant grep on 100k+ line lists.
 list_counts() {
-  local f out="" c r="" have=""
-  for f; do [ -f "$f" ] && have="$have${have:+
-}$f"; done
+  local f out="" c r="" have="" sig cached_val cache_file="$LIST_COUNTS_CACHE"
+  for f; do
+    if [ -f "$f" ]; then
+      sig=$(stat -c '%Y|%s' "$f" 2>/dev/null)
+      cached_val=""
+      if [ -n "$sig" ] && [ -f "$cache_file" ]; then
+        cached_val=$(awk -F'|' -v f="$f" -v s="$sig" '$1 == f && ($2 "|" $3) == s { print $4; exit }' "$cache_file" 2>/dev/null)
+      fi
+      if [ -z "$cached_val" ]; then
+        have="$have${have:+
+}$f"
+      fi
+    fi
+  done
   # trailing /dev/null makes grep print "name:count" even for a single file
-  [ -n "$have" ] && out=$(IFS='
+  if [ -n "$have" ]; then
+    out=$(IFS='
 '; set -f; grep -cv -e '^[[:space:]]*$' -e '^[[:space:]]*#' $have /dev/null 2>/dev/null)
-  out="
+    out="
 $out"
+  fi
   for f; do
     c=0
-    case "$out" in *"
+    if [ -f "$f" ]; then
+      sig=$(stat -c '%Y|%s' "$f" 2>/dev/null)
+      cached_val=""
+      if [ -n "$sig" ] && [ -f "$cache_file" ]; then
+        cached_val=$(awk -F'|' -v f="$f" -v s="$sig" '$1 == f && ($2 "|" $3) == s { print $4; exit }' "$cache_file" 2>/dev/null)
+      fi
+      if [ -n "$cached_val" ]; then
+        c="$cached_val"
+      else
+        case "$out" in *"
 $f:"*) c="${out#*"
 $f:"}"; c="${c%%[!0-9]*}" ;; esac
+        c="${c:-0}"
+        if [ -n "$sig" ]; then
+          mkdir -p "$STATE_DIR" 2>/dev/null
+          grep -v -F "$f|" "$cache_file" > "$cache_file.tmp" 2>/dev/null || true
+          printf '%s|%s|%s\n' "$f" "$sig" "$c" >> "$cache_file.tmp"
+          mv -f "$cache_file.tmp" "$cache_file" 2>/dev/null
+        fi
+      fi
+    fi
     r="$r${r:+ }${c:-0}"
   done
   printf '%s' "$r"
@@ -417,6 +458,7 @@ validate_conf_file() { # <conf_file>
   local f="$1" err out rc
   [ -f "$f" ] || { echo "Файл не найден: $f"; return 1; }
   err=$(validate_conf "$f" 2>&1) || { echo "$err"; return 1; }
+  err=$(validate_strategy_blob_references "$f" 2>&1) || { echo "$err"; return 1; }
   out=$(
     export CONFDIR MODDIR
     . "$f" >/dev/null 2>&1 || { echo "Ошибка синтаксиса в $f"; exit 1; }
@@ -437,6 +479,138 @@ validate_conf_file() { # <conf_file>
   fi
   return 0
 }
+
+get_strategy_packet_limits() { # [conffile]
+  local f="${1:-$CONFFILE}"
+  local t_out="" t_in="" u_out="" u_in=""
+  if [ -f "$f" ]; then
+    t_out=$(grep -m1 -E '^[#[:space:]]*NFQWS2_TCP_PKT_OUT=' "$f" 2>/dev/null | sed 's/.*=//; s/[^0-9]//g')
+    t_in=$(grep -m1 -E '^[#[:space:]]*NFQWS2_TCP_PKT_IN=' "$f" 2>/dev/null | sed 's/.*=//; s/[^0-9]//g')
+    u_out=$(grep -m1 -E '^[#[:space:]]*NFQWS2_UDP_PKT_OUT=' "$f" 2>/dev/null | sed 's/.*=//; s/[^0-9]//g')
+    u_in=$(grep -m1 -E '^[#[:space:]]*NFQWS2_UDP_PKT_IN=' "$f" 2>/dev/null | sed 's/.*=//; s/[^0-9]//g')
+  fi
+  printf '%s %s %s %s' "${t_out:-$PKT_LIMIT_OUT}" "${t_in:-$PKT_LIMIT_IN}" "${u_out:-$PKT_LIMIT_OUT}" "${u_in:-$PKT_LIMIT_IN}"
+}
+
+collect_capture_ports() { # <proto: tcp|udp> [args_string]
+  local proto="${1:-tcp}" args="${2:-}"
+  if [ -z "$args" ]; then
+    args="$NFQWS_ARGS $NFQWS_ARGS_QUIC $NFQWS_ARGS_UDP $NFQWS_ARGS_CUSTOM"
+  fi
+  printf '%s\n' "$args" | awk -v proto="$proto" '
+    BEGIN { pat = "--filter-" proto "=" }
+    {
+      s = $0
+      while (match(s, /--filter-(tcp|udp)=[^ "\t]+/)) {
+        tok = substr(s, RSTART, RLENGTH)
+        s = substr(s, RSTART + RLENGTH)
+        if (substr(tok, 1, length(pat)) == pat) {
+          val = substr(tok, length(pat) + 1)
+          n = split(val, arr, ",")
+          for (i = 1; i <= n; i++) {
+            p = arr[i]
+            gsub(/-/, ":", p)
+            if (p != "") {
+              split(p, sp, ":")
+              order[p] = sp[1] + 0
+              seen[p] = 1
+            }
+          }
+        }
+      }
+    }
+    END {
+      cnt = 0
+      for (p in seen) items[++cnt] = p
+      for (i = 1; i <= cnt; i++) {
+        for (j = i + 1; j <= cnt; j++) {
+          if (order[items[i]] > order[items[j]]) {
+            tmp = items[i]; items[i] = items[j]; items[j] = tmp
+          }
+        }
+      }
+      res = ""
+      for (i = 1; i <= cnt; i++) res = (res == "" ? items[i] : res "," items[i])
+      print res
+    }'
+}
+
+validate_strategy_blob_references() { # <args_or_conffile>
+  local content="$1" f p
+  if [ -f "$content" ]; then
+    content=$(cat "$content" 2>/dev/null)
+  fi
+
+  local missing=0
+  for p in $(printf '%s\n' "$content" | awk '
+    {
+      s = $0
+      while (match(s, /@[A-Za-z0-9_.\-\/$]+/)) {
+        print substr(s, RSTART + 1, RLENGTH - 1)
+        s = substr(s, RSTART + RLENGTH)
+      }
+    }' | sort -u); do
+    f="$p"
+    f=$(printf '%s\n' "$f" | sed \
+        -e "s#\\\$LUA_DIR#$LUA_DIR#g" \
+        -e "s#\\\$BLOBS_DIR#$BLOBS_DIR#g" \
+        -e "s#\\\$CONFDIR#$CONFDIR#g" \
+        -e "s#\\\$MODDIR#$MODDIR#g")
+    case "$f" in
+      */nfqws2-debug.log|*/nfqws2.log|*/auto.log) continue ;;
+    esac
+    if [ ! -f "$f" ]; then
+      log_msg "Ошибка: файл блоба или скрипта не найден: $f"
+      missing=$((missing + 1))
+    fi
+  done
+  [ "$missing" -eq 0 ] || return 1
+  return 0
+}
+
+generate_strategy_receipt() { # [conffile]
+  local conf="${1:-$CONFFILE}" f p file_list
+  [ -f "$conf" ] || return 1
+  file_list="$conf"
+  for p in $(awk '
+    {
+      s = $0
+      while (match(s, /@[A-Za-z0-9_.\-\/$]+/)) {
+        print substr(s, RSTART + 1, RLENGTH - 1)
+        s = substr(s, RSTART + RLENGTH)
+      }
+    }' "$conf" 2>/dev/null | sort -u); do
+    f="$p"
+    f=$(printf '%s\n' "$f" | sed \
+        -e "s#\\\$LUA_DIR#$LUA_DIR#g" \
+        -e "s#\\\$BLOBS_DIR#$BLOBS_DIR#g" \
+        -e "s#\\\$CONFDIR#$CONFDIR#g" \
+        -e "s#\\\$MODDIR#$MODDIR#g")
+    case "$f" in
+      */nfqws2-debug.log|*/nfqws2.log|*/auto.log) continue ;;
+    esac
+    [ -f "$f" ] && file_list="$file_list $f"
+  done
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum $file_list 2>/dev/null | sha256sum 2>/dev/null | awk '{print $1}'
+  else
+    return 1
+  fi
+}
+
+verify_strategy_receipt() { # [conffile]
+  [ -f "$RECEIPT_FILE" ] || return 1
+  local cur
+  cur=$(generate_strategy_receipt "${1:-$CONFFILE}" 2>/dev/null) || return 1
+  [ -n "$cur" ] && [ "$cur" = "$(cat "$RECEIPT_FILE" 2>/dev/null)" ]
+}
+
+save_strategy_receipt() { # [conffile]
+  local r
+  r=$(generate_strategy_receipt "${1:-$CONFFILE}" 2>/dev/null) || return 1
+  [ -n "$r" ] && printf '%s\n' "$r" > "$RECEIPT_FILE"
+}
+
 
 kernel_modules() {
   command -v modprobe >/dev/null 2>&1 || return 0
@@ -652,15 +826,36 @@ _fw_iface_rules() {
   fi
 
   # Incoming data flow (connbytes or connmark_in)
-  [ -n "$UP" ] && _fw_add_rule "$CMD" $IPT_GROUP_PRE "$IN" udp sports "$UP" "" "$TARGET_IN"
-  [ -n "$TP" ] && _fw_add_rule "$CMD" $IPT_GROUP_PRE "$IN" tcp sports "$TP" "" "$TARGET_IN"
+  [ -n "$UP" ] && _fw_add_rule "$CMD" $IPT_GROUP_PRE "$IN" udp sports "$UP" "" "$TARGET_IN_UDP"
+  [ -n "$TP" ] && _fw_add_rule "$CMD" $IPT_GROUP_PRE "$IN" tcp sports "$TP" "" "$TARGET_IN_TCP"
 }
 
 _firewall_start() {
   local CMD="$1" REAL_CMD="${FW_PROBE_CMD:-$1}" IF ex
 
-  IPT_TCP_PORTS=$(printf '%s' "$TCP_PORTS" | tr '-' ':')
-  IPT_UDP_EFF=$(printf '%s' "$UDP_PORTS" | tr '-' ':')
+  local strat_limits
+  strat_limits=$(get_strategy_packet_limits "$CONFFILE")
+  set -- $strat_limits
+  TCP_PKT_OUT="${1:-$PKT_LIMIT_OUT}"
+  TCP_PKT_IN="${2:-$PKT_LIMIT_IN}"
+  UDP_PKT_OUT="${3:-$PKT_LIMIT_OUT}"
+  UDP_PKT_IN="${4:-$PKT_LIMIT_IN}"
+
+  if [ "${AUTO_PORTS:-0}" = "1" ] || [ "$TCP_PORTS" = "auto" ]; then
+    local auto_tp
+    auto_tp=$(collect_capture_ports tcp)
+    IPT_TCP_PORTS="${auto_tp:-80,443}"
+  else
+    IPT_TCP_PORTS=$(printf '%s' "$TCP_PORTS" | tr '-' ':')
+  fi
+
+  if [ "${AUTO_PORTS:-0}" = "1" ] || [ "$UDP_PORTS" = "auto" ]; then
+    local auto_up
+    auto_up=$(collect_capture_ports udp)
+    IPT_UDP_EFF="$auto_up"
+  else
+    IPT_UDP_EFF=$(printf '%s' "$UDP_PORTS" | tr '-' ':')
+  fi
   [ "$BLOCK_QUIC" = "1" ] && IPT_UDP_EFF=$(port_list_without "$IPT_UDP_EFF" 443)
 
   LIMITER=$(detect_limiter "$REAL_CMD")
@@ -669,12 +864,20 @@ _firewall_start() {
   JNFQ="-j NFQUEUE --queue-num $NFQUEUE_NUM --queue-bypass"
   case "$LIMITER" in
     connbytes)
-      TARGET_OUT="-m connbytes --connbytes-dir=original --connbytes-mode=packets --connbytes 1:$PKT_LIMIT_OUT $JNFQ"
-      TARGET_IN="-m connbytes --connbytes-dir=reply --connbytes-mode=packets --connbytes 1:$PKT_LIMIT_IN $JNFQ"
+      TARGET_OUT_TCP="-m connbytes --connbytes-dir=original --connbytes-mode=packets --connbytes 1:$TCP_PKT_OUT $JNFQ"
+      TARGET_IN_TCP="-m connbytes --connbytes-dir=reply --connbytes-mode=packets --connbytes 1:$TCP_PKT_IN $JNFQ"
+      TARGET_OUT_UDP="-m connbytes --connbytes-dir=original --connbytes-mode=packets --connbytes 1:$UDP_PKT_OUT $JNFQ"
+      TARGET_IN_UDP="-m connbytes --connbytes-dir=reply --connbytes-mode=packets --connbytes 1:$UDP_PKT_IN $JNFQ"
+      TARGET_OUT="$TARGET_OUT_TCP"
+      TARGET_IN="$TARGET_IN_TCP"
       ;;
     connmark_out)
-      TARGET_OUT="-j $IPT_GROUP_QOUT"
-      TARGET_IN="-j $IPT_GROUP_QIN"
+      TARGET_OUT_TCP="-j $IPT_GROUP_QOUT"
+      TARGET_IN_TCP="-j $IPT_GROUP_QIN"
+      TARGET_OUT_UDP="-j $IPT_GROUP_QOUT"
+      TARGET_IN_UDP="-j $IPT_GROUP_QIN"
+      TARGET_OUT="$TARGET_OUT_TCP"
+      TARGET_IN="$TARGET_IN_TCP"
       ;;
   esac
 
@@ -739,14 +942,15 @@ _firewall_start() {
     fi
 
     local UP="$IPT_UDP_EFF" TP="$IPT_TCP_PORTS"
-    [ -n "$UP" ] && _fw_add_rule "$CMD" $IPT_GROUP_FWD "" udp dports "$UP" "" "$TARGET_OUT"
-    [ -n "$TP" ] && _fw_add_rule "$CMD" $IPT_GROUP_FWD "" tcp dports "$TP" "" "$TARGET_OUT"
-    [ -n "$UP" ] && _fw_add_rule "$CMD" $IPT_GROUP_FWD "" udp sports "$UP" "" "$TARGET_IN"
-    [ -n "$TP" ] && _fw_add_rule "$CMD" $IPT_GROUP_FWD "" tcp sports "$TP" "" "$TARGET_IN"
+    [ -n "$UP" ] && _fw_add_rule "$CMD" $IPT_GROUP_FWD "" udp dports "$UP" "" "$TARGET_OUT_UDP"
+    [ -n "$TP" ] && _fw_add_rule "$CMD" $IPT_GROUP_FWD "" tcp dports "$TP" "" "$TARGET_OUT_TCP"
+    [ -n "$UP" ] && _fw_add_rule "$CMD" $IPT_GROUP_FWD "" udp sports "$UP" "" "$TARGET_IN_UDP"
+    [ -n "$TP" ] && _fw_add_rule "$CMD" $IPT_GROUP_FWD "" tcp sports "$TP" "" "$TARGET_IN_TCP"
 
     $CMD -w -t mangle -I FORWARD 1 -j $IPT_GROUP_FWD
   fi
 }
+
 
 _firewall_stop() {
   local CMD="$1"
@@ -1114,7 +1318,7 @@ render_strategy() {
 
 # Module settings (same across strategies) are carried over whole from the live
 # config on strategy change/reset. NFQWS_EXTRA_ARGS only for standard $MODE_* refs.
-USER_KEYS="IPV6_ENABLED TCP_PORTS UDP_PORTS NFQUEUE_NUM PKT_LIMIT_OUT PKT_LIMIT_IN BLOCK_QUIC NAT_FIX APP_MODE AUTOSTART WATCHDOG NFQWS_USER LOG_LEVEL LOG_MAX_KB WAKELOCK HOME_WIFI ENABLE_HOTSPOT NET_STRATEGY VPN_PAUSE NFQWS_EXTRA_ARGS"
+USER_KEYS="IPV6_ENABLED TCP_PORTS UDP_PORTS NFQUEUE_NUM PKT_LIMIT_OUT PKT_LIMIT_IN BLOCK_QUIC NAT_FIX APP_MODE AUTOSTART WATCHDOG NFQWS_USER LOG_LEVEL LOG_MAX_KB WAKELOCK HOME_WIFI ENABLE_HOTSPOT NET_STRATEGY VPN_PAUSE AUTO_PORTS NFQWS_EXTRA_ARGS"
 merge_user_keys() { # <generated config> <settings source config>  -> stdout
   awk -v keys=" $USER_KEYS " -v src="$2" '
     function quotes(str,   t) { t = str; return gsub(/"/, "", t) }

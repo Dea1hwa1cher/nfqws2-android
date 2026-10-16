@@ -312,4 +312,51 @@ section "setup_cli_symlinks"
 setup_cli_symlinks
 assert_rc 0 $? "setup_cli_symlinks succeeds silently when APatch/KSU paths are absent"
 
+# ── Phase 3 features ──────────────────────────────────────────────────────────
+section "get_strategy_packet_limits"
+
+test_strat="$SANDBOX/test_limits.conf"
+cat << 'EOF' > "$test_strat"
+# NFQWS2_TCP_PKT_OUT=24
+# NFQWS2_TCP_PKT_IN=11
+# NFQWS2_UDP_PKT_OUT=32
+# NFQWS2_UDP_PKT_IN=16
+EOF
+assert_eq "24 11 32 16" "$(get_strategy_packet_limits "$test_strat")" "reads per-strategy packet limits"
+: > "$test_strat"
+assert_eq "$PKT_LIMIT_OUT $PKT_LIMIT_IN $PKT_LIMIT_OUT $PKT_LIMIT_IN" "$(get_strategy_packet_limits "$test_strat")" "falls back to global limits"
+
+section "collect_capture_ports"
+
+sample_args="--filter-tcp=443,80,1984,8443 --filter-udp=443,590-600,1400"
+assert_eq "80,443,1984,8443" "$(collect_capture_ports tcp "$sample_args")" "extracts sorted TCP ports"
+assert_eq "443,590:600,1400" "$(collect_capture_ports udp "$sample_args")" "extracts and normalizes UDP ports"
+
+section "validate_strategy_blob_references"
+
+assert_rc 0 "$(validate_strategy_blob_references "$MODDIR/defaults/nfqws2.conf" >/dev/null 2>&1; echo $?)" "default config blob references are valid"
+bad_conf="$SANDBOX/bad_blob.conf"
+echo 'NFQWS_BASE_ARGS="--blob=test:@$BLOBS_DIR/nonexistent_blob_xyz.bin"' > "$bad_conf"
+assert_rc 1 "$(validate_strategy_blob_references "$bad_conf" >/dev/null 2>&1; echo $?)" "detects missing blob reference"
+
+section "generate_strategy_receipt and verify_strategy_receipt"
+
+r1=$(generate_strategy_receipt "$MODDIR/defaults/nfqws2.conf")
+assert_match "$r1" '^[0-9a-f]{64}$' "generates 64-char sha256 receipt"
+save_strategy_receipt "$MODDIR/defaults/nfqws2.conf"
+assert_file "$RECEIPT_FILE" "receipt file is created"
+if verify_strategy_receipt "$MODDIR/defaults/nfqws2.conf"; then
+  _ok "verify_strategy_receipt verifies matching receipt"
+else
+  _fail "verify_strategy_receipt failed on matching receipt"
+fi
+
+section "list_line_count"
+
+count_file="$SANDBOX/lines.txt"
+printf 'line1\nline2\nline3\n' > "$count_file"
+assert_eq "3" "$(list_line_count "$count_file")" "counts lines accurately"
+assert_eq "0" "$(list_line_count "$SANDBOX/nonexistent.txt")" "missing file returns 0"
+
 harness_finish
+
