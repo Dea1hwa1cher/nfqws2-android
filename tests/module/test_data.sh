@@ -21,6 +21,18 @@ for f in $SCRIPTS; do
   assert_rc 0 $? "$f parses under dash"
 done
 
+# ── lua syntax ────────────────────────────────────────────────────────────────
+section "lua syntax"
+
+if command -v luac >/dev/null 2>&1; then
+  for f in "$REPO_DIR"/lua/*.lua; do
+    luac -p "$f" >/dev/null 2>&1
+    assert_rc 0 $? "${f##*/} parses under luac"
+  done
+else
+  _ok "luac not available on host, skipping luac -p (runs in CI)"
+fi
+
 section "line endings"
 
 # Android's sh reads a CRLF script as garbage ("\r: not found" on every line).

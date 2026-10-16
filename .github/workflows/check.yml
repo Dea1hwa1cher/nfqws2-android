@@ -26,6 +26,15 @@ jobs:
           done
           exit $rc
 
+      - name: Lua script syntax
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq lua5.4
+          rc=0
+          for f in lua/*.lua; do
+            luac -p "$f" || { echo "::error file=$f::lua syntax error"; rc=1; }
+          done
+          exit $rc
+
       - uses: actions/setup-node@v7
         with:
           node-version: 22

@@ -99,7 +99,7 @@ log_msg() {
 sync_lists_and_blobs() {
   # builtin dir check avoids a fork on every netwatch tick and nfqws2-ctl call
   [ -d "$LISTS_DIR" ] && [ -d "$LOG_DIR" ] && [ -d "$STATE_DIR" ] ||
-    mkdir -p "$LISTS_DIR" "$CONFDIR" "$LOG_DIR" "$STATE_DIR" 2>/dev/null
+    mkdir -p "$LISTS_DIR" "$CONFDIR" "$LOG_DIR" "$STATE_DIR" "$CONFDIR/blobs" "$CONFDIR/lua" 2>/dev/null
 
   for sdir in "$MODDIR/lists" "$MODDIR/defaults/lists"; do
     if [ -d "$sdir" ]; then
