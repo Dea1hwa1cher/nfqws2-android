@@ -99,7 +99,7 @@ log_msg() {
 sync_lists_and_blobs() {
   # builtin dir check avoids a fork on every netwatch tick and nfqws2-ctl call
   [ -d "$LISTS_DIR" ] && [ -d "$LOG_DIR" ] && [ -d "$STATE_DIR" ] ||
-    mkdir -p "$LISTS_DIR" "$CONFDIR" "$LOG_DIR" "$STATE_DIR" "$CONFDIR/blobs" "$CONFDIR/lua" 2>/dev/null
+    mkdir -p "$LISTS_DIR" "$CONFDIR" "$LOG_DIR" "$STATE_DIR" "$CONFDIR/blobs" "$CONFDIR/lua" "$CONFDIR/strategy-catalogs" "$CONFDIR/strategies/replaced" 2>/dev/null
 
   for sdir in "$MODDIR/lists" "$MODDIR/defaults/lists"; do
     if [ -d "$sdir" ]; then
@@ -110,6 +110,26 @@ sync_lists_and_blobs() {
       done
     fi
   done
+
+  if [ -d "$MODDIR/strategy-catalogs" ]; then
+    mkdir -p "$CONFDIR/strategy-catalogs" 2>/dev/null
+    for f in "$MODDIR/strategy-catalogs"/*; do
+      [ -f "$f" ] || continue
+      local bname="${f##*/}"
+      [ -f "$CONFDIR/strategy-catalogs/$bname" ] || cp -f "$f" "$CONFDIR/strategy-catalogs/$bname"
+    done
+  fi
+}
+
+archive_replaced_preset() {
+  local p="$1"
+  [ -f "$p" ] || return 0
+  local bname="${p##*/}"
+  local ts
+  ts=$(date '+%Y%m%d_%H%M%S' 2>/dev/null || echo "$$")
+  local rep_dir="$CONFDIR/strategies/replaced"
+  mkdir -p "$rep_dir" 2>/dev/null
+  cp -f "$p" "$rep_dir/${bname%.conf}.$ts.conf" 2>/dev/null || true
 }
 
 rotate_file() {

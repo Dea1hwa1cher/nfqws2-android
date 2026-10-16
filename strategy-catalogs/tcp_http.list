@@ -1,0 +1,200 @@
+# Consolidated UNIQUE strategies for TCP_HTTP (199 entries, deduplicated)
+--lua-desync=multidisorder:seqovl=700:seqovl_pattern=tls_google:tcp_flags_unset=ack
+--lua-desync=multidisorder:pos=1,host+2,sld+2,sld+5,sniext+1,sniext+2,endhost-2:seqovl=1
+--lua-desync=multisplit:pos=midsld
+--lua-desync=multisplit:pos=host+1
+--lua-desync=multidisorder:pos=host+1
+--lua-desync=fake:blob=fake_default_http:ip_ttl=1:ip6_ttl=1
+--lua-desync=fake:blob=fake_default_http:ip_ttl=1:ip6_ttl=1 --lua-desync=multidisorder:pos=host+1
+--lua-desync=fake:blob=fake_default_http:repeats=5:ip_autottl=0,3-20:ip6_autottl=0,3-20
+--lua-desync=multidisorder:pos=method+2,host+1
+--lua-desync=fakedsplit:pos=host+1:ip_autottl=0,3-20:ip6_autottl=0,3-20
+--lua-desync=fakedsplit:pos=method+2:ip_autottl=0,3-20:ip6_autottl=0,3-20
+--lua-desync=fake:blob=fake_default_http:tcp_seq=-10000:ip_autottl=0,3-20:ip6_autottl=0,3-20
+--lua-desync=fake:blob=fake_default_http:tcp_ack=-66000:tcp_ts_up:ip_autottl=0,3-20:ip6_autottl=0,3-20
+--lua-desync=fake:blob=fake_default_http:tcp_seq=-10000:ip_autottl=0,3-20:ip6_autottl=0,3-20 --lua-desync=multidisorder:pos=host+1
+--lua-desync=multisplit:pos=1,method+2,host+1,sld+1
+--lua-desync=fake:blob=fake_default_http:ip_ttl=3:ip6_ttl=3 --lua-desync=multisplit:pos=host+1
+--lua-desync=fake:blob=fake_default_http:tcp_md5:ip_autottl=0,3-20:ip6_autottl=0,3-20 --lua-desync=multidisorder:pos=host+1
+--lua-desync=send:repeats=2:tcp_md5 --lua-desync=fake:blob=0x0F0F0F0F:tcp_md5 --lua-desync=multisplit:pos=sld+1:seqovl=2:tcp_md5
+--lua-desync=fake:blob=0x0E0E0F0E:tcp_md5 --lua-desync=multisplit:pos=host+1:seqovl=2
+--lua-desync=fake:blob=0x0F0F0F0F:tcp_md5 --lua-desync=multisplit:pos=host+1:seqovl=2
+--lua-desync=fake:blob=fake_default_http:tcp_md5:ip_autottl=0,3-20:ip6_autottl=0,3-20 --lua-desync=multisplit:pos=sld+1
+--lua-desync=fake:blob=fake_default_http:tcp_md5 --lua-desync=multisplit
+--lua-desync=send:repeats=2:tcp_md5:ip_autottl=0,3-20:ip6_autottl=0,3-20 --lua-desync=fake:blob=fake_default_http:tcp_md5:ip_autottl=0,3-20:ip6_autottl=0,3-20 --lua-desync=multisplit:pos=2,midsld
+--lua-desync=fake:blob=fake_default_http:tcp_md5:ip_autottl=2,3-20:ip6_autottl=2,3-20 --lua-desync=multisplit
+--lua-desync=fake:blob=fake_default_http:tcp_ack=-2:tcp_ts_up:ip_autottl=2,3-20:ip6_autottl=2,3-20 --lua-desync=multisplit
+--lua-desync=multisplit:pos=1,3,5,7
+--lua-desync=multisplit:pos=1,3,5,7:seqovl=2
+--lua-desync=http_aggressive:fakes=5:ttl_start=1:ttl_step=1:split_host:disorder
+--lua-desync=http_aggressive:fakes=3:ttl_start=1
+--lua-desync=http_aggressive:fakes=10:ttl_start=1:ttl_step=2:split_host:disorder
+--lua-desync=http_multidisorder
+--lua-desync=fake:blob=fake_default_http:repeats=5:ip_ttl=1:ip6_ttl=1 --lua-desync=http_multidisorder
+--lua-desync=http_aggressive:fakes=3:disorder
+--lua-desync=fake:blob=fake_default_http:repeats=6:ip_autottl=2,3-20:ip6_autottl=2,3-20:tcp_md5 --lua-desync=multidisorder:pos=host+1
+--lua-desync=fake:blob=fake_default_http:repeats=6:tcp_ack=-66000:tcp_ts_up:ip_autottl=2,3-20:ip6_autottl=2,3-20 --lua-desync=multidisorder:pos=host+1,method+2
+--lua-desync=fake:blob=fake_default_http:repeats=6:ip_ttl=1:ip6_ttl=1 --lua-desync=multidisorder:pos=host+1,method+2
+--lua-desync=fake:blob=fake_default_http:repeats=11:ip_ttl=1:ip6_ttl=1:tcp_md5 --lua-desync=multidisorder:pos=1,host+1,method+2
+--lua-desync=fakedsplit:pos=host+1:ip_autottl=2,3-20:ip6_autottl=2,3-20:tcp_md5
+--lua-desync=fakeddisorder:pos=host+1:ip_autottl=0,3-20:ip6_autottl=0,3-20
+--lua-desync=fakeddisorder:pos=host+1:ip_autottl=0,3-20:ip6_autottl=0,3-20:tcp_md5
+--lua-desync=fakeddisorder:pos=host+1:ip_ttl=1:ip6_ttl=1
+--lua-desync=fakeddisorder:pos=host+1:ip_ttl=2:ip6_ttl=2:tcp_md5
+--lua-desync=fakeddisorder:pos=host+1:tcp_seq=-10000:ip_autottl=0,3-20:ip6_autottl=0,3-20
+--lua-desync=fakeddisorder:pos=host+1:seqovl=2:ip_autottl=0,3-20:ip6_autottl=0,3-20
+--lua-desync=fakeddisorder:pos=method+2,host+1:ip_autottl=0,3-20:ip6_autottl=0,3-20:tcp_md5
+--lua-desync=fakeddisorder:pos=1,method+2,host+1:seqovl=2:ip_ttl=2:ip6_ttl=2:tcp_md5
+--lua-desync=fake:blob=fake_default_http:repeats=4:ip_ttl=1:ip6_ttl=1 --lua-desync=fakeddisorder:pos=host+1:ip_autottl=0,3-20:ip6_autottl=0,3-20
+--lua-desync=fake:blob=fake_default_http:repeats=4:ip_autottl=2,3-20:ip6_autottl=2,3-20:tcp_md5 --lua-desync=multidisorder:pos=host+1
+--lua-desync=send:repeats=2:tcp_md5 --lua-desync=fake:blob=fake_default_http:repeats=4:ip_ttl=2:ip6_ttl=2:tcp_md5 --lua-desync=multidisorder:pos=host+1
+--lua-desync=multisplit:pos=host+1:seqovl=2
+--lua-desync=multisplit:pos=host+1,method+2:seqovl=5
+--lua-desync=fake:blob=fake_default_http:tcp_flags_unset=ack --lua-desync=multidisorder:pos=host+1:tcp_flags_unset=ack
+--lua-desync=fake:blob=fake_default_http:repeats=8:badsum:ip_ttl=1:ip6_ttl=1 --lua-desync=multidisorder:pos=host+1
+--lua-desync=send:repeats=2:tcp_md5:ip_autottl=2,3-20:ip6_autottl=2,3-20 --lua-desync=fake:blob=fake_default_http:repeats=8:ip_ttl=1:ip6_ttl=1:tcp_md5 --lua-desync=multidisorder:pos=1,method+2,host+1
+--lua-desync=multidisorder:pos=1,method+2,host+1,sld+1
+--lua-desync=fake:blob=fake_default_http:repeats=10:ip_ttl=1:ip6_ttl=1:tcp_md5 --lua-desync=syndata
+--lua-desync=multidisorder:pos=1,method+2,host+1,sld+1:ip_autottl=0,3-20:ip6_autottl=0,3-20
+--lua-desync=multidisorder:pos=host+1:seqovl=4:ip_autottl=0,3-20:ip6_autottl=0,3-20
+--lua-desync=fake:blob=fake_default_http:repeats=6:ip_ttl=1:ip6_ttl=1 --lua-desync=multidisorder:pos=host+1:seqovl=4
+--lua-desync=multisplit:pos=method+2 --lua-desync=multidisorder:pos=host+1,sld+1
+--lua-desync=fake:blob=fake_default_http:repeats=4:ip_ttl=1:ip6_ttl=1 --lua-desync=multidisorder:pos=host+1
+--lua-desync=fake:blob=fake_default_http:repeats=3:ip_ttl=1:ip6_ttl=1 --lua-desync=fake:blob=fake_default_http:repeats=3:ip_ttl=2:ip6_ttl=2 --lua-desync=fake:blob=fake_default_http:repeats=3:ip_ttl=3:ip6_ttl=3 --lua-desync=multidisorder:pos=host+1
+--lua-desync=fake:blob=fake_default_http:repeats=6:ip_ttl=1:ip6_ttl=1:tcp_md5 --lua-desync=multidisorder:pos=1,3,method+2,host+1,sld+1:seqovl=2
+--lua-desync=send:repeats=3:tcp_md5 --lua-desync=fake:blob=fake_default_http:repeats=8:ip_ttl=1:ip6_ttl=1:tcp_md5 --lua-desync=multidisorder:pos=1,method+2,host+1,sld+1:seqovl=3
+--lua-desync=fake:blob=fake_default_http:repeats=6:badsum --lua-desync=multidisorder:pos=host+1
+--lua-desync=fake:blob=fake_default_http:repeats=6:badsum:tcp_seq=-50000 --lua-desync=multidisorder:pos=host+1
+--lua-desync=fake:blob=fake_default_http:repeats=8:tcp_seq=-100000:ip_ttl=3:ip6_ttl=3 --lua-desync=multidisorder:pos=host+1
+--lua-desync=fake:blob=fake_default_http:repeats=6:tcp_ack=-100000:tcp_ts_up --lua-desync=multidisorder:pos=host+1
+--lua-desync=fake:blob=fake_default_http:repeats=4:badsum --lua-desync=fake:blob=fake_default_http:repeats=4:tcp_seq=-50000 --lua-desync=fake:blob=fake_default_http:repeats=4:ip_ttl=1:ip6_ttl=1 --lua-desync=multidisorder:pos=host+1
+--lua-desync=fake:blob=fake_default_http:repeats=20:ip_ttl=1:ip6_ttl=1:tcp_md5 --lua-desync=multidisorder:pos=host+1
+--lua-desync=fake:blob=fake_default_http:repeats=10:badsum:ip_ttl=2:ip6_ttl=2 --lua-desync=multidisorder:pos=1,host+1:seqovl=3
+--lua-desync=fake:blob=fake_default_http:repeats=5:tcp_seq=-100000:ip_ttl=1:ip6_ttl=1 --lua-desync=fake:blob=fake_default_http:repeats=5:tcp_seq=-50000:ip_ttl=2:ip6_ttl=2 --lua-desync=multidisorder:pos=host+1,method+2:seqovl=2
+--lua-desync=fake:blob=fake_default_http:repeats=5:badsum --lua-desync=fake:blob=fake_default_http:repeats=5:tcp_seq=-100000 --lua-desync=fake:blob=fake_default_http:repeats=5:tcp_ack=-100000:tcp_ts_up --lua-desync=multidisorder:pos=1,host+1,sld+1:seqovl=3
+--lua-desync=send:repeats=3 --lua-desync=multidisorder:pos=host+1
+--lua-desync=multidisorder:pos=1,method+2,host+1,sld+1:seqovl=4
+--lua-desync=http_seqovl_host:fake_host=www.google.com
+--lua-desync=http_seqovl_host:fake_host=www.yandex.ru
+--lua-desync=http_triple_seqovl:fake_host=www.google.com
+--lua-desync=http_mgts_combo:fake_host=www.google.com
+--lua-desync=http_ipfrag:frag_size=24
+--lua-desync=http_ipfrag:frag_size=8
+--lua-desync=http_hostmod:case=lower
+--lua-desync=http_hostmod:case=upper
+--lua-desync=http_hostmod:case=mixed
+--lua-desync=http_absolute_url:fake_host=www.google.com
+--lua-desync=http_seqovl_host:fake_host=www.google.com --lua-desync=multidisorder:pos=method+2,host+1
+--lua-desync=http_ipfrag:frag_size=24 --lua-desync=http_seqovl_host:fake_host=google.com
+--lua-desync=http_hostcase:spell=HoSt
+--lua-desync=http_methodeol
+--lua-desync=http_methodeol --lua-desync=multisplit:pos=host+1
+--lua-desync=fake:blob=fake_default_http:repeats=10:ip_ttl=1:ip6_ttl=1:badsum:tcp_md5 --lua-desync=http_methodeol --lua-desync=multisplit:pos=1,host+1,midsld:oob
+--lua-desync=fake:blob=fake_default_http:repeats=10:ip_ttl=1:ip6_ttl=1:badsum --lua-desync=http_methodeol --lua-desync=multisplit:pos=1,host+1,midsld
+--lua-desync=hostfakesplit:host=google.com:midhost=midsld
+--lua-desync=hostfakesplit:host=yandex.ru:midhost=midsld
+--lua-desync=http_garbage_prefix:mode=crlf:amount=50
+--lua-desync=http_garbage_prefix:mode=mixed:amount=100
+--lua-desync=http_garbage_prefix:mode=spaces:amount=50
+--lua-desync=http_pipeline_fake:fake_host=www.google.com
+--lua-desync=http_pipeline_fake:fake_host=www.yandex.ru
+--lua-desync=http_pipeline_fake_v2:fake_host=www.google.com:badsum
+--lua-desync=http_header_shuffle:fake_host=www.google.com
+--lua-desync=http_host_bytesplit:max_parts=5
+--lua-desync=http_host_bytesplit:max_parts=10
+--lua-desync=http_methodeol_safe
+--lua-desync=http_multi_crlf:count=5
+--lua-desync=http_multi_crlf:count=10
+--lua-desync=http_mixed_prefix
+--lua-desync=http_xpadding
+--lua-desync=http_simple_bypass:prefix=\r\n:hostcase=HoSt
+--lua-desync=http_simple_bypass:hostcase=HoSt
+--lua-desync=http_garbage_prefix:mode=crlf:amount=50 --lua-desync=http_hostcase:spell=HoSt --lua-desync=multisplit:pos=1,host+1,midsld
+--lua-desync=fake:blob=fake_default_http:repeats=20:ip_ttl=2:ip6_ttl=2:badsum --lua-desync=http_simple_bypass:prefix=\r\n:hostcase=HoSt
+--lua-desync=fake:blob=fake_default_http:repeats=15:ip_ttl=2:ip6_ttl=2:badsum --lua-desync=http_methodeol_safe
+--lua-desync=fake:blob=fake_default_http:repeats=15:ip_ttl=2:ip6_ttl=2:badsum --lua-desync=http_xpadding --lua-desync=multisplit:pos=1,host+1,midsld
+--lua-desync=fake:blob=fake_default_http:repeats=30:ip_ttl=1:ip6_ttl=1:badsum:tcp_md5 --lua-desync=http_methodeol_safe --lua-desync=multidisorder:pos=1,host+1,midsld
+--lua-desync=http_pipeline_fake_v2:fake_host=www.google.com:badsum --lua-desync=multidisorder:pos=host+1
+--lua-desync=fake:blob=fake_default_http:repeats=20:ip_ttl=1:ip6_ttl=1:badsum --lua-desync=http_garbage_prefix:mode=crlf:amount=30 --lua-desync=http_header_shuffle:fake_host=www.google.com --lua-desync=multidisorder:pos=1,host+1
+--lua-desync=fake:blob=fake_default_http:repeats=50:ip_ttl=1:ip6_ttl=1:badsum:tcp_md5 --lua-desync=http_garbage_prefix:mode=mixed:amount=50 --lua-desync=http_simple_bypass:prefix=\r\n:hostcase=HoSt --lua-desync=multidisorder:pos=1,host+1,midsld:seqovl=2
+--lua-desync=http_method_obfuscate
+--lua-desync=http_version_downgrade
+--lua-desync=http_fake_continuation
+--lua-desync=fake:blob=tls14:tcp_ack=-66000:ip_autottl=0,3-20:ip6_autottl=0,3-20:tls_mod=rnd,dupsid --lua-desync=multisplit:pos=sld+1:tcp_ack=-66000:ip_autottl=0,3-20:ip6_autottl=0,3-20
+--lua-desync=fake:blob=fake_default_tls:tls_mod=rnd,sni=www.google.com:repeats=3:tcp_ts=-600000 --lua-desync=fake:blob=tls_4pda:repeats=3:tcp_ts=-600000
+--lua-desync=send:repeats=2 --lua-desync=syndata:blob=tls_google:ip_autottl=-2,3-20 --lua-desync=multisplit:seqovl=700:seqovl_pattern=tls_google:tcp_flags_unset=ack
+--lua-desync=fake:blob=tls_google:repeats=6:tcp_ts=-600000 --lua-desync=fakedsplit:pattern=0x00:repeats=6:tcp_ts=-600000
+--lua-desync=send:repeats=2 --lua-desync=syndata:blob=tls_google:ip_autottl=-2,3-20 --lua-desync=tls_multisplit_sni:seqovl=652:seqovl_pattern=tls_google
+--lua-desync=send:repeats=2 --lua-desync=syndata:blob=tls_google:ip_autottl=-2,3-20 --lua-desync=multisplit:pos=1:seqovl=740:seqovl_pattern=stun_pat
+--lua-desync=send:repeats=2 --lua-desync=syndata:blob=stun_pat --lua-desync=tls_multisplit_sni:seqovl=652:seqovl_pattern=stun_pat
+--lua-desync=send:repeats=2 --lua-desync=syndata:blob=tls_google --lua-desync=multidisorder:pos=1,host+2,sld+2,sld+5,sniext+1,sniext+2,endhost-2:seqovl=1
+--lua-desync=send:repeats=2 --lua-desync=syndata:blob=tls_google --lua-desync=multisplit:pos=midsld
+--lua-desync=fake:blob=tls_google:repeats=6:tcp_ts=-600000 --lua-desync=fake:blob=fake_default_http:repeats=6:tcp_ts=-600000 --lua-desync=fakedsplit:pattern=0x00:repeats=6:tcp_ts=-600000
+--lua-desync=fake:blob=tls_max:repeats=8:tcp_ts=-600000 --lua-desync=multisplit:pos=2:seqovl=664:seqovl_pattern=tls_max:repeats=8:tcp_ts=-600000
+--lua-desync=multisplit:pos=2:seqovl=652:seqovl_pattern=tls_google
+--lua-desync=syndata:blob=tls_google:repeats=11:tcp_ack=-66000:tcp_ts_up --lua-desync=multisplit:pos=2:seqovl=652:seqovl_pattern=tls_google
+--lua-desync=fake:blob=tls_google:tls_mod=rnd,dupsid,sni=ya.ru:tcp_ts=-600000 --lua-desync=hostfakesplit:host=ya.ru:tcp_ts=-600000
+--lua-desync=fake:blob=tls_google:repeats=6:tcp_seq=1000 --lua-desync=multisplit:pos=2
+--lua-desync=fake:blob=tls_google:tls_mod=rnd,dupsid,sni=ya.ru:tcp_ts=-600000 --lua-desync=hostfakesplit:host=ya.ru:tcp_ts=-600000 --lua-desync=fake:blob=fake_default_http:tcp_ts=-600000 --lua-desync=hostfakesplit:host=ya.ru:tcp_ts=-600000
+--lua-desync=syndata --lua-desync=multidisorder:pos=2
+--lua-desync=multisplit:pos=1:seqovl=681:seqovl_pattern=tls_google
+--lua-desync=syndata
+--lua-desync=fake:blob=tls_google:repeats=6:tcp_seq=2
+--lua-desync=fake:blob=tls_google:repeats=6:tcp_seq=2 --lua-desync=fake:blob=fake_default_http:repeats=6:tcp_seq=2
+--lua-desync=hostfakesplit:host=ozon.ru:repeats=4:tcp_ts=-600000
+--lua-desync=fake:blob=0x00000000:repeats=11:tcp_ack=-66000:tcp_ts_up --lua-desync=fake:blob=fake_default_tls:tls_mod=rnd,dupsid,sni=www.google.com:repeats=11:tcp_ack=-66000:tcp_ts_up --lua-desync=multidisorder_legacy:pos=1,midsld:repeats=11
+--lua-desync=fake:blob=tls_google:repeats=6:tcp_ts=-600000
+--lua-desync=fake:blob=tls_max:repeats=6:tcp_ts=-600000
+--lua-desync=fake:blob=tls_max:repeats=6:tcp_ts=-600000 --lua-desync=fake:blob=fake_default_http:repeats=6:tcp_ts=-600000
+--lua-desync=send:repeats=2 --lua-desync=syndata:blob=tls7
+--lua-desync=send:repeats=2 --lua-desync=syndata:blob=tls_google --lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
+--lua-desync=send:repeats=2 --lua-desync=syndata:blob=tls_google --lua-desync=multisplit:seqovl=211:seqovl_pattern=tls5
+--lua-desync=send:repeats=2 --lua-desync=syndata:blob=tls_google --lua-desync=multisplit:seqovl=700:seqovl_pattern=tls_google:tcp_flags_unset=ack
+--lua-desync=syndata --lua-desync=multidisorder_legacy:pos=1,midsld
+--lua-desync=send:repeats=2 --lua-desync=syndata:blob=fake_tls_7 --lua-desync=fake:blob=tls_google:repeats=11:tcp_md5 --lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
+--lua-desync=send:repeats=2 --lua-desync=syndata:blob=fake_tls_8 --lua-desync=fake:blob=tls1:tls_mod=rnd,dupsid:tcp_md5:ip_autottl=-1,3-20 --lua-desync=multidisorder_legacy:pos=1,midsld:ip_autottl=-1,3-20:ip6_autottl=-1,3-20
+--lua-desync=send --lua-desync=multidisorder:pos=1
+--lua-desync=fake:blob=fake_default_tls:tls_mod=rnd,dupsid,sni=www.google.com:repeats=8:tcp_seq=2 --lua-desync=fakedsplit:pos=2:repeats=8:tcp_seq=2
+--lua-desync=fake:blob=fake_default_tls:tls_mod=rnd,dupsid,sni=www.google.com:repeats=8:tcp_seq=1000 --lua-desync=multisplit:pos=2:seqovl=681:seqovl_pattern=tls_google:repeats=8
+--lua-desync=fake:blob=fake_default_tls:tls_mod=rnd,dupsid,sni=www.google.com:repeats=8:tcp_ts=-600000 --lua-desync=multisplit:pos=2:seqovl=681:seqovl_pattern=tls_google:repeats=8:tcp_ts=-600000
+--lua-desync=fake:blob=fake_default_tls:tls_mod=rnd,dupsid,sni=www.google.com:tcp_ack=-66000:repeats=11 --lua-desync=multidisorder:pos=1,midsld:tcp_ack=-66000:repeats=11
+--lua-desync=syndata --lua-desync=multidisorder_legacy:pos=1,midsld --lua-desync=syndata --lua-desync=multidisorder_legacy:pos=1,midsld
+--lua-desync=multidisorder_legacy:pos=1,midsld
+--lua-desync=http_methodeol:payload=http_req:dir=out
+--lua-desync=syndata:payload=http_req:dir=out --lua-desync=multisplit:payload=http_req:dir=out
+--lua-desync=hostfakesplit:payload=http_req:dir=out:ip_ttl=2:repeats=1
+--lua-desync=fake:payload=http_req:dir=out:blob=fake_default_http:badsum:repeats=1
+--lua-desync=fakedsplit:payload=http_req:dir=out:pos=method+2:badsum
+--lua-desync=fake:payload=http_req:dir=out:blob=0x0E0E0F0E:tcp_md5 --lua-desync=multisplit:payload=http_req:dir=out:pos=host+1:seqovl=2
+--lua-desync=fake:payload=http_req:dir=out:blob=fake_default_http:badsum:repeats=1 --lua-desync=multisplit:payload=http_req:dir=out:pos=method+2
+--lua-desync=fake:payload=http_req:dir=out:blob=fake_default_http:badsum:repeats=1 --lua-desync=fakedsplit:payload=http_req:dir=out:pos=method+2:ip_autottl=2,1-64:badsum
+--lua-desync=pass
+--lua-desync=multisplit:pos=1:seqovl=568:seqovl_pattern=tls_4pda
+--lua-desync=fake:blob=fake_default_tls:tls_mod=rnd,dupsid,sni=ya.ru:tcp_ts=-600000:tcp_ts_up --lua-desync=fake:blob=tls_max:tcp_ts=-600000:tcp_ts_up --lua-desync=hostfakesplit:host=ya.ru:nofake2:tcp_ts=-600000:tcp_ts_up
+--lua-desync=syndata --lua-desync=multidisorder_legacy:pos=2
+--lua-desync=multisplit:pos=2,sniext+1:seqovl=679:seqovl_pattern=tls_google
+--lua-desync=fake:blob=fake_default_tls:tcp_seq=2:tcp_ack=-66000:tcp_ts_up:repeats=6 --lua-desync=fake:blob=tls_max:tcp_seq=2:tcp_ack=-66000:tcp_ts_up:repeats=6
+--lua-desync=hostfakesplit:host=ozon.ru:tcp_ts=-600000:tcp_ts_up:tcp_md5:repeats=4
+--lua-desync=fake:blob=0x00000000:tcp_seq=-10000:tcp_ack=-66000:tcp_ts_up:repeats=11 --lua-desync=fake:blob=fake_default_tls:tls_mod=rnd,dupsid,sni=www.google.com:tcp_seq=-10000:tcp_ack=-66000:tcp_ts_up:repeats=11 --lua-desync=fake:blob=tls_max:tcp_seq=-10000:tcp_ack=-66000:tcp_ts_up:repeats=11 --lua-desync=multidisorder_legacy:pos=1,midsld
+--lua-desync=fake:blob=fake_default_tls:tls_mod=rnd,dupsid,sni=www.google.com:tcp_seq=2:tcp_ack=-66000:tcp_ts_up:repeats=8 --lua-desync=fake:blob=tls_max:tcp_seq=2:tcp_ack=-66000:tcp_ts_up:repeats=8 --lua-desync=fakedsplit:pos=1:tcp_seq=2:tcp_ack=-66000:tcp_ts_up:repeats=8
+--lua-desync=fake:blob=fake_default_tls:tls_mod=rnd,dupsid,sni=www.google.com:tcp_seq=10000000:tcp_ack=-66000:tcp_ts_up:repeats=8 --lua-desync=fake:blob=tls_max:tcp_seq=10000000:tcp_ack=-66000:tcp_ts_up:repeats=8 --lua-desync=multisplit:pos=1:seqovl=681:seqovl_pattern=tls_google
+--lua-desync=fake:blob=fake_default_tls:tls_mod=rnd,dupsid,sni=www.google.com:tcp_ts=-600000:tcp_ts_up:repeats=8 --lua-desync=fake:blob=tls_max:tcp_ts=-600000:tcp_ts_up:repeats=8 --lua-desync=multisplit:pos=1:seqovl=681:seqovl_pattern=tls_google
+--lua-desync=fake:blob=tls_google:tcp_ts=-600000:tcp_ts_up:repeats=6 --lua-desync=fake:blob=tls_max:tcp_ts=-600000:tcp_ts_up:repeats=6
+--lua-desync=fake:blob=tls_google:repeats=6:tcp_ts=-600000 --lua-desync=fake:blob=fake_default_http:repeats=6:tcp_ts=-600000
+--lua-desync=fake:blob=tls_google:ip_autottl=-1,3-20:ip6_autottl=-1,3-20:repeats=6:tcp_ack=-66000 --lua-desync=multidisorder:pos=1,host+2,sld+2,sld+5,sniext+1,sniext+2,endhost-2:seqovl=1
+--lua-desync=fake:blob=tls_max:repeats=6:tcp_ts=-600000:tcp_ts_up --lua-desync=fakedsplit:pattern=0x00:repeats=6:tcp_ts=-600000:tcp_ts_up
+--lua-desync=fake:blob=tls_max:repeats=6:tcp_ts=-600000:tcp_ts_up
+--lua-desync=fake:blob=tls_max:repeats=8:tcp_ts=-600000:tcp_ts_up --lua-desync=multisplit:pos=1:seqovl=664:seqovl_pattern=tls_max
+--lua-desync=fake:blob=tls_sochi:repeats=5:tcp_ts=-600000:tcp_ts_up --lua-desync=hostfakesplit:host=mail.ru:tcp_ts=-600000:tcp_ts_up
+--lua-desync=fake:blob=tls_max:tcp_ts=-600000:tcp_ts_up --lua-desync=hostfakesplit:host=ya.ru:tcp_ts=-600000:tcp_ts_up
+--lua-desync=fake:blob=tls_max:repeats=6:tcp_seq=1000:tcp_ack=-66000:tcp_ts_up --lua-desync=multisplit
+--lua-desync=fake:blob=tls_max:repeats=6:tcp_seq=2:tcp_ack=-66000:tcp_ts_up
+--lua-desync=hostfakesplit:host=ozon.ru:repeats=4:tcp_ts=-600000:tcp_md5:tcp_ts_up
+--lua-desync=http_methodeol:badsum
+--lua-desync=fake:blob=tls_max:repeats=4:tcp_ts=-600000:tcp_ts_up --lua-desync=multisplit:pos=1:seqovl=480:seqovl_pattern=stun2_fake
+--lua-desync=fake:blob=tls_max:repeats=11:tcp_seq=-10000:tcp_ack=-66000:tcp_ts_up --lua-desync=multidisorder:pos=1,midsld
+--lua-desync=fake:blob=tls_max:repeats=8:tcp_seq=2:tcp_ack=-66000:tcp_ts_up --lua-desync=fakedsplit:pos=1:repeats=8:tcp_seq=2:tcp_ack=-66000:tcp_ts_up
+--lua-desync=fake:blob=tls_max:repeats=8:tcp_seq=10000000:tcp_ack=-66000:tcp_ts_up --lua-desync=multisplit:pos=1:seqovl=681:seqovl_pattern=tls_google
+--lua-desync=fake:blob=tls_max:repeats=8:tcp_ts=-600000:tcp_ts_up --lua-desync=multisplit:pos=1:seqovl=681:seqovl_pattern=tls_google
+--lua-desync=fake:blob=tls_clienthello_sochi_park:repeats=5:tcp_ts=-600000:tcp_ts_up --lua-desync=hostfakesplit:host=mail.ru:tcp_ts=-600000:tcp_ts_up
+--lua-desync=fake:blob=stun2_fake:repeats=8:tcp_ts=-600000:tcp_ts_up --lua-desync=fakedsplit:pos=midsld:tcp_ack=-66000:tcp_ts_up:seqovl=417:seqovl_pattern=0x1603010000 --lua-desync=fake:blob=tls_lordfilm:repeats=8:tcp_ts=-600000:tcp_ts_up --lua-desync=multisplit:pos=100,midsld-2,endhost-4:repeats=8:seqovl=681:seqovl_pattern=tls_google

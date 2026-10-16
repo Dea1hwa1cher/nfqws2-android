@@ -41,7 +41,7 @@ section "line endings"
 # pins LF.
 TEXT_FILES="$SCRIPTS module.prop LICENSE README.md webroot/index.html webroot/config.json"
 TEXT_FILES="$TEXT_FILES $(cd "$REPO_DIR" && ls lists/*.list defaults/lists/*.list defaults/*.conf \
-                                            strategies/*.conf lua/*.lua 2>/dev/null)"
+                                            strategies/*.conf lua/*.lua strategy-catalogs/*.list 2>/dev/null)"
 
 # Both checks run in one pass over the whole set, not one process per file. That
 # is not a micro-optimisation: on Windows/Git Bash a single process spawn costs

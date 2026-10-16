@@ -1,0 +1,90 @@
+# Consolidated UNIQUE strategies for UDP_QUIC (89 entries, deduplicated)
+--lua-desync=fake:blob=0x00
+--lua-desync=fake:blob=quic_google:ip_autottl=-2,3-20:ip6_autottl=-2,3-20:repeats=10:payload=all
+--lua-desync=fake:repeats=6:blob=fake_default_quic
+--lua-desync=fake:blob=stun_pat:repeats=6
+--lua-desync=fake:blob=quic_google:repeats=4
+--lua-desync=fake:blob=quic1:repeats=4
+--lua-desync=fake:blob=quic_google:repeats=9:ip_autottl=2,3-20:ip6_autottl=2,3-20:payload=all
+--lua-desync=fake:blob=quic_google:repeats=12:ip_autottl=2,3-20:ip6_autottl=2,3-20:payload=all
+--lua-desync=fake:blob=quic_google:repeats=10:ip_autottl=2,3-20:ip6_autottl=2,3-20:payload=all
+--lua-desync=fake:blob=quic_google:repeats=14:ip_autottl=2,3-20:ip6_autottl=2,3-20:payload=all
+--lua-desync=fake:blob=fake_default_quic:repeats=11:ip_autottl=2,3-20:ip6_autottl=2,3-20:payload=all --lua-desync=dht_dn:dn=2
+--lua-desync=fake:blob=quic6:repeats=2:ip_ttl=7:ip6_ttl=7:payload=all
+--lua-desync=fake:blob=quic_test:repeats=2:payload=all
+--lua-desync=fake:blob=fake_default_quic:repeats=11:payload=all
+--lua-desync=fake:blob=quic_google:repeats=15:ip_ttl=0:ip6_ttl=0:badsum:payload=all
+--lua-desync=fake:blob=quic_google:repeats=6:payload=all
+--lua-desync=fake:blob=quic5:repeats=3:payload=all --lua-desync=send:ipfrag:ipfrag_pos_udp=8 --lua-desync=drop
+--lua-desync=fake:blob=quic3:repeats=2:payload=all --lua-desync=send:ipfrag:ipfrag_pos_udp=8 --lua-desync=drop
+--lua-desync=fake:blob=quic7:repeats=3 --lua-desync=send:ipfrag:ipfrag_pos_udp=8 --lua-desync=drop
+--lua-desync=fake:blob=quic3:repeats=2 --lua-desync=udplen:increment=2
+--lua-desync=fake:blob=quic3:repeats=2 --lua-desync=udplen:increment=4
+--lua-desync=fake:blob=quic4:repeats=2 --lua-desync=udplen:increment=4
+--lua-desync=fake:blob=quic6:repeats=2 --lua-desync=udplen:increment=8:pattern=0x0F0F0E0F
+--lua-desync=fake:blob=quic6:repeats=2:ip_autottl=-1,3-20:ip6_autottl=-1,3-20 --lua-desync=udplen:increment=8:pattern=0x0F0F0E0F
+--lua-desync=fake:blob=quic7:repeats=2 --lua-desync=udplen:increment=8:pattern=0x0E0F0E0F
+--lua-desync=fake:blob=quic4:repeats=2 --lua-desync=udplen:increment=8:pattern=0xFEA82025
+--lua-desync=fake:blob=quic5:repeats=2 --lua-desync=udplen:increment=25
+--lua-desync=fake:blob=quic_google:repeats=10 --lua-desync=udplen:increment=25
+--lua-desync=fake:blob=quic_google:repeats=11 --lua-desync=dht_dn:dn=2
+--lua-desync=fake:blob=fake_default_quic:repeats=11:ip_autottl=2,3-20:ip6_autottl=2,3-20 --lua-desync=dht_dn:dn=2
+--lua-desync=fake:blob=fake_quic:repeats=2
+--lua-desync=fake:blob=quic1:repeats=6
+--lua-desync=fake:blob=quic_vk:repeats=6
+--lua-desync=fake:blob=quic_google:repeats=8
+--lua-desync=fake:blob=quic_google:repeats=6 --lua-desync=udplen:increment=10:pattern=0xDEADBEEF
+--lua-desync=fake:blob=quic2:repeats=7 --lua-desync=udplen:increment=5:pattern=0xDEADBEEF
+--lua-desync=fake:blob=quic_test:repeats=7 --lua-desync=udplen:increment=10:pattern=0xDEADBEEF
+--lua-desync=fake:blob=quic_google:repeats=7 --lua-desync=udplen:increment=10:pattern=0xDEADBEEF
+--lua-desync=fake:blob=quic2:repeats=8 --lua-desync=udplen:increment=10:pattern=0xDEADBEEF
+--lua-desync=fake:blob=quic_google:repeats=11 --lua-desync=udplen:increment=15
+--lua-desync=fake:blob=quic_google:repeats=10
+--lua-desync=fake:blob=quic_google:repeats=11
+--lua-desync=fake:blob=quic_google:repeats=12
+--lua-desync=fake:blob=quic_google:repeats=6
+--lua-desync=fake:blob=tls_max
+--lua-desync=fake:blob=quic_google:repeats=2
+--lua-desync=fake:repeats=6:blob=fake_default_udp
+--lua-desync=pass
+--lua-desync=fake:blob=quic_google:repeats=2:payload=all
+--lua-desync=fake:blob=quic6:repeats=2:ip_autottl=-1,3-20:ip6_autottl=-1,3-20:payload=all --lua-desync=udplen:increment=8:pattern=0x0F0F0E0F
+--lua-desync=fake:blob=fake_default_quic:repeats=12 --lua-desync=fake:blob=zero64:repeats=12 --lua-desync=fake:blob=fake_dbankcloud:payload=all:repeats=12
+--lua-desync=fake:blob=fake_default_quic:repeats=10 --lua-desync=fake:blob=zero64:repeats=10 --lua-desync=fake:blob=fake_dbankcloud:payload=all:repeats=10
+--lua-desync=send:repeats=2 --lua-desync=syndata:blob=stun_pat --lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
+--lua-desync=fake:blob=quic6:repeats=2:ip_autottl=-1,3-20:ip6_autottl=-1,3-20:payload=all:out_range=-n3 --lua-desync=udplen:increment=8:pattern=0x0F0F0E0F
+--lua-desync=fake:blob=stun_pat:ip_autottl=-2,3-20:ip6_autottl=-2,3-20:repeats=10:payload=all
+--lua-desync=fake:blob=quic_google:ip_autottl=-2,3-20:ip6_autottl=-2,3-20:payload=all:repeats=10
+--lua-desync=fake:blob=fake_default_quic:repeats=12 --lua-desync=fake:blob=zero64:repeats=12 --lua-desync=fake:blob=fake_dbankcloud:repeats=12
+--lua-desync=fake:blob=fake_default_quic:repeats=10 --lua-desync=fake:blob=zero64:repeats=10 --lua-desync=fake:blob=fake_dbankcloud:repeats=10
+--lua-desync=fake:blob=fake_default_quic:repeats=12 --lua-desync=fake:blob=fake_zero64:repeats=12 --lua-desync=fake:blob=game_active:repeats=12:payload=~empty,quic_initial,wireguard_initiation,dht,discord_ip_discovery,stun
+--lua-desync=fake:blob=quic_google:repeats=6 --lua-desync=fake:blob=fake_zero64:repeats=12 --lua-desync=fake:blob=game_active:repeats=12:payload=~empty,quic_initial,wireguard_initiation,dht,discord_ip_discovery,stun
+--lua-desync=fake:blob=fake_default_quic:repeats=10 --lua-desync=fake:blob=fake_zero64:repeats=10 --lua-desync=fake:blob=game_active:repeats=10:payload=~empty,quic_initial,wireguard_initiation,dht,discord_ip_discovery,stun
+--lua-desync=fake:blob=quic_google:repeats=11 --lua-desync=fake:blob=fake_zero64:repeats=10 --lua-desync=fake:blob=game_active:repeats=10:payload=~empty,quic_initial,wireguard_initiation,dht,discord_ip_discovery,stun
+--lua-desync=fake:blob=quic_google:repeats=6 --lua-desync=fake:blob=fake_zero64:repeats=10 --lua-desync=fake:blob=game_active:repeats=10:payload=~empty,quic_initial,wireguard_initiation,dht,discord_ip_discovery,stun
+--lua-desync=fake:blob=fake_default_quic:repeats=14 --lua-desync=fake:blob=fake_zero64:repeats=14 --lua-desync=fake:blob=game_active:repeats=14:payload=~empty,quic_initial,wireguard_initiation,dht,discord_ip_discovery,stun
+--lua-desync=fake:blob=quic_google:repeats=6 --lua-desync=fake:blob=fake_zero64:repeats=14 --lua-desync=fake:blob=game_active:repeats=14:payload=~empty,quic_initial,wireguard_initiation,dht,discord_ip_discovery,stun
+--lua-desync=fake:blob=fake_default_quic:repeats=5 --lua-desync=fake:blob=fake_zero64:repeats=5 --lua-desync=fake:blob=quic_4pda:repeats=5:payload=~empty,quic_initial,wireguard_initiation,dht,discord_ip_discovery,stun --lua-desync=fake:blob=game_active:repeats=5:payload=~empty,quic_initial,wireguard_initiation,dht,discord_ip_discovery,stun
+--lua-desync=fake:blob=quic_google:repeats=11 --lua-desync=fake:blob=fake_zero64:repeats=5 --lua-desync=fake:blob=quic_4pda:repeats=5:payload=~empty,quic_initial,wireguard_initiation,dht,discord_ip_discovery,stun --lua-desync=fake:blob=game_active:repeats=5:payload=~empty,quic_initial,wireguard_initiation,dht,discord_ip_discovery,stun
+--lua-desync=fake:payload=quic_initial:dir=out:blob=quic_google:repeats=11
+--lua-desync=fake:payload=quic_initial:dir=out:blob=quic_google:repeats=8
+--lua-desync=fake:payload=quic_initial:dir=out:blob=quic_google:repeats=6
+--lua-desync=fake:payload=quic_initial:dir=out:blob=quic5:repeats=3:out_range=-n3 --lua-desync=send:payload=quic_initial:dir=out:ipfrag:ipfrag_pos_udp=8:out_range=-n3 --lua-desync=drop:payload=quic_initial:dir=out:out_range=-n3
+--lua-desync=udplen:payload=quic_initial:dir=out:increment=4 --lua-desync=fake:payload=quic_initial:dir=out:blob=quic4:repeats=2:out_range=-n3
+--lua-desync=udplen:payload=quic_initial:dir=out:increment=8:pattern=0xFEA82025 --lua-desync=fake:payload=quic_initial:dir=out:blob=quic4:repeats=2:out_range=-n4
+--lua-desync=udplen:payload=quic_initial:dir=out:increment=25 --lua-desync=fake:payload=quic_initial:dir=out:blob=quic5:repeats=2:out_range=-n3
+--lua-desync=fake:payload=quic_initial:dir=out:blob=quic1:repeats=6:out_range=-n3
+--lua-desync=udplen:payload=quic_initial:dir=out:increment=8:pattern=0x0F0F0E0F --lua-desync=fake:payload=quic_initial:dir=out:blob=quic6:repeats=2:out_range=-n3
+--lua-desync=fake:blob=fake_default_quic:repeats=11:ip_autottl=2,3-20:ip6_autottl=2,3-20:payload=all
+--lua-desync=fake:blob=0x00000000000000000000000000000000:repeats=2
+--lua-desync=fake:blob=stun_pat:repeats=4
+--lua-desync=fake:blob=discord_active:repeats=6
+--lua-desync=fake:blob=stun_pat:repeats=3 --lua-desync=fake:blob=discord_active:repeats=3 --lua-desync=fake:blob=discord_active:repeats=3
+--lua-desync=fake:blob=discord_active:repeats=5
+--lua-desync=fake:blob=quic_google:repeats=4 --lua-desync=fake:blob=discord_active:repeats=4 --lua-desync=fake:blob=discord_active:repeats=4 --lua-desync=fake:blob=quic_google:repeats=4:payload=all --lua-desync=fake:blob=discord_active:repeats=4:payload=all
+--lua-desync=fake:blob=quic_initial:repeats=11
+--lua-desync=fake:blob=quic_initial_5ka_ru:repeats=6
+--lua-desync=fake:blob=quic_lordfilm:repeats=11
+--lua-desync=fake:repeats=11
+--lua-desync=fake:blob=quic_initial:repeats=6
+--lua-desync=fake:blob=0x00000000:repeats=2

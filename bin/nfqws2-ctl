@@ -1399,6 +1399,7 @@ case "$1" in
          # Текст совпал с исходником — правки нет, копия не нужна.
          if [ -n "$b" ] && cmp -s "$t" "$b"; then rm -f "$t" "$dst"; echo OK; exit 0; fi ;;
     esac
+    [ -f "$dst" ] && archive_replaced_preset "$dst"
     mv -f "$t" "$dst" && chmod 0644 "$dst" && echo OK ;;
   strategy-reset)
     strategy_name_ok "$2" && strategy_builtin_file "$2" >/dev/null || { echo "Это не встроенная стратегия" >&2; exit 1; }

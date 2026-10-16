@@ -105,6 +105,11 @@ if [ ! -f "$CONF/home_wifi.list" ]; then
     abort "! Failed to create $CONF/home_wifi.list"
 fi
 
+if [ -d "$MODPATH/strategy-catalogs" ]; then
+  mkdir -p "$CONF/strategy-catalogs" || abort "! Failed to create $CONF/strategy-catalogs"
+  cp -rf "$MODPATH/strategy-catalogs"/* "$CONF/strategy-catalogs/" 2>/dev/null || true
+fi
+
 # set perms to nfwqws2
 busybox chmod +x "$MODPATH/bin/nfqws2"
 busybox chmod +x "$MODPATH/bin/nfqws2-ctl"
