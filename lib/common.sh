@@ -52,6 +52,9 @@ IPT_CAP_CACHE="$STATE_DIR/iptables-capabilities"
 RECEIPT_FILE="$STATE_DIR/compiled.receipt"
 LIST_COUNTS_CACHE="$STATE_DIR/list_counts.cache"
 SNAPSHOT_DIR="$STATE_DIR/snapshot_working"
+GOOGLEVIDEO_CACHE_FILE="$STATE_DIR/googlevideo_cdn.txt"
+ORCHESTRA_MEMORY_FILE="$STATE_DIR/orchestra_memory.json"
+TG_AFFINITY_FILE="$STATE_DIR/tg_affinity.json"
 
 # xt_owner allows max 128 ranges per rule
 APP_UID_MAX=128
@@ -714,6 +717,264 @@ record_tcp16_detection() { # <provider> <ip> <detected_size>
   else
     printf '%s\n' "$sniline" > "$STATE_DIR/tcp16_sni.txt"
   fi
+}
+
+resolve_googlevideo_cdn() { # [force]
+  local force="${1:-}"
+  mkdir -p "$STATE_DIR" 2>/dev/null
+  if [ "$force" != "force" ]; then
+    if [ -s "$GOOGLEVIDEO_CACHE_FILE" ]; then
+      local cached
+      cached=$(head -n1 "$GOOGLEVIDEO_CACHE_FILE" 2>/dev/null | tr -d '\r\n')
+      if [ -n "$cached" ]; then
+        printf '%s' "$cached"
+        return 0
+      fi
+    fi
+  fi
+
+  local tool kind bin to="" resp="" cluster=""
+  tool=$(probe_tool 2>/dev/null)
+  kind="${tool%% *}"
+  bin="${tool#* }"
+  if command -v timeout >/dev/null 2>&1; then
+    to="timeout 5"
+  fi
+
+  if [ "$kind" = "curl" ]; then
+    resp=$($to "$bin" -s -m 4 "http://redirector.googlevideo.com/report_mapping?di=no" 2>/dev/null)
+    if [ -z "$resp" ]; then
+      resp=$($to "$bin" -s -m 4 "http://redirector.gvt1.com/report_mapping?di=no" 2>/dev/null)
+    fi
+  elif [ "$kind" = "wget" ]; then
+    resp=$($to "$bin" -q -T 4 -O - "http://redirector.googlevideo.com/report_mapping?di=no" 2>/dev/null)
+    if [ -z "$resp" ]; then
+      resp=$($to "$bin" -q -T 4 -O - "http://redirector.gvt1.com/report_mapping?di=no" 2>/dev/null)
+    fi
+  fi
+
+  if [ -n "$resp" ]; then
+    cluster=$(printf '%s\n' "$resp" | awk -F'=>' '/=>/{gsub(/[ \r\t\n]/, "", $2); print $2; exit}')
+    if [ -z "$cluster" ]; then
+      cluster=$(printf '%s\n' "$resp" | awk -F':' '/:/{gsub(/[ \r\t\n]/, "", $1); print $1; exit}')
+    fi
+  fi
+
+  if [ -z "$cluster" ]; then
+    if [ "$kind" = "curl" ]; then
+      local loc
+      loc=$($to "$bin" -s -I -m 4 "http://redirector.googlevideo.com/videoplayback?id=0000000000000000" 2>/dev/null | grep -i '^location:' | tr -d '\r')
+      if [ -n "$loc" ]; then
+        cluster=$(printf '%s\n' "$loc" | sed -n 's#.*//\([^/]*\)\.googlevideo\.com/.*#\1#p')
+      fi
+    fi
+  fi
+
+  local domain=""
+  if [ -n "$cluster" ]; then
+    cluster=$(printf '%s' "$cluster" | tr 'A-Z' 'a-z' | tr -cd 'a-z0-9-')
+    case "$cluster" in
+      rr*---sn-*) domain="${cluster}.googlevideo.com" ;;
+      rr*) domain="${cluster}.googlevideo.com" ;;
+      sn-*) domain="rr1---${cluster}.googlevideo.com" ;;
+      *) domain="rr1---sn-${cluster}.googlevideo.com" ;;
+    esac
+  fi
+
+  if [ -z "$domain" ]; then
+    if [ -f "$LISTS_DIR/googlevideo.list" ]; then
+      domain=$(grep -E '^rr[0-9]+---sn-[a-z0-9-]+\.googlevideo\.com' "$LISTS_DIR/googlevideo.list" 2>/dev/null | head -n1 | tr -d '\r\n')
+    fi
+  fi
+  if [ -z "$domain" ]; then
+    domain="rr1---sn-xguxaxjvh-n8me.googlevideo.com"
+  fi
+
+  printf '%s\n' "$domain" > "$GOOGLEVIDEO_CACHE_FILE" 2>/dev/null
+  printf '%s' "$domain"
+  return 0
+}
+
+orchestra_memory_init() {
+  mkdir -p "$STATE_DIR" 2>/dev/null
+  if [ ! -f "$ORCHESTRA_MEMORY_FILE" ]; then
+    printf '{\n  "max_entries": 3000,\n  "locked": {},\n  "blocked": {},\n  "hosts": {}\n}\n' > "$ORCHESTRA_MEMORY_FILE"
+  fi
+}
+
+orchestra_lock_strategy() { # <host> <strategy_index>
+  local host="$1" idx="$2"
+  if [ -z "$host" ] || [ -z "$idx" ]; then
+    return 1
+  fi
+  orchestra_memory_init
+  if command -v awk >/dev/null 2>&1; then
+    awk -v h="$host" -v idx="$idx" '
+      BEGIN { in_locked=0 }
+      {
+        if ($0 ~ /"locked": \{/) {
+          print $0
+          in_locked=1
+          printf "    \"%s\": %s,\n", h, idx
+          next
+        }
+        if (in_locked && $0 ~ /^\s*\},?/) {
+          in_locked=0
+        }
+        if (in_locked && $0 ~ ("\"" h "\":")) {
+          next
+        }
+        print $0
+      }' "$ORCHESTRA_MEMORY_FILE" > "$ORCHESTRA_MEMORY_FILE.tmp"
+    if [ -s "$ORCHESTRA_MEMORY_FILE.tmp" ]; then
+      mv -f "$ORCHESTRA_MEMORY_FILE.tmp" "$ORCHESTRA_MEMORY_FILE"
+    else
+      rm -f "$ORCHESTRA_MEMORY_FILE.tmp"
+    fi
+  fi
+  return 0
+}
+
+orchestra_unlock_strategy() { # <host>
+  local host="$1"
+  if [ -z "$host" ]; then
+    return 1
+  fi
+  orchestra_memory_init
+  grep -v "\"$host\":" "$ORCHESTRA_MEMORY_FILE" > "$ORCHESTRA_MEMORY_FILE.tmp"
+  if [ -s "$ORCHESTRA_MEMORY_FILE.tmp" ]; then
+    mv -f "$ORCHESTRA_MEMORY_FILE.tmp" "$ORCHESTRA_MEMORY_FILE"
+  else
+    rm -f "$ORCHESTRA_MEMORY_FILE.tmp"
+  fi
+  return 0
+}
+
+orchestra_block_strategy() { # <host> <strategy_index>
+  local host="$1" idx="$2"
+  if [ -z "$host" ] || [ -z "$idx" ]; then
+    return 1
+  fi
+  orchestra_memory_init
+  if command -v awk >/dev/null 2>&1; then
+    awk -v h="$host" -v idx="$idx" '
+      BEGIN { in_blocked=0 }
+      {
+        if ($0 ~ /"blocked": \{/) {
+          print $0
+          in_blocked=1
+          printf "    \"%s\": [%s],\n", h, idx
+          next
+        }
+        if (in_blocked && $0 ~ /^\s*\},?/) {
+          in_blocked=0
+        }
+        if (in_blocked && $0 ~ ("\"" h "\":")) {
+          next
+        }
+        print $0
+      }' "$ORCHESTRA_MEMORY_FILE" > "$ORCHESTRA_MEMORY_FILE.tmp"
+    if [ -s "$ORCHESTRA_MEMORY_FILE.tmp" ]; then
+      mv -f "$ORCHESTRA_MEMORY_FILE.tmp" "$ORCHESTRA_MEMORY_FILE"
+    else
+      rm -f "$ORCHESTRA_MEMORY_FILE.tmp"
+    fi
+  fi
+  return 0
+}
+
+orchestra_unblock_strategy() { # <host> [strategy_index]
+  local host="$1"
+  if [ -z "$host" ]; then
+    return 1
+  fi
+  orchestra_memory_init
+  grep -v "\"$host\":" "$ORCHESTRA_MEMORY_FILE" > "$ORCHESTRA_MEMORY_FILE.tmp"
+  if [ -s "$ORCHESTRA_MEMORY_FILE.tmp" ]; then
+    mv -f "$ORCHESTRA_MEMORY_FILE.tmp" "$ORCHESTRA_MEMORY_FILE"
+  else
+    rm -f "$ORCHESTRA_MEMORY_FILE.tmp"
+  fi
+  return 0
+}
+
+orchestra_record_host() { # <host> <strategy_index> <fails>
+  local host="$1" idx="$2" fails="${3:-0}" now
+  if [ -z "$host" ]; then
+    return 0
+  fi
+  orchestra_memory_init
+  now=$(date +%s 2>/dev/null)
+  if [ -z "$now" ]; then
+    now=0
+  fi
+  if command -v awk >/dev/null 2>&1; then
+    awk -v h="$host" -v idx="$idx" -v fl="$fails" -v ts="$now" '
+      BEGIN { in_hosts=0; added=0 }
+      {
+        if ($0 ~ /"hosts": \{/) {
+          print $0
+          in_hosts=1
+          printf "    \"%s\": {\"strategy\": %s, \"fails\": %s, \"last_seen\": %s},\n", h, idx, fl, ts
+          added=1
+          next
+        }
+        if (in_hosts && $0 ~ /^\s*\},?/) {
+          in_hosts=0
+        }
+        if (in_hosts && $0 ~ ("\"" h "\":")) {
+          next
+        }
+        print $0
+      }' "$ORCHESTRA_MEMORY_FILE" > "$ORCHESTRA_MEMORY_FILE.tmp"
+    if [ -s "$ORCHESTRA_MEMORY_FILE.tmp" ]; then
+      mv -f "$ORCHESTRA_MEMORY_FILE.tmp" "$ORCHESTRA_MEMORY_FILE"
+    else
+      rm -f "$ORCHESTRA_MEMORY_FILE.tmp"
+    fi
+
+    # LRU enforcement: ceiling of 3000 entries
+    local cnt
+    cnt=$(grep -c '"last_seen":' "$ORCHESTRA_MEMORY_FILE" 2>/dev/null)
+    if [ -z "$cnt" ]; then
+      cnt=0
+    fi
+    if [ "$cnt" -gt 3000 ]; then
+      awk '
+        BEGIN { in_h=0; h_cnt=0 }
+        /"hosts": \{/ { in_h=1; print; next }
+        in_h && /^\s*\},?/ { in_h=0; print; next }
+        in_h {
+          h_cnt++
+          if (h_cnt > 3000) next
+        }
+        { print }' "$ORCHESTRA_MEMORY_FILE" > "$ORCHESTRA_MEMORY_FILE.tmp"
+      if [ -s "$ORCHESTRA_MEMORY_FILE.tmp" ]; then
+        mv -f "$ORCHESTRA_MEMORY_FILE.tmp" "$ORCHESTRA_MEMORY_FILE"
+      else
+        rm -f "$ORCHESTRA_MEMORY_FILE.tmp"
+      fi
+    fi
+  fi
+  return 0
+}
+
+orchestra_status() {
+  orchestra_memory_init
+  local total locked blocked
+  total=$(grep -c '"strategy":' "$ORCHESTRA_MEMORY_FILE" 2>/dev/null)
+  if [ -z "$total" ]; then
+    total=0
+  fi
+  locked=$(awk '/"locked": \{/{flag=1; next} flag && /\}/{flag=0} flag && /[a-zA-Z0-9]/{cnt++} END{print cnt+0}' "$ORCHESTRA_MEMORY_FILE" 2>/dev/null)
+  if [ -z "$locked" ]; then
+    locked=0
+  fi
+  blocked=$(awk '/"blocked": \{/{flag=1; next} flag && /\}/{flag=0} flag && /[a-zA-Z0-9]/{cnt++} END{print cnt+0}' "$ORCHESTRA_MEMORY_FILE" 2>/dev/null)
+  if [ -z "$blocked" ]; then
+    blocked=0
+  fi
+  printf 'ORCHESTRA\ttotal_hosts=%s\tlocked=%s\tblocked=%s\tmax_lru=3000\n' "$total" "$locked" "$blocked"
 }
 
 

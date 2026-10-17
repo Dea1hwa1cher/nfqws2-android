@@ -713,6 +713,18 @@ cleanup_probe_app_rule() {
 
 probe_attempt() { # <вид> <путь к утилите> <host[/путь]> [proto 1=http, 2=tls1.2, 3=tls1.3, 4=quic] -> "ok <мс>" | "fail <причина>" | "skip <причина>"
   local kind="$1" bin="$2" target="$3" proto="${4:-3}" t0 t1 out rc to=""
+  case "$target" in
+    googlevideo.com|www.googlevideo.com|googlevideo.com/*|www.googlevideo.com/*)
+      local gv_host
+      gv_host=$(resolve_googlevideo_cdn 2>/dev/null)
+      if [ -n "$gv_host" ]; then
+        case "$target" in
+          */*) target="$gv_host/${target#*/}" ;;
+          *) target="$gv_host" ;;
+        esac
+      fi
+      ;;
+  esac
   local host="${target%%/*}" path="${target#*/}"
   [ "$host" = "$path" ] && path="" || path="/$path"
   command -v timeout >/dev/null 2>&1 && to="timeout 10"
@@ -836,16 +848,71 @@ cmd_net_info() {
 cmd_probe_all_inner() {
   local kind="$1" bin="$2" i=0 h batch=0
   grep -v -e '^[[:space:]]*#' -e '^[[:space:]]*$' "$LISTS_DIR/probe_hosts.list" 2>/dev/null | tr -d '\r' > "$STATE_DIR/probe.hosts"
-  while IFS= read -r h; do printf 'H\t%s\t%s\n' "$i" "$h"; i=$((i + 1)); done < "$STATE_DIR/probe.hosts"
+  while IFS= read -r h; do
+    [ -z "$h" ] && continue
+    case "$h" in
+      googlevideo.com|www.googlevideo.com|googlevideo.com/*|www.googlevideo.com/*)
+        local gv_h
+        gv_h=$(resolve_googlevideo_cdn 2>/dev/null)
+        if [ -n "$gv_h" ]; then
+          case "$h" in
+            */*) h="$gv_h/${h#*/}" ;;
+            *) h="$gv_h" ;;
+          esac
+        fi
+        ;;
+    esac
+    printf 'H\t%s\t%s\n' "$i" "$h"
+    i=$((i + 1))
+  done < "$STATE_DIR/probe.hosts"
   i=0
   while IFS= read -r h; do
     [ -z "$h" ] && continue
+    case "$h" in
+      googlevideo.com|www.googlevideo.com|googlevideo.com/*|www.googlevideo.com/*)
+        local gv_h
+        gv_h=$(resolve_googlevideo_cdn 2>/dev/null)
+        if [ -n "$gv_h" ]; then
+          case "$h" in
+            */*) h="$gv_h/${h#*/}" ;;
+            *) h="$gv_h" ;;
+          esac
+        fi
+        ;;
+    esac
     (
-      local k=1
+      local k=1 r="" r1="" r2="" r3="" r4=""
       while [ "$k" -le 4 ]; do
-        printf 'R\t%s\t%s\t%s\n' "$i" "$k" "$(probe_attempt "$kind" "$bin" "$h" "$k")"
+        r=$(probe_attempt "$kind" "$bin" "$h" "$k")
+        printf 'R\t%s\t%s\t%s\n' "$i" "$k" "$r"
+        case "$k" in
+          1) r1="$r" ;;
+          2) r2="$r" ;;
+          3) r3="$r" ;;
+          4) r4="$r" ;;
+        esac
         k=$((k + 1))
       done
+
+      # Дифференциальный отчет TLS 1.2 vs TLS 1.3
+      local st2="${r2%% *}" st3="${r3%% *}"
+      if [ "$st2" = "ok" ] && [ "$st3" != "ok" ]; then
+        printf 'TLS_DIFF\t%s\t%s\ttls13_blocked\tTLS 1.3 заблокирован ТСПУ, TLS 1.2 доступен\n' "$i" "$h"
+      elif [ "$st3" = "ok" ] && [ "$st2" != "ok" ]; then
+        printf 'TLS_DIFF\t%s\t%s\ttls12_blocked\tTLS 1.2 заблокирован ТСПУ, TLS 1.3 доступен\n' "$i" "$h"
+      elif [ "$st2" = "ok" ] && [ "$st3" = "ok" ]; then
+        printf 'TLS_DIFF\t%s\t%s\tboth_ok\tОба протокола (TLS 1.2 и 1.3) доступны\n' "$i" "$h"
+      elif [ "$st2" != "ok" ] && [ "$st3" != "ok" ]; then
+        printf 'TLS_DIFF\t%s\t%s\tboth_blocked\tОба протокола (TLS 1.2 и 1.3) заблокированы\n' "$i" "$h"
+      fi
+
+      # QUIC авто-диагностика
+      local st4="${r4%% *}"
+      if { [ "$st2" = "ok" ] || [ "$st3" = "ok" ]; } && [ "$st4" = "fail" ]; then
+        printf 'QUIC_STATUS\t%s\t%s\tblocked\tQUIC (HTTP/3) глушится провайдером, HTTPS доступен\n' "$i" "$h"
+      elif [ "$st4" = "ok" ]; then
+        printf 'QUIC_STATUS\t%s\t%s\tok\tQUIC (HTTP/3) доступен\n' "$i" "$h"
+      fi
     ) &
     batch=$((batch + 1))
     if [ "$batch" -ge 8 ]; then
@@ -1038,19 +1105,20 @@ DC3|149.154.175.100|443
 DC4|149.154.167.91|443
 DC5|91.108.56.130|443"
 
-  local idx=0
+  local idx=0 best_media_dc="DC4" best_media_ip="149.154.167.91" min_latency=99999
+  local affinity_tmp="$STATE_DIR/tg_aff.$$.tmp"
+  : > "$affinity_tmp"
+
   printf '%s\n' "$dcs" | while IFS='|' read -r name ip port; do
     [ -z "$name" ] || [ -z "$ip" ] && continue
     [ -z "$port" ] && port=443
 
-    local out rc t_ms="0"
+    local out rc t_ms="0" status="fail"
     if [ "$kind" = "curl" ]; then
       out=$($to "$bin" -s -k -m 5 --connect-timeout 3 -o /dev/null -w "%{time_connect}" "https://$ip:$port/" 2>&1); rc=$?
       if [ "$rc" = 0 ] || [ "$rc" = 52 ] || [ "$rc" = 56 ] || [ "$rc" = 22 ]; then
         t_ms=$(awk -v t="${out:-0}" 'BEGIN { printf "%d", t * 1000 }' 2>/dev/null || echo 0)
-        printf 'TG\t%s\t%s\t%s\tok\t%sms\n' "$idx" "$name" "$ip" "$t_ms"
-      else
-        printf 'TG\t%s\t%s\t%s\tfail\ttimeout\n' "$idx" "$name" "$ip"
+        status="ok"
       fi
     else
       local t0 t1
@@ -1058,22 +1126,56 @@ DC5|91.108.56.130|443"
       out=$($to "$bin" wget -q -T 4 -O /dev/null --no-check-certificate "https://$ip:$port/" 2>&1); rc=$?
       t1=$(uptime_cs)
       if [ "$rc" = 0 ] || printf '%s' "$out" | grep -q 'server returned error'; then
-        printf 'TG\t%s\t%s\t%s\tok\t%sms\n' "$idx" "$name" "$ip" "$(( (t1 - t0) * 10 ))"
-      else
-        printf 'TG\t%s\t%s\t%s\tfail\ttimeout\n' "$idx" "$name" "$ip"
+        t_ms=$(( (t1 - t0) * 10 ))
+        status="ok"
       fi
     fi
+
+    if [ "$status" = "ok" ]; then
+      printf 'TG\t%s\t%s\t%s\tok\t%sms\n' "$idx" "$name" "$ip" "$t_ms"
+    else
+      printf 'TG\t%s\t%s\t%s\tfail\ttimeout\n' "$idx" "$name" "$ip"
+    fi
+    printf '%s\t%s\t%s\t%s\t%s\n' "$name" "$ip" "$port" "$status" "$t_ms" >> "$affinity_tmp"
     idx=$((idx + 1))
   done
 
+  local af_json="{\n  \"updated_at\": $(date +%s 2>/dev/null || echo 0),\n  \"dcs\": {\n"
+  local first=1
+  while IFS="$(printf '\t')" read -r d_name d_ip d_port d_status d_latency; do
+    [ -z "$d_name" ] && continue
+    if [ "$d_name" = "DC4" ] || [ "$d_name" = "DC2" ]; then
+      if [ "$d_status" = "ok" ] && [ "${d_latency:-99999}" -lt "$min_latency" ]; then
+        min_latency="$d_latency"
+        best_media_dc="$d_name"
+        best_media_ip="$d_ip"
+      fi
+    fi
+    local is_pm="false"
+    [ "$d_name" = "DC4" ] && is_pm="true"
+    if [ "$first" = 1 ]; then
+      first=0
+    else
+      af_json="${af_json},\n"
+    fi
+    af_json="${af_json}    \"$d_name\": {\"ip\": \"$d_ip\", \"port\": $d_port, \"status\": \"$d_status\", \"latency_ms\": $d_latency, \"primary_media\": $is_pm}"
+  done < "$affinity_tmp"
+  rm -f "$affinity_tmp"
+
+  local media_spd="N/A"
   if [ "$kind" = "curl" ]; then
-    local spd media_spd
+    local spd
     spd=$($to "$bin" -s -k -m 8 -o /dev/null -r 0-262144 -w "%{speed_download}" "https://telegram.org/img/Telegram200million.png" 2>/dev/null)
     media_spd=$(awk -v s="${spd:-0}" 'BEGIN { printf "%.2f", s / 1048576 }' 2>/dev/null || echo 0)
     printf 'TG_MEDIA\tok\t%s MB/s\n' "$media_spd"
   else
     printf 'TG_MEDIA\tskip\tN/A\n'
   fi
+
+  af_json="${af_json}\n  },\n  \"primary_media_dc\": \"$best_media_dc\",\n  \"media_speed_mbps\": \"$media_spd\"\n}\n"
+  mkdir -p "$STATE_DIR" 2>/dev/null
+  printf '%b' "$af_json" > "$TG_AFFINITY_FILE" 2>/dev/null
+  printf 'TG_AFFINITY\t%s\t%s\tprimary_media\t%sms\n' "$best_media_dc" "$best_media_ip" "$min_latency"
 }
 
 cmd_probe_cancel() {
@@ -1169,12 +1271,22 @@ cmd_bench_strategies() {
   if [ -n "$target_domain" ]; then
     target_domain=$(printf '%s' "$target_domain" | tr 'A-Z' 'a-z' | sed 's#^[a-z]*://##; s#/.*##; s/:[0-9]*$//; s/^www\.//')
     case "$target_domain" in ''|*[!a-z0-9.-]*) echo "Некорректный домен" >&2; return 1 ;; esac
+    case "$target_domain" in
+      googlevideo.com)
+        local gv_target
+        gv_target=$(resolve_googlevideo_cdn 2>/dev/null)
+        [ -n "$gv_target" ] && target_domain="$gv_target"
+        ;;
+    esac
     bench_hosts_file="$STATE_DIR/probe_bench_custom.$$.list"
     printf '%s\n' "$target_domain" > "$bench_hosts_file"
   elif [ ! -f "$bench_hosts_file" ] || [ ! -s "$bench_hosts_file" ]; then
     bench_hosts_file="$STATE_DIR/probe_bench_default.list"
+    local gv_def
+    gv_def=$(resolve_googlevideo_cdn 2>/dev/null)
+    [ -z "$gv_def" ] && gv_def="googlevideo.com"
     printf '%s\n' \
-      www.youtube.com googlevideo.com discord.com gateway.discord.gg \
+      www.youtube.com "$gv_def" discord.com gateway.discord.gg \
       x.com instagram.com rutracker.org meduza.io www.torproject.org cloudflare.com \
       > "$bench_hosts_file"
   fi
@@ -1280,6 +1392,20 @@ cmd_bench_strategies() {
     strat_idx=$((strat_idx + 1))
   done
 
+  if [ "$best_ok" -gt 0 ] && [ "$kind" = "curl" ]; then
+    local quic_test_h="www.youtube.com"
+    if [ -n "$target_domain" ]; then
+      quic_test_h="$target_domain"
+    fi
+    local qr
+    qr=$(probe_attempt "$kind" "$bin" "$quic_test_h" 4)
+    if [ "${qr%% *}" = "fail" ]; then
+      printf 'BENCH_QUIC\t%s\tblocked\tescalated\n' "$quic_test_h"
+    elif [ "${qr%% *}" = "ok" ]; then
+      printf 'BENCH_QUIC\t%s\tok\n' "$quic_test_h"
+    fi
+  fi
+
   bench_cleanup
   trap - EXIT INT TERM
 
@@ -1343,6 +1469,58 @@ reload_after_change() {
   echo "Списки сохранены, но служба их не перечитала — перезапустите вручную" >&2
 }
 
+cmd_googlevideo_discovery() {
+  local force="${1:-}" cdn
+  cdn=$(resolve_googlevideo_cdn "$force")
+  printf 'GOOGLEVIDEO_CDN\t%s\n' "$cdn"
+}
+
+cmd_orchestra_status() {
+  orchestra_status
+  if [ -f "$ORCHESTRA_MEMORY_FILE" ]; then
+    cat "$ORCHESTRA_MEMORY_FILE"
+  fi
+}
+
+cmd_orchestra_lock() {
+  orchestra_lock_strategy "$1" "$2" || { echo "Использование: nfqws2-ctl orchestra-lock <host> <strategy_index>" >&2; exit 1; }
+  echo OK
+}
+
+cmd_orchestra_unlock() {
+  orchestra_unlock_strategy "$1" || { echo "Использование: nfqws2-ctl orchestra-unlock <host>" >&2; exit 1; }
+  echo OK
+}
+
+cmd_orchestra_block() {
+  orchestra_block_strategy "$1" "$2" || { echo "Использование: nfqws2-ctl orchestra-block <host> <strategy_index>" >&2; exit 1; }
+  echo OK
+}
+
+cmd_orchestra_unblock() {
+  orchestra_unblock_strategy "$1" "$2" || { echo "Использование: nfqws2-ctl orchestra-unblock <host> [strategy_index]" >&2; exit 1; }
+  echo OK
+}
+
+cmd_orchestra_clear() {
+  rm -f "$ORCHESTRA_MEMORY_FILE"
+  orchestra_memory_init
+  echo OK
+}
+
+cmd_orchestra_dump() {
+  orchestra_memory_init
+  cat "$ORCHESTRA_MEMORY_FILE"
+}
+
+cmd_tg_affinity() {
+  if [ -f "$TG_AFFINITY_FILE" ]; then
+    cat "$TG_AFFINITY_FILE"
+  else
+    cmd_probe_tg
+  fi
+}
+
 case "$1" in
   status) cmd_status ;;
   json-status) cmd_json_status ;;
@@ -1351,6 +1529,15 @@ case "$1" in
   replace) sh "$SERVICE" replace ;;
   rollback) sh "$SERVICE" rollback ;;
   tcp16-status) cmd_tcp16_status ;;
+  googlevideo-discovery|googlevideo-cdn) cmd_googlevideo_discovery "$2" ;;
+  orchestra-status) cmd_orchestra_status ;;
+  orchestra-lock) cmd_orchestra_lock "$2" "$3" ;;
+  orchestra-unlock) cmd_orchestra_unlock "$2" ;;
+  orchestra-block) cmd_orchestra_block "$2" "$3" ;;
+  orchestra-unblock) cmd_orchestra_unblock "$2" "$3" ;;
+  orchestra-clear) cmd_orchestra_clear ;;
+  orchestra-dump) cmd_orchestra_dump ;;
+  tg-affinity) cmd_tg_affinity ;;
   doctor) cmd_doctor ;;
 
   check|dry-run)
@@ -1587,6 +1774,6 @@ case "$1" in
     echo "         import-add-b64 list-imports get-import-merged-b64 rename-import delete-import" >&2
     echo "         get-list save-list-b64 list-update add-domain clear-auto reset-lists set set-mode list-apps" >&2
     echo "         get-logs export-logs clear-logs wifi-ssid backup-create backup-list backup-restore backup-restore-b64 probe-dpi probe-cancel net-info bench-strategies check-domain" >&2
-    echo "         current-network list-net-strategies clear-net-strategies" >&2
+    echo "         current-network list-net-strategies clear-net-strategies googlevideo-discovery orchestra-status orchestra-lock orchestra-unlock orchestra-block orchestra-unblock orchestra-clear tg-affinity" >&2
     exit 1 ;;
 esac

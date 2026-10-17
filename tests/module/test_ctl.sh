@@ -546,4 +546,46 @@ ctl tcp16-status
 assert_rc 0 "$ctl_rc" "tcp16-status reflects recorded ASNs"
 assert_contains "$ctl_out" "24940" "tcp16-status includes ASN 24940"
 
+section "googlevideo-discovery and apex protection"
+
+ctl googlevideo-discovery
+assert_rc 0 "$ctl_rc" "googlevideo-discovery succeeds"
+assert_contains "$ctl_out" "GOOGLEVIDEO_CDN" "output contains GOOGLEVIDEO_CDN"
+assert_contains "$ctl_out" "googlevideo.com" "resolved host ends with googlevideo.com"
+
+section "orchestra-status, lock, block and memory"
+
+ctl orchestra-status
+assert_rc 0 "$ctl_rc" "orchestra-status succeeds"
+assert_contains "$ctl_out" "ORCHESTRA" "orchestra-status output format"
+
+ctl orchestra-lock youtube.com 2
+assert_rc 0 "$ctl_rc" "orchestra-lock succeeds"
+assert_contains "$ctl_out" "OK" "orchestra-lock reports OK"
+
+ctl orchestra-status
+assert_contains "$ctl_out" "youtube.com" "locked host is stored in memory"
+
+ctl orchestra-block x.com 1
+assert_rc 0 "$ctl_rc" "orchestra-block succeeds"
+assert_contains "$ctl_out" "OK" "orchestra-block reports OK"
+
+ctl orchestra-status
+assert_contains "$ctl_out" "x.com" "blocked host is stored in memory"
+
+ctl orchestra-unlock youtube.com
+assert_rc 0 "$ctl_rc" "orchestra-unlock succeeds"
+
+ctl orchestra-unblock x.com
+assert_rc 0 "$ctl_rc" "orchestra-unblock succeeds"
+
+ctl orchestra-clear
+assert_rc 0 "$ctl_rc" "orchestra-clear succeeds"
+
+section "tg-affinity"
+
+ctl tg-affinity
+assert_rc 0 "$ctl_rc" "tg-affinity succeeds"
+assert_contains "$ctl_out" "primary_media" "tg-affinity output contains primary_media"
+
 harness_finish

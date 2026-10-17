@@ -85,6 +85,7 @@ start() {
     export Z2K_TCP16_NETS="$STATE_DIR/tcp16_nets.txt"
     export Z2K_TCP16_SNI="$STATE_DIR/tcp16_sni.txt"
     export Z2K_SNI_PIN="$LISTS_DIR/whitelist_sni.list"
+    export Z2K_ORCHESTRA_FILE="$ORCHESTRA_MEMORY_FILE"
     cd "$MODDIR/bin" || return 1
     set -f
 
@@ -187,6 +188,7 @@ replace_daemon() {
     export Z2K_TCP16_NETS="$STATE_DIR/tcp16_nets.txt"
     export Z2K_TCP16_SNI="$STATE_DIR/tcp16_sni.txt"
     export Z2K_SNI_PIN="$LISTS_DIR/whitelist_sni.list"
+    export Z2K_ORCHESTRA_FILE="$ORCHESTRA_MEMORY_FILE"
     cd "$MODDIR/bin" || return 1
     set -f
 

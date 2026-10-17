@@ -576,8 +576,54 @@ function repeater(ctx, desync)
 end
 
 -- ==============================================================================
--- LIVE IN-MEMORY AUTO-FALLBACK ORCHESTRATOR
+-- LIVE IN-MEMORY AUTO-FALLBACK ORCHESTRATOR WITH LRU MEMORY
 -- ==============================================================================
+
+local ORCHESTRA_MAX_LRU = 3000
+local orchestra_lru_keys = {}
+local orchestra_locked = {}
+local orchestra_blocked = {}
+
+local function orchestra_load_memory()
+	local mem_path = os.getenv("Z2K_ORCHESTRA_FILE") or "/data/adb/nfqws2/state/orchestra_memory.json"
+	local f = io.open(mem_path, "r")
+	if not f then return end
+	local content = f:read("*a")
+	f:close()
+	if not content then return end
+
+	local in_locked = false
+	local in_blocked = false
+	for line in content:gmatch("[^\r\n]+") do
+		if line:find('"locked":') then
+			in_locked = true
+			in_blocked = false
+		elseif line:find('"blocked":') then
+			in_blocked = true
+			in_locked = false
+		elseif line:find('"hosts":') or line:find('^%s*},?') then
+			if line:find('^%s*},?') and (in_locked or in_blocked) then
+				in_locked = false
+				in_blocked = false
+			end
+		end
+
+		if in_locked then
+			local h, s = line:match('"([^"]+)":%s*(%d+)')
+			if h and s then
+				orchestra_locked[h] = tonumber(s)
+			end
+		elseif in_blocked then
+			local h, s = line:match('"([^"]+)":%s*%[(%d+)%]')
+			if h and s then
+				orchestra_blocked[h] = orchestra_blocked[h] or {}
+				orchestra_blocked[h][tonumber(s)] = true
+			end
+		end
+	end
+end
+
+orchestra_load_memory()
 
 -- zapret2 : In-memory host-level strategy rotation without restarting nfqws2
 -- arg : key - storage table key (default "live_auto")
@@ -590,6 +636,30 @@ function live_fallback(ctx, desync)
 	local rec = automate_host_record(desync)
 	if not rec then return end
 
+	local hostkey = standard_hostkey(desync)
+	if hostkey then
+		if not rec.lru_tracked then
+			table.insert(orchestra_lru_keys, hostkey)
+			rec.lru_tracked = true
+			if #orchestra_lru_keys > ORCHESTRA_MAX_LRU then
+				local oldest = table.remove(orchestra_lru_keys, 1)
+				local askey = (desync.arg.key and #desync.arg.key>0) and desync.arg.key or desync.func_instance
+				if autostate and autostate[askey] and not orchestra_locked[oldest] then
+					autostate[askey][oldest] = nil
+				end
+			end
+		end
+	end
+
+	-- Check locked strategy for host
+	if hostkey and orchestra_locked[hostkey] then
+		local locked_idx = orchestra_locked[hostkey]
+		if locked_idx <= #desync.plan then
+			plan_clear(desync)
+			return plan_instance_execute(desync, VERDICT_PASS, desync.plan[locked_idx])
+		end
+	end
+
 	rec.strategy = rec.strategy or 1
 	rec.fails = rec.fails or 0
 
@@ -601,7 +671,14 @@ function live_fallback(ctx, desync)
 		rec.fails = rec.fails + 1
 		DLOG("live_fallback: recorded RST failure for host. fail count: "..rec.fails.."/"..max_fails)
 		if rec.fails >= max_fails then
-			rec.strategy = (rec.strategy % total_strats) + 1
+			local next_s = rec.strategy
+			local attempts = 0
+			repeat
+				next_s = (next_s % total_strats) + 1
+				attempts = attempts + 1
+				local is_blocked = hostkey and orchestra_blocked[hostkey] and orchestra_blocked[hostkey][next_s]
+			until not is_blocked or attempts >= total_strats
+			rec.strategy = next_s
 			rec.fails = 0
 			DLOG("live_fallback: rotated host strategy to #"..rec.strategy)
 		end
@@ -615,4 +692,5 @@ function live_fallback(ctx, desync)
 		return plan_instance_execute(desync, VERDICT_PASS, instance)
 	end
 end
+
 
