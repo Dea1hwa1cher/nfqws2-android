@@ -82,7 +82,7 @@ sandbox_init() {
            "$MODDIR/lists" "$MODDIR/blobs" "$MODDIR/lua" "$CONFDIR" "$MOCKBIN" "$MOCK_DIR"
 
   cp "$REPO_DIR/bin/nfqws2-ctl"        "$MODDIR/bin/nfqws2-ctl"
-  cp "$REPO_DIR/system/bin/nfqws2-ctl" "$MODDIR/system/bin/nfqws2-ctl" 2>/dev/null || true
+  cp "$REPO_DIR/system/bin/"*          "$MODDIR/system/bin/" 2>/dev/null || true
   cp "$REPO_DIR/bin"/pkglist.*         "$MODDIR/bin/" 2>/dev/null || true
   cp "$REPO_DIR/lib/common.sh"         "$MODDIR/lib/common.sh"
   cp "$REPO_DIR/service.sh"            "$MODDIR/service.sh"
@@ -102,7 +102,7 @@ sandbox_init() {
   for f in user exclude ipset ipset_exclude auto probe_hosts; do
     cp "$REPO_DIR/lists/$f.list" "$MODDIR/lists/$f.list"
   done
-  chmod 0755 "$MODDIR/bin/nfqws2-ctl" "$MODDIR/service.sh" "$MODDIR/boot-completed.sh" "$MODDIR/system/bin/nfqws2-ctl" 2>/dev/null || true
+  chmod 0755 "$MODDIR/bin/nfqws2-ctl" "$MODDIR/service.sh" "$MODDIR/boot-completed.sh" "$MODDIR/system/bin/"* 2>/dev/null || true
 
   cp "$TESTS_DIR/lib/mock/iptables"    "$MOCKBIN/iptables"
   cp "$TESTS_DIR/lib/mock/iptables"    "$MOCKBIN/ip6tables"

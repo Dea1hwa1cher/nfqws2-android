@@ -38,14 +38,15 @@ function strategyGroup(s){
 const groupTitle = g => t((STRATEGY_GROUPS.find(x => x[0] === g) || ['', ''])[1]);
 const strategyName = s => s === 'default' ? t('По умолчанию') : String(s).replace(/^imp:/, '');
 const findStrategy = n => strategies.find(s => s.name === n);
+const isGameStrategy = n => /(?:game|riot|valorant|steam|roblox)/i.test(n);
 
 async function loadStrategies(){
   const r = await ctlx(['list-strategies']);
   const list = r.code ? [] : r.out.split('\n').filter(Boolean).map(l => {
     const p = l.split('\t');
-    return {name: p[0], kind: p[1] || 'builtin', mod: p[2] === '1'};
+    return {name: p[0], kind: p[1] || 'builtin', mod: p[2] === '1', game: p[3] === '1'};
   });
-  strategies = [{name: 'default', kind: 'builtin', mod: false}].concat(list.filter(s => s.name !== 'default'));
+  strategies = [{name: 'default', kind: 'builtin', mod: false, game: false}].concat(list.filter(s => s.name !== 'default'));
 }
 async function initStrategySelector(){
   const r2 = await ctlx(['get-strategy']);
@@ -60,13 +61,15 @@ function renderStrategyRow(){
 }
 function strategyItem(s){
   const sel = s.name === pendingStrategy;
+  const isGame = s.game || isGameStrategy(s.name);
   return '<label class="list-item clickable state' + (sel ? ' selected' : '') + '">' +
     '<input type="radio" class="radio" name="strategy" value="' + esc(s.name) + '"' + (sel ? ' checked' : '') + '>' +
     '<span class="li-text"><span class="li-primary truncate">' + esc(strategyName(s.name)) + '</span>' +
-      (s.mod || s.kind === 'import' || s.name === currentStrategy ? '<span class="li-tags">' +
+      (s.mod || s.kind === 'import' || s.name === currentStrategy || isGame ? '<span class="li-tags">' +
         (s.name === currentStrategy ? '<span class="pill">' + esc(t('Текущая')) + '</span>' : '') +
         (s.mod ? '<span class="pill tonal">' + esc(t('Изменена')) + '</span>' : '') +
-        (s.kind === 'import' ? '<span class="pill tonal">' + esc(t('Импорт')) + '</span>' : '') + '</span>' : '') +
+        (s.kind === 'import' ? '<span class="pill tonal">' + esc(t('Импорт')) + '</span>' : '') +
+        (isGame ? '<span class="pill tonal">' + esc(t('Game Filter')) + '</span>' : '') + '</span>' : '') +
     '</span>' +
     '<span class="li-trail li-actions">' +
       (s.mod ? '<button type="button" class="icon-btn sm state" data-act="reset" data-s="' + esc(s.name) + '"' +
@@ -144,6 +147,128 @@ async function resetStrategy(name){
   if(openSheetId === 'strategy-sheet') renderStrategyList(true);
   toast(t('Стратегия «{0}» сброшена', strategyName(name)),
     name === currentStrategy ? {label: t('Применить'), fn: () => applyStrategy(name)} : null);
+}
+
+let currentStratTab = 'presets';
+let currentCatalogCategory = 'tcp_tls';
+
+function switchStratTab(tab){
+  currentStratTab = tab;
+  const isPresets = tab === 'presets';
+  const tabPre = $('strat-tab-presets'), tabCat = $('strat-tab-catalogs');
+  if(tabPre) tabPre.classList.toggle('on', isPresets);
+  if(tabCat) tabCat.classList.toggle('on', !isPresets);
+  const vPre = $('strat-presets-view'), vCat = $('strat-catalogs-view');
+  if(vPre) vPre.hidden = !isPresets;
+  if(vCat) vCat.hidden = isPresets;
+  if(!isPresets){
+    loadCatalogCategory(currentCatalogCategory);
+  }
+}
+
+async function selectCatalogCategory(cat){
+  currentCatalogCategory = cat;
+  document.querySelectorAll('#cat-chips .chip').forEach(ch => {
+    const sel = ch.dataset.cat === cat;
+    ch.classList.toggle('selected', sel);
+    ch.setAttribute('aria-pressed', sel ? 'true' : 'false');
+  });
+  await loadCatalogCategory(cat);
+}
+
+async function loadCatalogCategory(cat){
+  const box = $('catalog-list');
+  if(!box) return;
+  box.innerHTML = '<div class="list-item"><span class="spinner"></span><span class="li-text"><span class="li-secondary">' + esc(t('Загрузка каталога…')) + '</span></span></div>';
+  const r = await ctlx(['get-catalog', cat]);
+  if(r.code !== 0 || !r.out){
+    box.innerHTML = '<div class="empty"><span class="empty-title">' + esc(t('Каталог пуст')) + '</span></div>';
+    return;
+  }
+  const lines = r.out.trim().split('\n').filter(Boolean);
+  box.innerHTML = lines.map(line => {
+    const tabIdx = line.indexOf('\t');
+    const idx = tabIdx !== -1 ? line.slice(0, tabIdx) : '';
+    const text = tabIdx !== -1 ? line.slice(tabIdx + 1) : line;
+    return '<div class="list-item two-line" style="align-items:flex-start;padding:10px 16px;">' +
+      '<span class="li-text" style="gap:4px;">' +
+        '<span class="li-primary t-label-large">#' + esc(idx) + '</span>' +
+        '<div class="li-mono" style="font-size:11px;line-height:1.4;word-break:break-all;color:var(--md-sys-color-on-surface-variant);">' + esc(text) + '</div>' +
+      '</span>' +
+      '<span class="li-trail" style="align-self:center;">' +
+        '<button class="btn sm tonal with-icon state" onclick="applyCatalogModule(' + jsArg(cat) + ', ' + jsArg(idx) + ')">' +
+          icon('check', 's16') + '<span>' + esc(t('Подменить')) + '</span>' +
+        '</button>' +
+      '</span>' +
+    '</div>';
+  }).join('');
+}
+
+async function applyCatalogModule(cat, idx){
+  if(!await mdConfirm(t('Подменить модуль в пресете?'), t('Выбранный десинхронизатор заменит блок {0} в nfqws2.conf. Прежний конфиг сохранится в архив.', cat), t('Подменить'))) return;
+  const r = await withBusy(['catalog-apply-module', cat, String(idx)]);
+  if(r.code === 0){
+    toast(t('Модуль успешно подменён в действующем пресете'));
+    closeSheet();
+    stat(true);
+  } else {
+    toast(errText(r, 'Не удалось подменить модуль'));
+  }
+}
+
+async function rollbackStrategy(){
+  if(!await mdConfirm(t('Откатить к предыдущей рабочей конфигурации?'), t('Откат восстановит настройки из рабочего снимка и перезапустит службу.'), t('Откатить'))) return;
+  const r = await withBusy(['rollback']);
+  if(r.code === 0){
+    toast(t('Конфигурация успешно откатана'));
+    await stat(true);
+    await loadStrategies();
+  } else {
+    toast(t('Не удалось выполнить откат'));
+  }
+}
+
+async function openReplacedSheet(){
+  openSheet('replaced-sheet');
+  const box = $('replaced-list');
+  if(!box) return;
+  box.innerHTML = '<div class="list-item"><span class="spinner"></span><span class="li-text"><span class="li-secondary">' + esc(t('Загрузка архива…')) + '</span></span></div>';
+  const r = await ctlx(['list-replaced-strategies']);
+  if(r.code !== 0 || !r.out || !r.out.trim()){
+    box.innerHTML = '<div class="empty"><span class="empty-title">' + esc(t('Архив пуст')) + '</span></div>';
+    return;
+  }
+  const lines = r.out.trim().split('\n').filter(Boolean);
+  box.innerHTML = lines.map(line => {
+    const parts = line.split('\t');
+    const name = parts[0] || '';
+    const dt = parts[1] || '—';
+    const sz = parts[2] || '';
+    return '<div class="list-item two-line">' +
+      '<span class="li-icon plain">' + icon('file', 's24') + '</span>' +
+      '<span class="li-text">' +
+        '<span class="li-primary truncate">' + esc(name) + '</span>' +
+        '<span class="li-secondary">' + esc(dt) + (sz ? ' · ' + esc(sz) + ' B' : '') + '</span>' +
+      '</span>' +
+      '<span class="li-trail">' +
+        '<button class="btn sm tonal with-icon state" onclick="restoreReplacedStrategy(' + jsArg(name) + ')">' +
+          icon('restart', 's16') + '<span>' + esc(t('Восстановить')) + '</span>' +
+        '</button>' +
+      '</span>' +
+    '</div>';
+  }).join('');
+}
+
+async function restoreReplacedStrategy(name){
+  if(!await mdConfirm(t('Восстановить пресет «{0}»?', name), t('Текущая конфигурация будет заменена.'), t('Восстановить'))) return;
+  const r = await withBusy(['restore-replaced-strategy', name]);
+  if(r.code === 0){
+    toast(t('Пресет восстановлен'));
+    closeSheet();
+    stat(true);
+  } else {
+    toast(errText(r, 'Не удалось восстановить'));
+  }
 }
 
 /* Status */
@@ -232,6 +357,16 @@ function renderStatus(){
   renderHeroActions();
   renderParams(j);
   $('dbg').checked = (j.log_level == 1);
+
+  const rbBtn = $('btn-rollback');
+  if(rbBtn) rbBtn.hidden = !(j.has_rollback == 1);
+  const infoEl = $('quota-status-info');
+  if(infoEl) {
+    const qInfo = (j.pkt_limit_out && j.pkt_limit_in) ? t('Квоты: {0}/{1} пак.', j.pkt_limit_out, j.pkt_limit_in) : '';
+    const orchInfo = j.orchestra_hosts != null ? ' · ' + t('{0} хостов в памяти', j.orchestra_hosts) : '';
+    const portsInfo = j.auto_ports ? ' · ' + j.auto_ports : '';
+    infoEl.textContent = qInfo + orchInfo + portsInfo;
+  }
 
   let w = '';
   if(j.qdrop > 0) w += banner('danger', 'warn', t('Ядро сбросило {0} пакетов: nfqws2 не успевает обрабатывать очередь {1}.', j.qdrop, j.queue));

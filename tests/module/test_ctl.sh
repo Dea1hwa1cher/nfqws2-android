@@ -448,6 +448,19 @@ out=$(MODDIR="$MODDIR" sh "$wrapper" check)
 assert_rc 0 $? "system wrapper executes check command"
 assert_contains "$out" "OK" "check returns OK through wrapper"
 
+# System CLI commands (zapret2-*)
+for cmd in start stop restart status rollback bench; do
+  w="$MODDIR/system/bin/zapret2-$cmd"
+  assert_file "$w" "zapret2-$cmd wrapper exists in sandbox"
+done
+
+out=$(MODDIR="$MODDIR" sh "$MODDIR/system/bin/zapret2-status")
+assert_rc 0 $? "zapret2-status executes successfully"
+assert_contains "$out" "Служба NFQWS2" "zapret2-status outputs status"
+
+out=$(MODDIR="$MODDIR" sh "$MODDIR/system/bin/zapret2-rollback")
+assert_rc 0 $? "zapret2-rollback executes successfully"
+
 # Non-root notification
 non_root_bin="$SANDBOX/non_root_bin"
 mkdir -p "$non_root_bin"

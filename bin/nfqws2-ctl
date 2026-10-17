@@ -63,15 +63,16 @@ json_str() { printf '%s' "$1" | tr -d '"\\\000-\037'; }
 need_restart_note() { if is_running; then echo "Изменения применятся после перезапуска службы"; fi; }
 
 # Строка на стратегию: имя <TAB> вид (builtin|user|import) <TAB> 1, если
-# встроенная стратегия отредактирована и отличается от исходника.
+# встроенная стратегия отредактирована и отличается от исходника <TAB> 1, если активен game filter.
 list_strategies() {
-  local f n kind mod
+  local f n kind mod game
   for f in "$STRATEGIES_DIR"/*.conf "$USER_STRATEGIES_DIR"/*.conf; do
     [ -f "$f" ] || continue
     basename "$f" .conf
   done | sort -u | while IFS= read -r n; do
     [ -n "$n" ] || continue
-    kind=user; mod=0
+    kind=user; mod=0; game=0
+    if is_game_strategy "$n"; then game=1; fi
     if [ -f "$STRATEGIES_DIR/$n.conf" ]; then
       kind=builtin
       if [ -f "$USER_STRATEGIES_DIR/$n.conf" ]; then
@@ -80,10 +81,14 @@ list_strategies() {
         if strategy_modified "$n"; then mod=1; else rm -f "$USER_STRATEGIES_DIR/$n.conf"; fi
       fi
     fi
-    printf '%s\t%s\t%s\n' "$n" "$kind" "$mod"
+    printf '%s\t%s\t%s\t%s\n' "$n" "$kind" "$mod" "$game"
   done
   list_imports | while IFS= read -r n; do
-    [ -n "$n" ] && printf 'imp:%s\timport\t0\n' "$n"
+    if [ -n "$n" ]; then
+      local g=0
+      if is_game_strategy "imp:$n"; then g=1; fi
+      printf 'imp:%s\timport\t0\t%s\n' "$n" "$g"
+    fi
   done
 }
 
@@ -180,9 +185,13 @@ cmd_json_status() {
   set -- $(list_counts "$LISTS_DIR/user.list" "$LISTS_DIR/auto.list" "$LISTS_DIR/exclude.list" \
                       "$LISTS_DIR/ipset.list" "$LISTS_DIR/ipset_exclude.list" "$CONFDIR/apps.list")
   cnt_user="$1" cnt_auto="$2" cnt_excl="$3" cnt_ipset="$4" cnt_ipset_excl="$5" cnt_apps="$6"
+  local orch_cnt has_rb auto_ports_str
+  orch_cnt=$(grep -c '^[[:space:]]*"[^"]*":' "$ORCHESTRA_MEMORY_FILE" 2>/dev/null || echo 0)
+  if [ -f "$SNAPSHOT_DIR/nfqws2.conf" ]; then has_rb=1; else has_rb=0; fi
+  auto_ports_str="TCP: ${TCP_PORTS:-80,443} | UDP: ${UDP_PORTS:-443}"
   # нечисловое значение обваливает весь JSON и убивает WebUI, поэтому проверяем каждое поле
   for v in appn cnt_user cnt_auto cnt_excl cnt_ipset cnt_ipset_excl cnt_apps uptime qdrop \
-           PKT_LIMIT_OUT PKT_LIMIT_IN BLOCK_QUIC AUTOSTART WATCHDOG IPV6_ENABLED LOG_LEVEL NFQUEUE_NUM WAKELOCK HOME_WIFI ENABLE_HOTSPOT NET_STRATEGY VPN_PAUSE; do
+           PKT_LIMIT_OUT PKT_LIMIT_IN BLOCK_QUIC AUTOSTART WATCHDOG IPV6_ENABLED LOG_LEVEL NFQUEUE_NUM WAKELOCK HOME_WIFI ENABLE_HOTSPOT NET_STRATEGY VPN_PAUSE orch_cnt has_rb; do
     eval "case \"\${$v}\" in ''|*[!0-9]*) $v=0 ;; esac"
   done
 
@@ -191,6 +200,7 @@ cmd_json_status() {
 "limiter":"$(json_str "$(cat "$STATE_DIR/limiter" 2>/dev/null)")","pkt_limit_out":$PKT_LIMIT_OUT,"pkt_limit_in":$PKT_LIMIT_IN,"block_quic":$BLOCK_QUIC,"app_mode":"$(json_str "$APP_MODE")","autostart":$AUTOSTART,"watchdog":$WATCHDOG,"wakelock_on":$WAKELOCK,
 "ipv6":$IPV6_ENABLED,"log_level":$LOG_LEVEL,"qdrop":$qdrop,"queue":$NFQUEUE_NUM,"app_uids":$appn,
 "home_wifi":$HOME_WIFI,"enable_hotspot":$ENABLE_HOTSPOT,"net_strategy":$NET_STRATEGY,"vpn_pause":$VPN_PAUSE,"paused":"$(json_str "$paused")","pending":"$(json_str "$pending")",
+"orchestra_hosts":$orch_cnt,"auto_ports":"$(json_str "$auto_ports_str")","has_rollback":$has_rb,
 "counts":{"user":$cnt_user,"auto":$cnt_auto,"exclude":$cnt_excl,"ipset":$cnt_ipset,"ipset_exclude":$cnt_ipset_excl,"apps":$cnt_apps}}
 JSON
 }
@@ -241,6 +251,11 @@ cmd_doctor() {
     connbytes)   row ok limiter "$(M "есть connbytes: лимит исх. $PKT_LIMIT_OUT / вх. $PKT_LIMIT_IN пак. на соединение" "connbytes present: limit out $PKT_LIMIT_OUT / in $PKT_LIMIT_IN packets per connection")" ;;
     connmark_out) row warn limiter "$(M "нет connbytes: лимит вх./исх. $PKT_LIMIT_IN/$PKT_LIMIT_OUT пак. на соединение через CONNMARK" "no connbytes: in/out limit $PKT_LIMIT_IN/$PKT_LIMIT_OUT packets per connection via CONNMARK")" ;;
   esac
+  row ok quota "$(M "квоты пакетов: исх. $PKT_LIMIT_OUT / вх. $PKT_LIMIT_IN ($lim)" "packet quotas: out $PKT_LIMIT_OUT / in $PKT_LIMIT_IN ($lim)")"
+  row ok auto_ports "$(M "активные порты: TCP: ${TCP_PORTS:-80,443} | UDP: ${UDP_PORTS:-443}" "active ports: TCP: ${TCP_PORTS:-80,443} | UDP: ${UDP_PORTS:-443}")"
+  local orch_doc
+  orch_doc=$(grep -c '^[[:space:]]*"[^"]*":' "$ORCHESTRA_MEMORY_FILE" 2>/dev/null || echo 0)
+  row ok orchestra "$(M "память оркестратора: $orch_doc хостов" "orchestrator memory: $orch_doc hosts")"
   has_ipt_feature iptables -m owner --uid-owner 0 -j RETURN \
     && row ok owner "$(M 'фильтр приложений доступен' 'app filter available')" \
     || row warn owner "$(M 'нет xt_owner — фильтр приложений не сработает' 'no xt_owner — app filter will not work')"
@@ -1513,6 +1528,205 @@ cmd_orchestra_dump() {
   cat "$ORCHESTRA_MEMORY_FILE"
 }
 
+cmd_list_catalogs() {
+  local cat label file cnt
+  for cat in tcp_tls tcp_http udp_quic udp_voice; do
+    case "$cat" in
+      tcp_tls) label="TCP TLS (HTTPS)" ;;
+      tcp_http) label="HTTP 80" ;;
+      udp_quic) label="UDP QUIC (HTTP/3)" ;;
+      udp_voice) label="Voice (Discord/STUN)" ;;
+    esac
+    file=$(catalog_file "$cat" 2>/dev/null)
+    cnt=0
+    if [ -n "$file" ] && [ -f "$file" ]; then
+      cnt=$(grep -cvE '^[[:space:]]*(#|$)' "$file" 2>/dev/null || echo 0)
+    fi
+    printf '%s\t%s\t%s\n' "$cat" "$label" "$cnt"
+  done
+}
+
+cmd_get_catalog() {
+  local cat="$1" file idx=0 line
+  file=$(catalog_file "$cat" 2>/dev/null)
+  if [ -z "$file" ] || [ ! -f "$file" ]; then
+    echo "Каталог '$cat' не найден" >&2
+    return 1
+  fi
+  while IFS= read -r line; do
+    case "$line" in
+      ''|\#*) continue ;;
+    esac
+    idx=$((idx + 1))
+    printf '%d\t%s\n' "$idx" "$line"
+  done < "$file"
+}
+
+cmd_catalog_apply_module() {
+  local cat="$1" idx="$2" file line cur_idx=0
+  file=$(catalog_file "$cat" 2>/dev/null)
+  if [ -z "$file" ] || [ ! -f "$file" ]; then
+    echo "Каталог '$cat' не найден" >&2
+    return 1
+  fi
+  case "$idx" in
+    ''|*[!0-9]*) echo "Некорректный номер: $idx" >&2; return 1 ;;
+  esac
+  while IFS= read -r line; do
+    case "$line" in ''|\#*) continue ;; esac
+    cur_idx=$((cur_idx + 1))
+    if [ "$cur_idx" -eq "$idx" ]; then
+      break
+    fi
+  done < "$file"
+  if [ "$cur_idx" -ne "$idx" ] || [ -z "$line" ]; then
+    echo "Элемент #$idx не найден в каталоге $cat" >&2
+    return 1
+  fi
+
+  local tmp="$STATE_DIR/cat_apply.$$.conf"
+  archive_replaced_preset "$CONFFILE"
+  save_working_snapshot "$CONFFILE" 2>/dev/null || true
+
+  case "$cat" in
+    udp_quic)
+      awk -v desync="$line" '
+        BEGIN { in_q = 0 }
+        /^NFQWS_ARGS_QUIC="/ {
+          print "NFQWS_ARGS_QUIC=\"--filter-udp=443 --filter-l7=quic"
+          print "                 --payload=quic_initial"
+          print "                 " desync "\""
+          if ($0 ~ /"[[:space:]]*$/ && $0 !~ /^NFQWS_ARGS_QUIC="[[:space:]]*$/) { in_q = 0 }
+          else { in_q = 1 }
+          next
+        }
+        in_q {
+          if ($0 ~ /"/) { in_q = 0 }
+          next
+        }
+        { print }
+      ' "$CONFFILE" > "$tmp"
+      ;;
+    udp_voice)
+      awk -v desync="$line" '
+        BEGIN { in_u = 0 }
+        /^NFQWS_ARGS_UDP="/ {
+          print "NFQWS_ARGS_UDP=\"--filter-udp=590-600,1400,3478-3481,5349,19294-19344,49152-65535"
+          print "                --filter-l7=wireguard,stun,discord,unknown"
+          print "                --out-range=<n2"
+          print "                --payload=wireguard_initiation,wireguard_response,wireguard_cookie,stun,discord_ip_discovery,unknown"
+          print "                " desync "\""
+          if ($0 ~ /"[[:space:]]*$/ && $0 !~ /^NFQWS_ARGS_UDP="[[:space:]]*$/) { in_u = 0 }
+          else { in_u = 1 }
+          next
+        }
+        in_u {
+          if ($0 ~ /"/) { in_u = 0 }
+          next
+        }
+        { print }
+      ' "$CONFFILE" > "$tmp"
+      ;;
+    tcp_http)
+      awk -v desync="$line" '
+        BEGIN { in_http = 0 }
+        /--payload=http_req/ {
+          print "            --payload=http_req"
+          print "            " desync "\""
+          in_http = 1
+          next
+        }
+        in_http {
+          if ($0 ~ /"/) { in_http = 0 }
+          next
+        }
+        { print }
+      ' "$CONFFILE" > "$tmp"
+      ;;
+    tcp_tls)
+      awk -v desync="$line" '
+        BEGIN { in_tls = 0 }
+        /--payload=tls_client_hello/ {
+          print "            --payload=tls_client_hello"
+          print "            " desync
+          in_tls = 1
+          next
+        }
+        in_tls {
+          if ($0 ~ /--payload=http_req/) {
+            in_tls = 0
+            print
+            next
+          }
+          if ($0 ~ /"/) {
+            in_tls = 0
+            print
+            next
+          }
+          next
+        }
+        { print }
+      ' "$CONFFILE" > "$tmp"
+      ;;
+  esac
+
+  local err
+  if ! err=$(validate_conf_file "$tmp" 2>&1); then
+    echo "Ошибка валидации при подмене модуля: $err" >&2
+    rm -f "$tmp"
+    return 1
+  fi
+
+  cp -f "$CONFFILE" "$CONFFILE.bak" 2>/dev/null
+  mv -f "$tmp" "$CONFFILE"
+  chmod 0644 "$CONFFILE"
+  echo "OK: модуль $cat (#$idx) успешно внедрён в действующий пресет"
+  need_restart_note
+}
+
+cmd_list_replaced_strategies() {
+  local rep_dir="$CONFDIR/strategies/replaced" f bname dt sz
+  if [ ! -d "$rep_dir" ]; then
+    return 0
+  fi
+  for f in "$rep_dir"/*.conf; do
+    [ -f "$f" ] || continue
+    bname="${f##*/}"
+    sz=$(wc -c < "$f" 2>/dev/null || echo 0)
+    dt=$(echo "$bname" | sed -n 's/.*[._]\([0-9]\{8\}_[0-9]\{6\}\)\.conf/\1/p')
+    if [ -z "$dt" ]; then
+      dt=$(date -r "$f" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo "—")
+    else
+      dt=$(echo "$dt" | sed 's/^\([0-9]\{4\}\)\([0-9]\{2\}\)\([0-9]\{2\}\)_\([0-9]\{2\}\)\([0-9]\{2\}\)\([0-9]\{2\}\)/\1-\2-\3 \4:\5:\6/')
+    fi
+    printf '%s\t%s\t%s\n' "$bname" "$dt" "$sz"
+  done | sort -r -k2
+}
+
+cmd_restore_replaced_strategy() {
+  local name="$1" f
+  case "$name" in
+    ''|*/*|*\\*|..*) echo "Некорректное имя файла" >&2; return 1 ;;
+  esac
+  f="$CONFDIR/strategies/replaced/$name"
+  if [ ! -f "$f" ]; then
+    echo "Архивный пресет не найден: $name" >&2
+    return 1
+  fi
+  local err
+  if ! err=$(validate_conf_file "$f" 2>&1); then
+    echo "Ошибка валидации архивного пресета: $err" >&2
+    return 1
+  fi
+  archive_replaced_preset "$CONFFILE"
+  save_working_snapshot "$CONFFILE" 2>/dev/null || true
+  cp -f "$CONFFILE" "$CONFFILE.bak" 2>/dev/null
+  cp -f "$f" "$CONFFILE"
+  chmod 0644 "$CONFFILE"
+  echo "OK: пресет восстановлен из архива $name"
+  need_restart_note
+}
+
 cmd_tg_affinity() {
   if [ -f "$TG_AFFINITY_FILE" ]; then
     cat "$TG_AFFINITY_FILE"
@@ -1528,8 +1742,14 @@ case "$1" in
   start|stop|restart|reload) sh "$SERVICE" "$1" ;;
   replace) sh "$SERVICE" replace ;;
   rollback) sh "$SERVICE" rollback ;;
+  list-catalogs) cmd_list_catalogs ;;
+  get-catalog) cmd_get_catalog "$2" ;;
+  catalog-apply-module) cmd_catalog_apply_module "$2" "$3" ;;
+  list-replaced-strategies) cmd_list_replaced_strategies ;;
+  restore-replaced-strategy) cmd_restore_replaced_strategy "$2" ;;
   tcp16-status) cmd_tcp16_status ;;
-  googlevideo-discovery|googlevideo-cdn) cmd_googlevideo_discovery "$2" ;;
+  googlevideo-discovery) cmd_googlevideo_discovery "$2" ;;
+  googlevideo-cdn) cmd_googlevideo_discovery "$2" ;;
   orchestra-status) cmd_orchestra_status ;;
   orchestra-lock) cmd_orchestra_lock "$2" "$3" ;;
   orchestra-unlock) cmd_orchestra_unlock "$2" ;;
@@ -1775,5 +1995,6 @@ case "$1" in
     echo "         get-list save-list-b64 list-update add-domain clear-auto reset-lists set set-mode list-apps" >&2
     echo "         get-logs export-logs clear-logs wifi-ssid backup-create backup-list backup-restore backup-restore-b64 probe-dpi probe-cancel net-info bench-strategies check-domain" >&2
     echo "         current-network list-net-strategies clear-net-strategies googlevideo-discovery orchestra-status orchestra-lock orchestra-unlock orchestra-block orchestra-unblock orchestra-clear tg-affinity" >&2
+    echo "         list-catalogs get-catalog catalog-apply-module list-replaced-strategies restore-replaced-strategy" >&2
     exit 1 ;;
 esac

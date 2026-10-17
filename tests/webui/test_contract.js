@@ -153,9 +153,13 @@ truthy(/STRATEGY_GROUPS/.test(webrootSrc), 'the WebUI categorises strategies int
 // ── command vocabulary ────────────────────────────────────────────────────────
 sect('commands the WebUI sends');
 
-const ctlCommands = new Set(
-  [...ctlSrc.matchAll(/^\s{2}([a-z][a-z0-9-]*)\)/gm)].map(m => m[1])
-);
+const ctlCommands = new Set();
+for (const m of ctlSrc.matchAll(/^\s{2}([a-z0-9_| -]+)\)/gm)) {
+  for (const c of m[1].split('|')) {
+    const trimmed = c.trim();
+    if (trimmed) ctlCommands.add(trimmed);
+  }
+}
 truthy(ctlCommands.size > 20, `the ctl dispatches ${ctlCommands.size} commands`);
 
 // ctl(['name', ...]) — the array form the WebUI uses for most calls.

@@ -123,6 +123,15 @@
           <span class="li-trail"><svg aria-hidden="true" class="icon s24"><use href="#i-chevron-right"/></svg></span>
         </div>
       </div>
+      <div class="row" style="margin-top:8px;gap:8px;">
+        <button class="btn sm tonal with-icon state" id="btn-rollback" hidden onclick="rollbackStrategy()">
+          <svg aria-hidden="true" class="icon s18"><use href="#i-restart"/></svg><span data-t>Откатить пресет</span>
+        </button>
+        <button class="btn sm text with-icon state" id="btn-replaced-archive" onclick="openReplacedSheet()">
+          <svg aria-hidden="true" class="icon s18"><use href="#i-logs"/></svg><span data-t>Архив пресетов</span>
+        </button>
+      </div>
+      <div class="helper" id="quota-status-info"></div>
     </div>
 
     <div class="pcol">
@@ -415,6 +424,7 @@
     <div id="test-warn" class="stack"></div>
 
     <div id="test-recommendation" class="group" hidden></div>
+    <div id="test-quic-status" class="group" hidden></div>
 
     <div id="test-sec-web">
       <h2 class="subhead" data-t>Сайты и сервисы</h2>
@@ -528,11 +538,42 @@
 <div class="sheet list-sheet" id="strategy-sheet" role="dialog" aria-modal="true" aria-labelledby="strategy-sheet-title">
   <button type="button" class="sheet-drag" aria-label="Закрыть" data-ta="aria-label"><span class="handle"></span></button>
   <div class="sheet-title" id="strategy-sheet-title" data-t>Стратегия обхода</div>
-  <div class="sheet-desc" data-t>Выбранная стратегия заменит nfqws2.conf, прежний сохранится как .bak. Ваши переключатели, режим списков и фильтр приложений сохранятся.</div>
-  <div class="sheet-scroll" id="strategy-list" role="radiogroup" aria-label="Стратегии" data-ta="aria-label"></div>
+  <div class="sheet-desc" id="strategy-sheet-desc" data-t>Выбранная стратегия заменит nfqws2.conf, прежний сохранится как .bak. Ваши переключатели, режим списков и фильтр приложений сохранятся.</div>
+
+  <div class="segmented" id="strat-tabs" role="tablist" aria-label="Категории выбора" data-ta="aria-label" style="margin-bottom:12px">
+    <button class="seg on state" id="strat-tab-presets" onclick="switchStratTab('presets')"><span data-t>Пресеты</span></button>
+    <button class="seg state" id="strat-tab-catalogs" onclick="switchStratTab('catalogs')"><span data-t>Каталог модулей</span></button>
+  </div>
+
+  <div id="strat-presets-view">
+    <div class="sheet-scroll" id="strategy-list" role="radiogroup" aria-label="Стратегии" data-ta="aria-label"></div>
+    <div class="sheet-actions">
+      <button class="btn text state" onclick="closeSheet()"><span data-t>Отмена</span></button>
+      <button class="btn with-icon state" id="strategy-apply" onclick="applySelectedStrategy()">Применить</button>
+    </div>
+  </div>
+
+  <div id="strat-catalogs-view" hidden>
+    <div class="chips" id="cat-chips" role="group" aria-label="Категории каталога" data-ta="aria-label" style="margin-bottom:10px">
+      <button type="button" class="chip filter selected state" data-cat="tcp_tls" aria-pressed="true" onclick="selectCatalogCategory('tcp_tls')"><span>TCP TLS</span></button>
+      <button type="button" class="chip filter state" data-cat="tcp_http" aria-pressed="false" onclick="selectCatalogCategory('tcp_http')"><span>HTTP 80</span></button>
+      <button type="button" class="chip filter state" data-cat="udp_quic" aria-pressed="false" onclick="selectCatalogCategory('udp_quic')"><span>UDP QUIC</span></button>
+      <button type="button" class="chip filter state" data-cat="udp_voice" aria-pressed="false" onclick="selectCatalogCategory('udp_voice')"><span>Voice</span></button>
+    </div>
+    <div class="list sheet-scroll" id="catalog-list" style="max-height:360px;"></div>
+    <div class="sheet-actions">
+      <button class="btn text state" onclick="closeSheet()"><span data-t>Закрыть</span></button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet list-sheet" id="replaced-sheet" role="dialog" aria-modal="true" aria-labelledby="replaced-sheet-title">
+  <button type="button" class="sheet-drag" aria-label="Закрыть" data-ta="aria-label"><span class="handle"></span></button>
+  <div class="sheet-title" id="replaced-sheet-title" data-t>Архив заменённых пресетов</div>
+  <div class="sheet-desc" data-t>Резервные копии конфигураций, сохранённые перед заменой или редактированием.</div>
+  <div class="list sheet-scroll" id="replaced-list" style="max-height:360px;"></div>
   <div class="sheet-actions">
-    <button class="btn text state" onclick="closeSheet()"><span data-t>Отмена</span></button>
-    <button class="btn with-icon state" id="strategy-apply" onclick="applySelectedStrategy()">Применить</button>
+    <button class="btn text state" onclick="closeSheet()"><span data-t>Закрыть</span></button>
   </div>
 </div>
 

@@ -33,6 +33,9 @@ let webResults = {};
 let tcp16Results = {};
 let dnsResults = {};
 let lastRecommendation = null;
+let quicStatusResult = null;
+let tlsDiffResult = null;
+let discoveredGoogleVideoCdn = null;
 
 function testInit(){
   updateTestDesc();
@@ -145,7 +148,12 @@ function finishTestRow(i, res){
   const ts = $('ts' + i);
   if(ts) {
     const avg = ok.length ? t('{0} мс в среднем', Math.round(ok.reduce((a, x) => a + x.ms, 0) / ok.length)) : '';
-    ts.textContent = avg + (avg && reasons.length ? ' · ' : '') + reasons.join(', ');
+    let details = avg + (avg && reasons.length ? ' · ' : '') + reasons.join(', ');
+    const h = webResults[i] && webResults[i].host;
+    if(h && (h.includes('googlevideo') || h.includes('youtube')) && discoveredGoogleVideoCdn){
+      details += (details ? ' · ' : '') + 'CDN: ' + discoveredGoogleVideoCdn;
+    }
+    ts.textContent = details;
   }
 }
 
@@ -199,8 +207,11 @@ function resetTestResults(){
     if(el){ el.innerHTML = ''; el._html = ''; }
   });
   webResults = {}; tcp16Results = {}; dnsResults = {}; lastRecommendation = null;
+  quicStatusResult = null; tlsDiffResult = null; discoveredGoogleVideoCdn = null;
   const recEl = $('test-recommendation');
   if(recEl){ recEl.hidden = true; recEl.innerHTML = ''; }
+  const quicEl = $('test-quic-status');
+  if(quicEl){ quicEl.hidden = true; quicEl.innerHTML = ''; }
 }
 
 async function stopTest(){
@@ -216,6 +227,28 @@ async function stopTest(){
   }
   await ctlx(['probe-cancel']);
   toast(t('Проверка остановлена'));
+}
+
+async function loadGoogleVideoCdn(){
+  try {
+    const r = await ctlx(['googlevideo-discovery']);
+    if(r.code === 0 && r.out){
+      const m = r.out.match(/GOOGLEVIDEO_CDN\t([^\r\n]+)/);
+      if(m && m[1] && m[1] !== '—'){
+        discoveredGoogleVideoCdn = m[1].trim();
+        Object.keys(webResults).forEach(idx => {
+          const item = webResults[idx];
+          if(item && item.host && (item.host.includes('googlevideo') || item.host.includes('youtube'))){
+            const ts = $('ts' + idx);
+            if(ts && ts.textContent && !ts.textContent.includes('CDN:')){
+              ts.textContent += (ts.textContent ? ' · ' : '') + 'CDN: ' + discoveredGoogleVideoCdn;
+            }
+          }
+        });
+        renderQuicIndicator();
+      }
+    }
+  } catch(_){}
 }
 
 async function runTest(){
@@ -240,6 +273,7 @@ async function runTest(){
   await stat(true);
   renderTestWarn();
   await refreshNetInfo();
+  loadGoogleVideoCdn();
 
   const hosts = [];
   let tool = '';
@@ -282,6 +316,16 @@ async function runTest(){
       const rowHtml = renderDnsRow(idx, name, ip, udp, doh, hijacked, detail);
       if(existing) existing.outerHTML = rowHtml;
       else if($('test-dns-list')) $('test-dns-list').insertAdjacentHTML('beforeend', rowHtml);
+    } else if(p[0] === 'QUIC_STATUS') {
+      const idx = p[1], host = p[2], verdict = p[3], desc = p[4];
+      quicStatusResult = quicStatusResult || {};
+      quicStatusResult[host] = { verdict, desc };
+      renderQuicIndicator();
+    } else if(p[0] === 'TLS_DIFF') {
+      const idx = p[1], host = p[2], verdict = p[3], desc = p[4];
+      tlsDiffResult = tlsDiffResult || {};
+      tlsDiffResult[host] = { verdict, desc };
+      renderQuicIndicator();
     }
   };
 
@@ -540,6 +584,65 @@ async function applyRecommendedStrategy(name){
   }
 }
 
+function renderQuicIndicator(){
+  const el = $('test-quic-status');
+  if(!el) return;
+  const quicKeys = Object.keys(quicStatusResult || {});
+  const tlsKeys = Object.keys(tlsDiffResult || {});
+  if(!quicKeys.length && !tlsKeys.length && !discoveredGoogleVideoCdn){
+    el.hidden = true;
+    el.innerHTML = '';
+    return;
+  }
+  el.hidden = false;
+
+  let hasBlockedQuic = false;
+  let hasOkQuic = false;
+  quicKeys.forEach(k => {
+    if(quicStatusResult[k].verdict === 'blocked') hasBlockedQuic = true;
+    if(quicStatusResult[k].verdict === 'ok') hasOkQuic = true;
+  });
+
+  let tlsDiffSummary = '';
+  tlsKeys.forEach(k => {
+    const v = tlsDiffResult[k].verdict;
+    if(v === 'tls13_blocked' || v === 'tls12_blocked' || v === 'both_blocked'){
+      tlsDiffSummary = t(tlsDiffResult[k].desc);
+    }
+  });
+
+  const quicBadgeClass = hasBlockedQuic ? 'bad' : (hasOkQuic ? 'ok' : 'info');
+  const quicBadgeText = hasBlockedQuic
+    ? t('QUIC глушится ТСПУ')
+    : (hasOkQuic ? t('QUIC доступен') : t('QUIC проверяется'));
+
+  let descText = '';
+  if(hasBlockedQuic){
+    descText = t('DPI отбрасывает UDP/QUIC (HTTP/3) пакеты. Рекомендуется активировать «Блокировать QUIC» в настройках модуля для принудительного отката браузера на TCP TLS.');
+  } else if(hasOkQuic){
+    descText = t('Протокол QUIC (HTTP/3) работает без искажений со стороны ТСПУ.');
+  }
+
+  let html = '<div class="subhead-row" style="margin-top:0;">' +
+    '<span class="subhead plain">' + esc(t('Диагностика QUIC & TLS')) + '</span>' +
+    '<span class="pill tonal badge ' + quicBadgeClass + '">' + esc(quicBadgeText) + '</span>' +
+  '</div>';
+
+  if(descText){
+    html += '<div class="t-body-medium">' + esc(descText) + '</div>';
+  }
+
+  if(tlsDiffSummary){
+    html += '<div class="helper err" style="margin-top:8px;">' + icon('warn', 's16') + ' ' + esc(tlsDiffSummary) + '</div>';
+  }
+
+  if(discoveredGoogleVideoCdn){
+    html += '<div class="helper" style="margin-top:8px;">' + icon('play', 's16') + ' ' + esc(t('Региональный CDN YouTube / GoogleVideo: {0}', discoveredGoogleVideoCdn)) + '</div>';
+  }
+
+  el.innerHTML = html;
+}
+
 function copyTestReport(){
   let rep = '### DPI Detector (nfqws2-android)\n\n';
   if(netInfoData){
@@ -578,6 +681,23 @@ function copyTestReport(){
     for(const k of Object.keys(dnsResults)){
       const it = dnsResults[k];
       rep += `- ${it.name} (${it.ip}): UDP=${it.udp}, DoH=${it.doh}, Перехват=${it.hijacked === 'yes' ? 'ДА (' + it.detail + ')' : 'НЕТ'}\n`;
+    }
+    rep += '\n';
+  }
+  if(discoveredGoogleVideoCdn || (quicStatusResult && Object.keys(quicStatusResult).length > 0) || (tlsDiffResult && Object.keys(tlsDiffResult).length > 0)){
+    rep += '#### QUIC и региональные CDN:\n';
+    if(discoveredGoogleVideoCdn){
+      rep += `- YouTube / GoogleVideo CDN: ${discoveredGoogleVideoCdn}\n`;
+    }
+    if(quicStatusResult){
+      for(const h of Object.keys(quicStatusResult)){
+        rep += `- QUIC ${h}: ${quicStatusResult[h].verdict} (${quicStatusResult[h].desc})\n`;
+      }
+    }
+    if(tlsDiffResult){
+      for(const h of Object.keys(tlsDiffResult)){
+        rep += `- TLS Diff ${h}: ${tlsDiffResult[h].verdict} (${tlsDiffResult[h].desc})\n`;
+      }
     }
     rep += '\n';
   }
