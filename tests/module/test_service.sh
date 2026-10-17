@@ -307,6 +307,9 @@ assert_file "$PIDFILE" "service is running for firewall helpers check"
 post_rules=$(ipt_rules POSTROUTING)
 assert_contains "$post_rules" "MARK --set-xmark 0x0/0x40000000" "POSTROUTING contains desync mark cleaner"
 
+post_chain=$(ipt_rules nfqws_post)
+assert_contains "$post_chain" "-m mark --mark 0x40000000/0x40000000 -j RETURN" "nfqws_post avoids requeuing desync packets"
+
 wflag=$(ipt_wait_flag iptables)
 assert_rc 0 $? "ipt_wait_flag returns 0"
 

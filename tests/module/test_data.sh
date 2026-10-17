@@ -24,6 +24,13 @@ done
 # ── lua syntax ────────────────────────────────────────────────────────────────
 section "lua syntax"
 
+lua_files=$(cd "$REPO_DIR" && ls lua/*.lua 2>/dev/null)
+lua_count=0
+for f in $lua_files; do
+  lua_count=$((lua_count + 1))
+done
+assert_ge "$lua_count" 21 "all 21+ lua modules are present ($lua_count found)"
+
 if command -v luac >/dev/null 2>&1; then
   for f in "$REPO_DIR"/lua/*.lua; do
     luac -p "$f" >/dev/null 2>&1

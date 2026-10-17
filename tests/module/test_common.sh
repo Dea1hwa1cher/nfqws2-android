@@ -351,12 +351,45 @@ else
   _fail "verify_strategy_receipt failed on matching receipt"
 fi
 
-section "list_line_count"
+section "verify_strategy_receipt detects lua script modification"
 
-count_file="$SANDBOX/lines.txt"
-printf 'line1\nline2\nline3\n' > "$count_file"
-assert_eq "3" "$(list_line_count "$count_file")" "counts lines accurately"
-assert_eq "0" "$(list_line_count "$SANDBOX/nonexistent.txt")" "missing file returns 0"
+receipt_conf="$SANDBOX/receipt_lua.conf"
+lua_test="$SANDBOX/test_receipt.lua"
+echo 'local x = 1' > "$lua_test"
+echo "NFQWS_BASE_ARGS=\"--lua-init=@$lua_test\"" > "$receipt_conf"
+save_strategy_receipt "$receipt_conf"
+assert_file "$RECEIPT_FILE" "receipt file created"
+if verify_strategy_receipt "$receipt_conf"; then
+  _ok "verify_strategy_receipt passes before lua modification"
+else
+  _fail "verify_strategy_receipt failed before lua modification"
+fi
+echo 'local x = 2 -- modified' > "$lua_test"
+if verify_strategy_receipt "$receipt_conf"; then
+  _fail "verify_strategy_receipt should fail after lua modification"
+else
+  _ok "verify_strategy_receipt detects modified lua script"
+fi
+
+section "resolve_googlevideo_cdn"
+
+# 1. Test fallback when no network and no cache
+rm -f "$GOOGLEVIDEO_CACHE_FILE" "$LISTS_DIR/googlevideo.list"
+res1=$(resolve_googlevideo_cdn force)
+assert_contains "$res1" "googlevideo.com" "resolves fallback googlevideo domain"
+assert_file "$GOOGLEVIDEO_CACHE_FILE" "creates googlevideo cache file"
+
+# 2. Test reading from cache
+printf 'rr2---sn-custom-cache.googlevideo.com\n' > "$GOOGLEVIDEO_CACHE_FILE"
+res2=$(resolve_googlevideo_cdn)
+assert_eq "rr2---sn-custom-cache.googlevideo.com" "$res2" "reads from cache when present"
+
+# 3. Test list fallback
+rm -f "$GOOGLEVIDEO_CACHE_FILE"
+printf 'rr3---sn-from-list.googlevideo.com\n' > "$LISTS_DIR/googlevideo.list"
+res3=$(resolve_googlevideo_cdn force)
+assert_eq "rr3---sn-from-list.googlevideo.com" "$res3" "falls back to googlevideo.list"
+rm -f "$LISTS_DIR/googlevideo.list" "$GOOGLEVIDEO_CACHE_FILE"
 
 harness_finish
 

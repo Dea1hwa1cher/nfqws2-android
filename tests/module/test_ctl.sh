@@ -601,4 +601,14 @@ ctl tg-affinity
 assert_rc 0 "$ctl_rc" "tg-affinity succeeds"
 assert_contains "$ctl_out" "primary_media" "tg-affinity output contains primary_media"
 
+section "system/bin/zapret2-rollback and ctl rollback"
+
+save_working_snapshot "$CONFFILE"
+assert_file "$CONFDIR/state/snapshot_working/nfqws2.conf" "snapshot exists"
+echo "BAD_TEST_KEY=1" >> "$CONFFILE"
+
+MODDIR="$MODDIR" sh "$MODDIR/system/bin/zapret2-rollback" >/dev/null 2>&1
+assert_rc 0 $? "zapret2-rollback succeeds"
+assert_not_contains "$(cat "$CONFFILE")" "BAD_TEST_KEY" "zapret2-rollback restored config"
+
 harness_finish

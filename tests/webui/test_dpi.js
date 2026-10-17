@@ -32,7 +32,11 @@ function truthy(cond, msg) { cond ? ok(msg) : fail(msg); }
 // Setup sandbox environment simulating WebUI globals
 const sandbox = {
   console,
-  t: str => str,
+  t: (s, ...args) => {
+    let r = s;
+    for (let i = 0; i < args.length; i++) r = r.split('{' + i + '}').join(args[i]);
+    return r;
+  },
   esc: str => String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'),
   icon: (name, sz) => `<svg class="${sz}"><use href="#i-${name}"/></svg>`,
   banner: (t, kind, msg) => `<div class="banner ${kind}">${msg}</div>`,
@@ -40,7 +44,7 @@ const sandbox = {
   setHTML: (id, html) => {},
   ctlx: async () => ({ code: 0, out: '' }),
   toast: () => {},
-  copyText: async (text) => { if (sandbox.navigator.clipboard && sandbox.navigator.clipboard.writeText) await sandbox.navigator.clipboard.writeText(text); },
+  copyText: (text) => { if (sandbox.navigator.clipboard && sandbox.navigator.clipboard.writeText) sandbox.navigator.clipboard.writeText(text); },
   S: { running: true, paused: false },
   currentStrategy: 'default',
   strategyName: s => s,
@@ -201,7 +205,7 @@ benchBestStrat = { name: 'fake_tls_auto', ok: 30, total: 30, avg_ms: 42 };
 
 let copiedText = '';
 sandbox.navigator.clipboard = {
-  writeText: async txt => { copiedText = txt; }
+  writeText: txt => { copiedText = txt; }
 };
 sandbox.copyTestReport();
 
@@ -220,7 +224,46 @@ sandbox.copyBenchReport();
 truthy(copiedBench.includes('Автоподбор стратегий'), 'bench header is present in bench report');
 truthy(copiedBench.includes('fake_tls_auto (fake_tls_auto) — 30/30, 42 мс'), 'winning strategy is reported in bench report');
 
-// ── 5. Summary ─────────────────────────────────────────────────────────────
+// ── 5. QUIC & CDN indicators ──────────────────────────────────────────────
+sect('QUIC & CDN indicator rendering');
+
+vm.runInContext(`
+quicStatusResult = {
+  'youtube.com': { verdict: 'blocked', desc: 'QUIC (HTTP/3) глушится провайдером' }
+};
+tlsDiffResult = {
+  'youtube.com': { verdict: 'tls13_blocked', desc: 'TLS 1.3 заблокирован ТСПУ, TLS 1.2 доступен' }
+};
+discoveredGoogleVideoCdn = 'rr1---sn-h0jelne7.googlevideo.com';
+var quicElHtml = '';
+var quicElHidden = true;
+$ = id => {
+  if (id === 'test-quic-status') {
+    return {
+      set innerHTML(h) { quicElHtml = h; },
+      get innerHTML() { return quicElHtml; },
+      set hidden(val) { quicElHidden = val; },
+      get hidden() { return quicElHidden; }
+    };
+  }
+  return { textContent: '', innerHTML: '', hidden: false, disabled: false, insertAdjacentHTML: () => {} };
+};
+renderQuicIndicator();
+`, sandbox);
+
+const qHtml = sandbox.quicElHtml;
+truthy(!sandbox.quicElHidden, 'QUIC indicator is visible when results exist');
+truthy(qHtml.includes('QUIC глушится ТСПУ'), 'QUIC badge shows blocked status');
+truthy(qHtml.includes('rr1---sn-h0jelne7.googlevideo.com'), 'discovered GoogleVideo CDN is rendered');
+truthy(qHtml.includes('TLS 1.3 заблокирован'), 'TLS diff summary is rendered');
+
+copiedText = '';
+sandbox.navigator.clipboard.writeText = txt => { copiedText = txt; };
+sandbox.copyTestReport();
+truthy(copiedText.includes('QUIC и региональные CDN'), 'QUIC & CDN section present in test report');
+truthy(copiedText.includes('rr1---sn-h0jelne7.googlevideo.com'), 'GoogleVideo CDN present in test report');
+
+// ── 6. Summary ─────────────────────────────────────────────────────────────
 console.log(`\n----------------------------------------\nPASS  ${pass} checks`);
 if (failures.length) {
   console.error(`FAIL  ${failures.length} check(s) failed`);
