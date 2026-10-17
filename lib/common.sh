@@ -932,67 +932,6 @@ orchestra_unblock_strategy() { # <host> [strategy_index]
   return 0
 }
 
-orchestra_record_host() { # <host> <strategy_index> <fails>
-  local host="$1" idx="$2" fails="${3:-0}" now
-  if [ -z "$host" ]; then
-    return 0
-  fi
-  orchestra_memory_init
-  now=$(date +%s 2>/dev/null)
-  if [ -z "$now" ]; then
-    now=0
-  fi
-  if command -v awk >/dev/null 2>&1; then
-    awk -v h="$host" -v idx="$idx" -v fl="$fails" -v ts="$now" '
-      BEGIN { in_hosts=0; added=0 }
-      {
-        if ($0 ~ /"hosts": \{/) {
-          print $0
-          in_hosts=1
-          printf "    \"%s\": {\"strategy\": %s, \"fails\": %s, \"last_seen\": %s},\n", h, idx, fl, ts
-          added=1
-          next
-        }
-        if (in_hosts && $0 ~ /^\s*\},?/) {
-          in_hosts=0
-        }
-        if (in_hosts && $0 ~ ("\"" h "\":")) {
-          next
-        }
-        print $0
-      }' "$ORCHESTRA_MEMORY_FILE" > "$ORCHESTRA_MEMORY_FILE.tmp"
-    if [ -s "$ORCHESTRA_MEMORY_FILE.tmp" ]; then
-      mv -f "$ORCHESTRA_MEMORY_FILE.tmp" "$ORCHESTRA_MEMORY_FILE"
-    else
-      rm -f "$ORCHESTRA_MEMORY_FILE.tmp"
-    fi
-
-    # LRU enforcement: ceiling of 3000 entries
-    local cnt
-    cnt=$(grep -c '"last_seen":' "$ORCHESTRA_MEMORY_FILE" 2>/dev/null)
-    if [ -z "$cnt" ]; then
-      cnt=0
-    fi
-    if [ "$cnt" -gt 3000 ]; then
-      awk '
-        BEGIN { in_h=0; h_cnt=0 }
-        /"hosts": \{/ { in_h=1; print; next }
-        in_h && /^\s*\},?/ { in_h=0; print; next }
-        in_h {
-          h_cnt++
-          if (h_cnt > 3000) next
-        }
-        { print }' "$ORCHESTRA_MEMORY_FILE" > "$ORCHESTRA_MEMORY_FILE.tmp"
-      if [ -s "$ORCHESTRA_MEMORY_FILE.tmp" ]; then
-        mv -f "$ORCHESTRA_MEMORY_FILE.tmp" "$ORCHESTRA_MEMORY_FILE"
-      else
-        rm -f "$ORCHESTRA_MEMORY_FILE.tmp"
-      fi
-    fi
-  fi
-  return 0
-}
-
 orchestra_status() {
   orchestra_memory_init
   local total locked blocked
