@@ -36,6 +36,130 @@ let lastRecommendation = null;
 let quicStatusResult = null;
 let tlsDiffResult = null;
 let discoveredGoogleVideoCdn = null;
+let testDomainTimer = null;
+let testLastCheckedDomain = '';
+
+function cleanDomainInput(val){
+  return (val || '').trim().toLowerCase()
+    .replace(/^[a-z]+:\/\//, '')
+    .replace(/\/.*$/, '')
+    .replace(/:[0-9]+$/, '')
+    .replace(/^www\./, '');
+}
+
+function clearTestDomain(){
+  const input = $('test-domain');
+  if(input) input.value = '';
+  const clearBtn = $('test-domain-clear');
+  if(clearBtn) clearBtn.hidden = true;
+  const status = $('test-domain-status');
+  if(status){ status.textContent = ''; status.className = 'helper'; }
+  const action = $('test-domain-action');
+  if(action){ action.hidden = true; action.innerHTML = ''; }
+  testLastCheckedDomain = '';
+  if(testDomainTimer) clearTimeout(testDomainTimer);
+}
+
+function onTestDomainInput(val){
+  const clearBtn = $('test-domain-clear');
+  if(clearBtn) clearBtn.hidden = !val;
+
+  if(testDomainTimer) clearTimeout(testDomainTimer);
+  const status = $('test-domain-status');
+  const action = $('test-domain-action');
+
+  const domain = cleanDomainInput(val);
+  if(!domain){
+    if(status){ status.textContent = ''; status.className = 'helper'; }
+    if(action){ action.hidden = true; action.innerHTML = ''; }
+    testLastCheckedDomain = '';
+    return;
+  }
+
+  testDomainTimer = setTimeout(() => {
+    checkTestDomain(domain);
+  }, 300);
+}
+
+async function checkTestDomain(domain){
+  if(!domain) return;
+  testLastCheckedDomain = domain;
+  const status = $('test-domain-status');
+  const action = $('test-domain-action');
+
+  if(!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(domain)){
+    if(status){
+      status.className = 'helper err';
+      status.textContent = t('Некорректный домен');
+    }
+    if(action){ action.hidden = true; action.innerHTML = ''; }
+    return;
+  }
+
+  if(status){
+    status.className = 'helper';
+    status.textContent = t('Проверка списков…');
+  }
+
+  try {
+    const res = await ctl(['check-domain', domain]);
+    const line = (res || '').trim().split('\n')[0] || '';
+    const parts = line.split('\t');
+
+    if(parts[0] === 'FOUND'){
+      const lists = (parts[2] || '').split(',').filter(Boolean);
+      if(status){
+        status.className = 'helper';
+        status.textContent = t('Домен найден в списках:');
+      }
+      if(action){
+        action.hidden = false;
+        let pillsHtml = '';
+        for(const listName of lists){
+          const isExclude = listName === 'exclude';
+          const label = listName + '.list' + (isExclude ? ' (' + t('исключён из обхода') + ')' : '');
+          pillsHtml += '<span class="pill tonal">' + esc(label) + '</span>';
+        }
+        action.innerHTML = pillsHtml;
+      }
+    } else if(parts[0] === 'NOT_FOUND'){
+      if(status){
+        status.className = 'helper';
+        status.textContent = t('Отсутствует в списках');
+      }
+      if(action){
+        action.hidden = false;
+        action.innerHTML = '<button type="button" class="btn text with-icon state" onclick="addTestDomainToUser(' + jsArg(domain) + ')">' +
+          icon('add', 's18') +
+          '<span>' + esc(t('Добавить в user.list')) + '</span>' +
+        '</button>';
+      }
+    } else {
+      if(status){
+        status.className = 'helper err';
+        status.textContent = t('Некорректный домен');
+      }
+      if(action){ action.hidden = true; action.innerHTML = ''; }
+    }
+  } catch(e){
+    if(status){
+      status.className = 'helper err';
+      status.textContent = t('Ошибка проверки домена');
+    }
+    if(action){ action.hidden = true; action.innerHTML = ''; }
+  }
+}
+
+async function addTestDomainToUser(domain){
+  if(!domain) return;
+  try {
+    await withBusy(['add-domain', domain]);
+    toast(t('Домен добавлен в user.list'));
+    await checkTestDomain(domain);
+  } catch(e){
+    toast(t('Не удалось добавить домен'));
+  }
+}
 
 function testInit(){
   updateTestDesc();
@@ -256,6 +380,18 @@ async function runTest(){
     await stopTest();
     return;
   }
+
+  let targetDomain = '';
+  const domainInput = $('test-domain');
+  if(domainInput && domainInput.value.trim()){
+    targetDomain = cleanDomainInput(domainInput.value);
+    if(!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(targetDomain)){
+      toast(t('Некорректный домен'));
+      domainInput.focus();
+      return;
+    }
+  }
+
   testRunning = true;
   testCancelled = false;
   webViewAbortCtrl = new AbortController();
@@ -330,10 +466,12 @@ async function runTest(){
   };
 
   try {
-    const r = await ctlx(['probe-dpi', currentTestTab], 180000, onLine);
+    const args = ['probe-dpi', currentTestTab];
+    if(targetDomain) args.push(targetDomain);
+    const r = await ctlx(args, 180000, onLine);
     if(!testCancelled){
-      if(tool === 'none' || (r.code && !hosts.length && currentTestTab === 'web')) {
-        await runTestWebView();
+      if(tool === 'none' || (r.code && !hosts.length && (currentTestTab === 'web' || targetDomain))) {
+        await runTestWebView(targetDomain);
       } else {
         Object.keys(webResults).forEach(i => {
           if(webResults[i].list.length < 4) {
@@ -382,11 +520,16 @@ async function probeFetch(u, signal){
   }
 }
 
-async function runTestWebView(){
+async function runTestWebView(targetDomain){
   setHTML('test-warn', $('test-warn').innerHTML + banner('', 'warn',
     t('На устройстве нет curl или busybox wget с TLS — проверка идёт через WebView и показывает лишь приблизительную картину.')), false);
-  const r = await ctlx(['get-list', 'probe_hosts']);
-  const hosts = (r.code ? '' : r.out).split('\n').map(s => s.trim()).filter(s => s && s[0] !== '#');
+  let hosts;
+  if(targetDomain){
+    hosts = [targetDomain];
+  } else {
+    const r = await ctlx(['get-list', 'probe_hosts']);
+    hosts = (r.code ? '' : r.out).split('\n').map(s => s.trim()).filter(s => s && s[0] !== '#');
+  }
   setHTML('tr', hosts.map((h, i) => testRow(i, h)).join(''), false);
   if(!hosts.length){
     if($('test-empty')) $('test-empty').hidden = false;

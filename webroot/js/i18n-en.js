@@ -463,6 +463,7 @@ EN = {
   "Режим тестирования": "Testing mode",
   "Общее": "General",
   "Отдельный домен": "Single domain",
+  "Отдельный домен (опционально)": "Single domain (optional)",
   "Запустить тестирование": "Start testing",
   "Тестирование стратегий на одном выбранном ресурсе. Позволяет подобрать оптимальную стратегию для конкретного сайта или сервиса.": "Strategy testing on a single selected resource. Helps choose the optimal strategy for a specific website or service.",
   "например, rutracker.org": "e.g., rutracker.org",

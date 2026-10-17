@@ -185,10 +185,9 @@ cmd_json_status() {
   set -- $(list_counts "$LISTS_DIR/user.list" "$LISTS_DIR/auto.list" "$LISTS_DIR/exclude.list" \
                       "$LISTS_DIR/ipset.list" "$LISTS_DIR/ipset_exclude.list" "$CONFDIR/apps.list")
   cnt_user="$1" cnt_auto="$2" cnt_excl="$3" cnt_ipset="$4" cnt_ipset_excl="$5" cnt_apps="$6"
-  local orch_cnt has_rb auto_ports_str
+  local orch_cnt has_rb
   orch_cnt=$(grep -c '^[[:space:]]*"[^"]*":' "$ORCHESTRA_MEMORY_FILE" 2>/dev/null || echo 0)
   if [ -f "$SNAPSHOT_DIR/nfqws2.conf" ]; then has_rb=1; else has_rb=0; fi
-  auto_ports_str="TCP: ${TCP_PORTS:-80,443} | UDP: ${UDP_PORTS:-443}"
   # нечисловое значение обваливает весь JSON и убивает WebUI, поэтому проверяем каждое поле
   for v in appn cnt_user cnt_auto cnt_excl cnt_ipset cnt_ipset_excl cnt_apps uptime qdrop \
            PKT_LIMIT_OUT PKT_LIMIT_IN BLOCK_QUIC AUTOSTART WATCHDOG IPV6_ENABLED LOG_LEVEL NFQUEUE_NUM WAKELOCK HOME_WIFI ENABLE_HOTSPOT NET_STRATEGY VPN_PAUSE orch_cnt has_rb; do
@@ -200,7 +199,7 @@ cmd_json_status() {
 "limiter":"$(json_str "$(cat "$STATE_DIR/limiter" 2>/dev/null)")","pkt_limit_out":$PKT_LIMIT_OUT,"pkt_limit_in":$PKT_LIMIT_IN,"block_quic":$BLOCK_QUIC,"app_mode":"$(json_str "$APP_MODE")","autostart":$AUTOSTART,"watchdog":$WATCHDOG,"wakelock_on":$WAKELOCK,
 "ipv6":$IPV6_ENABLED,"log_level":$LOG_LEVEL,"qdrop":$qdrop,"queue":$NFQUEUE_NUM,"app_uids":$appn,
 "home_wifi":$HOME_WIFI,"enable_hotspot":$ENABLE_HOTSPOT,"net_strategy":$NET_STRATEGY,"vpn_pause":$VPN_PAUSE,"paused":"$(json_str "$paused")","pending":"$(json_str "$pending")",
-"orchestra_hosts":$orch_cnt,"auto_ports":"$(json_str "$auto_ports_str")","has_rollback":$has_rb,
+"orchestra_hosts":$orch_cnt,"has_rollback":$has_rb,
 "counts":{"user":$cnt_user,"auto":$cnt_auto,"exclude":$cnt_excl,"ipset":$cnt_ipset,"ipset_exclude":$cnt_ipset_excl,"apps":$cnt_apps}}
 JSON
 }
@@ -867,11 +866,15 @@ cmd_net_info() {
 }
 
 cmd_probe_all_inner() {
-  local kind="$1" bin="$2" i=0 h batch=0
+  local kind="$1" bin="$2" target="${3:-}" i=0 h batch=0
   rm -f "$STATE_DIR/probe.hosts"
-  grep -v -e '^[[:space:]]*#' -e '^[[:space:]]*$' "$LISTS_DIR/probe_hosts.list" 2>/dev/null | tr -d '\r' | while IFS= read -r h; do
-    [ -n "$h" ] && printf '%s\n' "$(resolve_probe_target "$h")" >> "$STATE_DIR/probe.hosts"
-  done
+  if [ -n "$target" ]; then
+    printf '%s\n' "$(resolve_probe_target "$target")" > "$STATE_DIR/probe.hosts"
+  else
+    grep -v -e '^[[:space:]]*#' -e '^[[:space:]]*$' "$LISTS_DIR/probe_hosts.list" 2>/dev/null | tr -d '\r' | while IFS= read -r h; do
+      [ -n "$h" ] && printf '%s\n' "$(resolve_probe_target "$h")" >> "$STATE_DIR/probe.hosts"
+    done
+  fi
   while IFS= read -r h; do
     [ -z "$h" ] && continue
     printf 'H\t%s\t%s\n' "$i" "$h"
@@ -1415,7 +1418,7 @@ cmd_bench_strategies() {
 }
 
 cmd_probe_dpi() {
-  local mode="${1:-all}" tool kind bin
+  local mode="${1:-all}" target_domain="${2:-}" tool kind bin
   tool=$(probe_tool); kind="${tool%% *}"; bin="${tool#* }"
   printf 'tool\t%s\n' "$kind"
   [ "$kind" = "none" ] && { echo done; return 0; }
@@ -1427,14 +1430,14 @@ cmd_probe_dpi() {
 
   case "$mode" in
     net) cmd_net_info ;;
-    web) cmd_probe_all_inner "$kind" "$bin" ;;
+    web) cmd_probe_all_inner "$kind" "$bin" "$target_domain" ;;
     tcp16) cmd_probe_tcp16 ;;
     dns) cmd_probe_dns ;;
     tg) cmd_probe_tg ;;
-    bench) cmd_bench_strategies "$2" ;;
+    bench) cmd_bench_strategies "$target_domain" ;;
     all|*)
       cmd_net_info
-      cmd_probe_all_inner "$kind" "$bin"
+      cmd_probe_all_inner "$kind" "$bin" "$target_domain"
       cmd_probe_tcp16
       cmd_probe_dns
       ;;
@@ -1971,7 +1974,7 @@ case "$1" in
   backup-restore) cmd_backup_restore "$2" ;;
   backup-restore-b64) cmd_backup_restore_b64 "$2" ;;
   net-info) cmd_net_info ;;
-  probe-dpi) cmd_probe_dpi "${2:-all}" ;;
+  probe-dpi) cmd_probe_dpi "${2:-all}" "$3" ;;
   probe-tg) cmd_probe_dpi tg ;;
   bench-strategies) cmd_bench_strategies "$2" ;;
   probe-bench) cmd_bench_strategies "$2" ;;

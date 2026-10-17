@@ -305,167 +305,25 @@ let benchCancelled = false;
 let benchResults = {};
 let benchTotalStrats = 0;
 let benchBestStrat = null;
-let currentBenchTab = 'all';
-let benchDomainTimer = null;
-let benchLastCheckedDomain = '';
-
-function selectBenchTab(tab){
-  currentBenchTab = tab;
-  document.querySelectorAll('#bench-tabs .seg').forEach(btn => {
-    btn.classList.toggle('on', btn.dataset.tab === tab);
-  });
-  if($('bench-sec-all')) $('bench-sec-all').hidden = tab !== 'all';
-  if($('bench-sec-domain')) $('bench-sec-domain').hidden = tab !== 'domain';
-}
 
 function updateBenchButtons(running){
-  const btns = [
-    { id: 'bench-btn', text: 'Запустить тестирование' },
-    { id: 'bench-domain-btn', text: 'Запустить для домена' }
-  ];
-  for(const b of btns){
-    const el = $(b.id);
-    if(!el) continue;
-    el.disabled = false;
-    if(running){
-      el.classList.add('danger');
-      el.innerHTML = icon('stop', 's18') + '<span>' + esc(t('Остановить')) + '</span>';
-    } else {
-      el.classList.remove('danger');
-      el.innerHTML = icon('play', 's18') + '<span>' + esc(t(b.text)) + '</span>';
-    }
+  const el = $('bench-btn');
+  if(!el) return;
+  el.disabled = false;
+  if(running){
+    el.classList.add('danger');
+    el.innerHTML = icon('stop', 's18') + '<span>' + esc(t('Остановить')) + '</span>';
+  } else {
+    el.classList.remove('danger');
+    el.innerHTML = icon('play', 's18') + '<span>' + esc(t('Запустить тестирование')) + '</span>';
   }
 }
 
 function updateBenchButtonsStopping(){
-  for(const id of ['bench-btn', 'bench-domain-btn']){
-    const el = $(id);
-    if(!el) continue;
-    el.disabled = true;
-    el.innerHTML = '<span class="spinner"></span><span>' + esc(t('Остановка…')) + '</span>';
-  }
-}
-
-function cleanDomainInput(val){
-  return (val || '').trim().toLowerCase()
-    .replace(/^[a-z]+:\/\//, '')
-    .replace(/\/.*$/, '')
-    .replace(/:[0-9]+$/, '')
-    .replace(/^www\./, '');
-}
-
-function clearBenchDomain(){
-  const input = $('bench-domain');
-  if(input) input.value = '';
-  const clearBtn = $('bench-domain-clear');
-  if(clearBtn) clearBtn.hidden = true;
-  const status = $('bench-domain-status');
-  if(status){ status.textContent = ''; status.className = 'helper'; }
-  const action = $('bench-domain-action');
-  if(action){ action.hidden = true; action.innerHTML = ''; }
-  benchLastCheckedDomain = '';
-  if(benchDomainTimer) clearTimeout(benchDomainTimer);
-}
-
-function onBenchDomainInput(val){
-  const clearBtn = $('bench-domain-clear');
-  if(clearBtn) clearBtn.hidden = !val;
-
-  if(benchDomainTimer) clearTimeout(benchDomainTimer);
-  const status = $('bench-domain-status');
-  const action = $('bench-domain-action');
-
-  const domain = cleanDomainInput(val);
-  if(!domain){
-    if(status){ status.textContent = ''; status.className = 'helper'; }
-    if(action){ action.hidden = true; action.innerHTML = ''; }
-    benchLastCheckedDomain = '';
-    return;
-  }
-
-  benchDomainTimer = setTimeout(() => {
-    checkBenchDomain(domain);
-  }, 300);
-}
-
-async function checkBenchDomain(domain){
-  if(!domain) return;
-  benchLastCheckedDomain = domain;
-  const status = $('bench-domain-status');
-  const action = $('bench-domain-action');
-
-  if(!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(domain)){
-    if(status){
-      status.className = 'helper err';
-      status.textContent = t('Некорректный домен');
-    }
-    if(action){ action.hidden = true; action.innerHTML = ''; }
-    return;
-  }
-
-  if(status){
-    status.className = 'helper';
-    status.textContent = t('Проверка списков…');
-  }
-
-  try {
-    const res = await ctl(['check-domain', domain]);
-    const line = (res || '').trim().split('\n')[0] || '';
-    const parts = line.split('\t');
-
-    if(parts[0] === 'FOUND'){
-      const lists = (parts[2] || '').split(',').filter(Boolean);
-      if(status){
-        status.className = 'helper';
-        status.textContent = t('Домен найден в списках:');
-      }
-      if(action){
-        action.hidden = false;
-        let pillsHtml = '';
-        for(const listName of lists){
-          const isExclude = listName === 'exclude';
-          const label = listName + '.list' + (isExclude ? ' (' + t('исключён из обхода') + ')' : '');
-          pillsHtml += '<span class="pill tonal">' + esc(label) + '</span>';
-        }
-        action.innerHTML = pillsHtml;
-      }
-    } else if(parts[0] === 'NOT_FOUND'){
-      if(status){
-        status.className = 'helper';
-        status.textContent = t('Отсутствует в списках');
-      }
-      if(action){
-        action.hidden = false;
-        action.innerHTML = '<button type="button" class="btn text with-icon state" onclick="addBenchDomainToUser(' + jsArg(domain) + ')">' +
-          icon('add', 's18') +
-          '<span>' + esc(t('Добавить в user.list')) + '</span>' +
-        '</button>';
-      }
-    } else {
-      if(status){
-        status.className = 'helper err';
-        status.textContent = t('Некорректный домен');
-      }
-      if(action){ action.hidden = true; action.innerHTML = ''; }
-    }
-  } catch(e){
-    if(status){
-      status.className = 'helper err';
-      status.textContent = t('Ошибка проверки домена');
-    }
-    if(action){ action.hidden = true; action.innerHTML = ''; }
-  }
-}
-
-async function addBenchDomainToUser(domain){
-  if(!domain) return;
-  try {
-    await withBusy(['add-domain', domain]);
-    toast(t('Домен добавлен в user.list'));
-    await checkBenchDomain(domain);
-  } catch(e){
-    toast(t('Не удалось добавить домен'));
-  }
+  const el = $('bench-btn');
+  if(!el) return;
+  el.disabled = true;
+  el.innerHTML = '<span class="spinner"></span><span>' + esc(t('Остановка…')) + '</span>';
 }
 
 function renderBenchRow(idx, name, ok, total, avg_ms, top_fail, isRunning){
@@ -577,23 +435,6 @@ async function runBench(){
     return;
   }
 
-  let targetDomain = '';
-  if(currentBenchTab === 'domain'){
-    const input = $('bench-domain');
-    const val = input ? input.value : '';
-    targetDomain = cleanDomainInput(val);
-    if(!targetDomain){
-      toast(t('Укажите домен для тестирования'));
-      if(input) input.focus();
-      return;
-    }
-    if(!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(targetDomain)){
-      toast(t('Некорректный домен'));
-      if(input) input.focus();
-      return;
-    }
-  }
-
   benchRunning = true;
   benchCancelled = false;
   resetBenchResults();
@@ -645,8 +486,7 @@ async function runBench(){
   };
 
   try {
-    const args = targetDomain ? ['bench-strategies', targetDomain] : ['bench-strategies'];
-    await ctlx(args, 300000, onLine);
+    await ctlx(['bench-strategies'], 300000, onLine);
   } finally {
     benchRunning = false;
     if(benchCancelled){
@@ -683,9 +523,7 @@ async function applyBenchStrategy(name){
 }
 
 function copyBenchReport(){
-  const title = (currentBenchTab === 'domain' && benchLastCheckedDomain)
-    ? t('Автоподбор стратегий для {0}', benchLastCheckedDomain)
-    : t('Автоподбор стратегий');
+  const title = t('Автоподбор стратегий');
   let rep = '### ' + title + ' (nfqws2-android)\n\n';
   if(benchBestStrat){
     const bestTitle = typeof strategyName === 'function' ? strategyName(benchBestStrat.name) : benchBestStrat.name;

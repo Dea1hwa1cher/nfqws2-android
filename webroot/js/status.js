@@ -221,6 +221,7 @@ async function rollbackStrategy(){
   const r = await withBusy(['rollback']);
   if(r.code === 0){
     toast(t('Конфигурация успешно откатана'));
+    closeSheet();
     await stat(true);
     await loadStrategies();
   } else {
@@ -364,8 +365,7 @@ function renderStatus(){
   if(infoEl) {
     const qInfo = (j.pkt_limit_out && j.pkt_limit_in) ? t('Квоты: {0}/{1} пак.', j.pkt_limit_out, j.pkt_limit_in) : '';
     const orchInfo = j.orchestra_hosts != null ? ' · ' + t('{0} хостов в памяти', j.orchestra_hosts) : '';
-    const portsInfo = j.auto_ports ? ' · ' + j.auto_ports : '';
-    infoEl.textContent = qInfo + orchInfo + portsInfo;
+    infoEl.textContent = qInfo + orchInfo;
   }
 
   let w = '';
