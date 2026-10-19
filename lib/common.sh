@@ -139,22 +139,6 @@ archive_replaced_preset() {
   cp -f "$p" "$rep_dir/${bname%.conf}.$ts.conf" 2>/dev/null || true
 }
 
-is_game_strategy() { # <strategy_name>
-  local n="$1" f
-  case "$n" in
-    *game*|*Game*|*riot*|*Riot*|*roblox*|*Roblox*|*steam*|*Steam*|*valorant*|*Valorant*) return 0 ;;
-  esac
-  f=$(strategy_file "$n" 2>/dev/null)
-  if [ -n "$f" ]; then
-    if [ -f "$f" ]; then
-      if grep -qE "game_active|riot|roblox|steam|discord_udp|discordpartygames" "$f" 2>/dev/null; then
-        return 0
-      fi
-    fi
-  fi
-  return 1
-}
-
 catalog_file() { # <category>
   local cat="$1"
   case "$cat" in

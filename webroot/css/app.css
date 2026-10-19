@@ -32,6 +32,23 @@ pre.appear > * { animation: none; }
 .sheet-group { padding: 16px 16px 8px; font-size: var(--ts-title-small); line-height: var(--lh-title-small);
   font-weight: var(--w-emph); letter-spacing: var(--tr-title-small); color: var(--md-sys-color-primary); }
 .sheet-group:first-child { padding-top: 4px; }
+#strat-presets-view,
+#strat-catalogs-view {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+#strategy-list,
+#catalog-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: calc(86vh - 240px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
 #strategy-list .list-item { min-height: 56px; }
 
 /* Filter chip checkmark */

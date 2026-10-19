@@ -38,15 +38,14 @@ function strategyGroup(s){
 const groupTitle = g => t((STRATEGY_GROUPS.find(x => x[0] === g) || ['', ''])[1]);
 const strategyName = s => s === 'default' ? t('По умолчанию') : String(s).replace(/^imp:/, '');
 const findStrategy = n => strategies.find(s => s.name === n);
-const isGameStrategy = n => /(?:game|riot|valorant|steam|roblox)/i.test(n);
 
 async function loadStrategies(){
   const r = await ctlx(['list-strategies']);
   const list = r.code ? [] : r.out.split('\n').filter(Boolean).map(l => {
     const p = l.split('\t');
-    return {name: p[0], kind: p[1] || 'builtin', mod: p[2] === '1', game: p[3] === '1'};
+    return {name: p[0], kind: p[1] || 'builtin', mod: p[2] === '1'};
   });
-  strategies = [{name: 'default', kind: 'builtin', mod: false, game: false}].concat(list.filter(s => s.name !== 'default'));
+  strategies = [{name: 'default', kind: 'builtin', mod: false}].concat(list.filter(s => s.name !== 'default'));
 }
 async function initStrategySelector(){
   const r2 = await ctlx(['get-strategy']);
@@ -61,15 +60,13 @@ function renderStrategyRow(){
 }
 function strategyItem(s){
   const sel = s.name === pendingStrategy;
-  const isGame = s.game || isGameStrategy(s.name);
   return '<label class="list-item clickable state' + (sel ? ' selected' : '') + '">' +
     '<input type="radio" class="radio" name="strategy" value="' + esc(s.name) + '"' + (sel ? ' checked' : '') + '>' +
     '<span class="li-text"><span class="li-primary truncate">' + esc(strategyName(s.name)) + '</span>' +
-      (s.mod || s.kind === 'import' || s.name === currentStrategy || isGame ? '<span class="li-tags">' +
+      (s.mod || s.kind === 'import' || s.name === currentStrategy ? '<span class="li-tags">' +
         (s.name === currentStrategy ? '<span class="pill">' + esc(t('Текущая')) + '</span>' : '') +
         (s.mod ? '<span class="pill tonal">' + esc(t('Изменена')) + '</span>' : '') +
-        (s.kind === 'import' ? '<span class="pill tonal">' + esc(t('Импорт')) + '</span>' : '') +
-        (isGame ? '<span class="pill tonal">' + esc(t('Game Filter')) + '</span>' : '') + '</span>' : '') +
+        (s.kind === 'import' ? '<span class="pill tonal">' + esc(t('Импорт')) + '</span>' : '') + '</span>' : '') +
     '</span>' +
     '<span class="li-trail li-actions">' +
       (s.mod ? '<button type="button" class="icon-btn sm state" data-act="reset" data-s="' + esc(s.name) + '"' +
@@ -361,12 +358,6 @@ function renderStatus(){
 
   const rbBtn = $('btn-rollback');
   if(rbBtn) rbBtn.hidden = !(j.has_rollback == 1);
-  const infoEl = $('quota-status-info');
-  if(infoEl) {
-    const qInfo = (j.pkt_limit_out && j.pkt_limit_in) ? t('Квоты: {0}/{1} пак.', j.pkt_limit_out, j.pkt_limit_in) : '';
-    const orchInfo = j.orchestra_hosts != null ? ' · ' + t('{0} хостов в памяти', j.orchestra_hosts) : '';
-    infoEl.textContent = qInfo + orchInfo;
-  }
 
   let w = '';
   if(j.qdrop > 0) w += banner('danger', 'warn', t('Ядро сбросило {0} пакетов: nfqws2 не успевает обрабатывать очередь {1}.', j.qdrop, j.queue));

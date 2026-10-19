@@ -63,16 +63,15 @@ json_str() { printf '%s' "$1" | tr -d '"\\\000-\037'; }
 need_restart_note() { if is_running; then echo "Изменения применятся после перезапуска службы"; fi; }
 
 # Строка на стратегию: имя <TAB> вид (builtin|user|import) <TAB> 1, если
-# встроенная стратегия отредактирована и отличается от исходника <TAB> 1, если активен game filter.
+# встроенная стратегия отредактирована и отличается от исходника.
 list_strategies() {
-  local f n kind mod game
+  local f n kind mod
   for f in "$STRATEGIES_DIR"/*.conf "$USER_STRATEGIES_DIR"/*.conf; do
     [ -f "$f" ] || continue
     basename "$f" .conf
   done | sort -u | while IFS= read -r n; do
     [ -n "$n" ] || continue
-    kind=user; mod=0; game=0
-    if is_game_strategy "$n"; then game=1; fi
+    kind=user; mod=0
     if [ -f "$STRATEGIES_DIR/$n.conf" ]; then
       kind=builtin
       if [ -f "$USER_STRATEGIES_DIR/$n.conf" ]; then
@@ -81,13 +80,11 @@ list_strategies() {
         if strategy_modified "$n"; then mod=1; else rm -f "$USER_STRATEGIES_DIR/$n.conf"; fi
       fi
     fi
-    printf '%s\t%s\t%s\t%s\n' "$n" "$kind" "$mod" "$game"
+    printf '%s\t%s\t%s\n' "$n" "$kind" "$mod"
   done
   list_imports | while IFS= read -r n; do
     if [ -n "$n" ]; then
-      local g=0
-      if is_game_strategy "imp:$n"; then g=1; fi
-      printf 'imp:%s\timport\t0\t%s\n' "$n" "$g"
+      printf 'imp:%s\timport\t0\n' "$n"
     fi
   done
 }
@@ -185,12 +182,11 @@ cmd_json_status() {
   set -- $(list_counts "$LISTS_DIR/user.list" "$LISTS_DIR/auto.list" "$LISTS_DIR/exclude.list" \
                       "$LISTS_DIR/ipset.list" "$LISTS_DIR/ipset_exclude.list" "$CONFDIR/apps.list")
   cnt_user="$1" cnt_auto="$2" cnt_excl="$3" cnt_ipset="$4" cnt_ipset_excl="$5" cnt_apps="$6"
-  local orch_cnt has_rb
-  orch_cnt=$(grep -c '^[[:space:]]*"[^"]*":' "$ORCHESTRA_MEMORY_FILE" 2>/dev/null || echo 0)
+  local has_rb
   if [ -f "$SNAPSHOT_DIR/nfqws2.conf" ]; then has_rb=1; else has_rb=0; fi
   # нечисловое значение обваливает весь JSON и убивает WebUI, поэтому проверяем каждое поле
   for v in appn cnt_user cnt_auto cnt_excl cnt_ipset cnt_ipset_excl cnt_apps uptime qdrop \
-           PKT_LIMIT_OUT PKT_LIMIT_IN BLOCK_QUIC AUTOSTART WATCHDOG IPV6_ENABLED LOG_LEVEL NFQUEUE_NUM WAKELOCK HOME_WIFI ENABLE_HOTSPOT NET_STRATEGY VPN_PAUSE orch_cnt has_rb; do
+           PKT_LIMIT_OUT PKT_LIMIT_IN BLOCK_QUIC AUTOSTART WATCHDOG IPV6_ENABLED LOG_LEVEL NFQUEUE_NUM WAKELOCK HOME_WIFI ENABLE_HOTSPOT NET_STRATEGY VPN_PAUSE has_rb; do
     eval "case \"\${$v}\" in ''|*[!0-9]*) $v=0 ;; esac"
   done
 
@@ -199,7 +195,7 @@ cmd_json_status() {
 "limiter":"$(json_str "$(cat "$STATE_DIR/limiter" 2>/dev/null)")","pkt_limit_out":$PKT_LIMIT_OUT,"pkt_limit_in":$PKT_LIMIT_IN,"block_quic":$BLOCK_QUIC,"app_mode":"$(json_str "$APP_MODE")","autostart":$AUTOSTART,"watchdog":$WATCHDOG,"wakelock_on":$WAKELOCK,
 "ipv6":$IPV6_ENABLED,"log_level":$LOG_LEVEL,"qdrop":$qdrop,"queue":$NFQUEUE_NUM,"app_uids":$appn,
 "home_wifi":$HOME_WIFI,"enable_hotspot":$ENABLE_HOTSPOT,"net_strategy":$NET_STRATEGY,"vpn_pause":$VPN_PAUSE,"paused":"$(json_str "$paused")","pending":"$(json_str "$pending")",
-"orchestra_hosts":$orch_cnt,"has_rollback":$has_rb,
+"has_rollback":$has_rb,
 "counts":{"user":$cnt_user,"auto":$cnt_auto,"exclude":$cnt_excl,"ipset":$cnt_ipset,"ipset_exclude":$cnt_ipset_excl,"apps":$cnt_apps}}
 JSON
 }
