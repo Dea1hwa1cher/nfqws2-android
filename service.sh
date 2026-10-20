@@ -236,7 +236,7 @@ replace_daemon() {
     touch "$STATE_DIR/rollback_armed"
     (
       sleep 5
-      if [ -f "$STATE_DIR/rollback_armed" ]; then
+      if [ -f "$STATE_DIR/rollback_armed" ] && [ -f "$DESIRED_FILE" ]; then
         if is_running; then
           rm -f "$STATE_DIR/rollback_armed" 2>/dev/null
           save_working_snapshot
@@ -246,6 +246,8 @@ replace_daemon() {
           rm -f "$STATE_DIR/rollback_armed" 2>/dev/null
           rollback
         fi
+      else
+        rm -f "$STATE_DIR/rollback_armed" 2>/dev/null
       fi
     ) >/dev/null 2>&1 &
 
@@ -281,7 +283,7 @@ rollback() {
 }
 
 stop() {
-  rm -f "$DESIRED_FILE" "$STARTED_FILE"
+  rm -f "$DESIRED_FILE" "$STARTED_FILE" "$STATE_DIR/rollback_armed"
   release_wakelock
   firewall_stop
   if [ -f "$PIDFILE" ]; then

@@ -611,4 +611,84 @@ MODDIR="$MODDIR" sh "$MODDIR/system/bin/zapret2-rollback" >/dev/null 2>&1
 assert_rc 0 $? "zapret2-rollback succeeds"
 assert_not_contains "$(cat "$CONFFILE")" "BAD_TEST_KEY" "zapret2-rollback restored config"
 
+# ── catalogs ──────────────────────────────────────────────────────────────────
+section "catalogs"
+
+ctl list-catalogs
+assert_rc 0 "$ctl_rc" "list-catalogs succeeds"
+assert_contains "$ctl_out" "tcp_tls" "list-catalogs includes tcp_tls"
+assert_contains "$ctl_out" "tcp_http" "list-catalogs includes tcp_http"
+
+ctl get-catalog tcp_tls
+assert_rc 0 "$ctl_rc" "get-catalog tcp_tls succeeds"
+assert_contains "$ctl_out" "fake_tls" "catalog contains fake_tls"
+
+ctl catalog-apply-module tcp_tls 1
+assert_rc 0 "$ctl_rc" "catalog-apply-module applies module 1"
+assert_contains "$ctl_out" "успешно внедрён" "catalog module reports success"
+
+# ── replaced strategies archive & restore ────────────────────────────────────
+section "replaced strategies archive"
+
+ctl list-replaced-strategies
+assert_rc 0 "$ctl_rc" "list-replaced-strategies succeeds"
+
+rep_dir="$CONFDIR/strategies/replaced"
+mkdir -p "$rep_dir"
+printf 'NFQWS_ARGS="--filter-tcp=443 --payload=tls_client_hello --dpi-desync=fake"\n' > "$rep_dir/archived_test.conf"
+
+ctl list-replaced-strategies
+assert_rc 0 "$ctl_rc" "list-replaced-strategies succeeds with files"
+assert_contains "$ctl_out" "archived_test" "archived strategy is listed"
+
+ctl restore-replaced-strategy archived_test
+assert_rc 0 "$ctl_rc" "restore-replaced-strategy succeeds"
+assert_contains "$ctl_out" "восстановлен" "restore reports success"
+
+# ── chunked lists ─────────────────────────────────────────────────────────────
+section "chunked lists"
+
+ctl save-list-chunk-b64 user 1 2 "$(b64 'chunk1.com
+')"
+assert_rc 0 "$ctl_rc" "save-list-chunk-b64 chunk 1 succeeds"
+assert_contains "$ctl_out" "CHUNK 1/2 OK" "chunk 1 reports pending status"
+
+ctl save-list-chunk-b64 user 2 2 "$(b64 'chunk2.com
+')"
+assert_rc 0 "$ctl_rc" "save-list-chunk-b64 chunk 2 finishes assembly"
+assert_contains "$ctl_out" "OK" "assembly finishes with OK"
+
+ctl list-line-count user
+assert_rc 0 "$ctl_rc" "list-line-count succeeds"
+assert_eq "2" "$ctl_out" "user list has 2 lines"
+
+ctl get-list-chunk user 1 1
+assert_rc 0 "$ctl_rc" "get-list-chunk succeeds"
+assert_contains "$ctl_out" "chunk1.com" "offset 1 limit 1 returns first line"
+
+# ── check-domain ──────────────────────────────────────────────────────────────
+section "check-domain"
+
+ctl check-domain chunk1.com
+assert_rc 0 "$ctl_rc" "check-domain succeeds for existing domain"
+assert_contains "$ctl_out" "FOUND" "domain in user.list is found"
+assert_contains "$ctl_out" "user" "list name is reported"
+
+ctl check-domain non-existent-test-12345.org
+assert_rc 0 "$ctl_rc" "check-domain succeeds for missing domain"
+assert_contains "$ctl_out" "NOT_FOUND" "missing domain reported as NOT_FOUND"
+
+# ── network strategy management ──────────────────────────────────────────────
+section "network strategy management"
+
+ctl current-network
+assert_rc 0 "$ctl_rc" "current-network succeeds"
+
+ctl list-net-strategies
+assert_rc 0 "$ctl_rc" "list-net-strategies succeeds"
+
+ctl clear-net-strategies
+assert_rc 0 "$ctl_rc" "clear-net-strategies succeeds"
+assert_contains "$ctl_out" "OK" "clear-net-strategies reports OK"
+
 harness_finish

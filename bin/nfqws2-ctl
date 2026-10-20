@@ -1693,7 +1693,10 @@ cmd_restore_replaced_strategy() {
   case "$name" in
     ''|*/*|*\\*|..*) echo "Некорректное имя файла" >&2; return 1 ;;
   esac
-  f="$CONFDIR/strategies/replaced/$name"
+  case "$name" in
+    *.conf) f="$CONFDIR/strategies/replaced/$name" ;;
+    *) f="$CONFDIR/strategies/replaced/$name.conf" ;;
+  esac
   if [ ! -f "$f" ]; then
     echo "Архивный пресет не найден: $name" >&2
     return 1

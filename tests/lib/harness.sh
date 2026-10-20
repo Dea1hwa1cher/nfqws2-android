@@ -78,7 +78,7 @@ sandbox_init() {
   MOCKBIN="$SANDBOX/bin"
   MOCK_DIR="$SANDBOX/mock"
 
-  mkdir -p "$MODDIR/bin" "$MODDIR/system/bin" "$MODDIR/lib" "$MODDIR/strategies" "$MODDIR/defaults/lists" \
+  mkdir -p "$MODDIR/bin" "$MODDIR/system/bin" "$MODDIR/lib" "$MODDIR/strategies" "$MODDIR/strategy-catalogs" "$MODDIR/defaults/lists" \
            "$MODDIR/lists" "$MODDIR/blobs" "$MODDIR/lua" "$CONFDIR" "$MOCKBIN" "$MOCK_DIR"
 
   cp "$REPO_DIR/bin/nfqws2-ctl"        "$MODDIR/bin/nfqws2-ctl"
@@ -95,6 +95,7 @@ sandbox_init() {
   cp -R "$REPO_DIR"/defaults/lists/.   "$MODDIR/defaults/lists/"
   cp -R "$REPO_DIR"/lua/.              "$MODDIR/lua/"
   cp -R "$REPO_DIR"/blobs/.            "$MODDIR/blobs/"
+  cp -R "$REPO_DIR"/strategy-catalogs/. "$MODDIR/strategy-catalogs/" 2>/dev/null || true
   # Only the lists customize.sh actually installs. The extra files in the repo's
   # lists/ are strategy inputs that lib/common.sh regenerates on demand, and
   # carrying them here would make sync_lists_and_blobs() — which runs on every
