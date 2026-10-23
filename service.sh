@@ -401,7 +401,6 @@ netwatch() {
           log_msg "netwatch: сеть изменилась (ip monitor) — пересобираю правила"
           firewall_start
         fi
-        vpn_check
         home_check
         network_strategy_check
         acted="$sz"
@@ -426,9 +425,7 @@ watchdog() {
     load_conf >/dev/null 2>&1
     watchers_wanted || break
     tick=$((tick + 1))
-    [ "$VPN_PAUSE" = "1" ] && vpn_check
-    # once a minute: cmd wifi is the expensive part
-    [ "$HOME_WIFI" = "1" ] && [ $((tick % 3)) -eq 0 ] && home_check
+    { [ "$HOME_WIFI" = "1" ] || [ "$VPN_PAUSE" = "1" ]; } && [ $((tick % 3)) -eq 0 ] && home_check
     [ "$NET_STRATEGY" = "1" ] && [ $((tick % 3)) -eq 0 ] && network_strategy_check
     [ "$WATCHDOG" = "1" ] || continue
     [ -f "$DESIRED_FILE" ] || continue
@@ -471,71 +468,44 @@ watchdog() {
   rm -f "$WD_PIDFILE"
 }
 
-# VPN pause: an active VPN interface (tun+, wg+, ppp+, tap+, tailscale+) pauses nfqws2
-# A manual start while VPN is active sets vpn_override so it remains running until VPN disconnects.
-vpn_check() {
-  [ -n "$(find "$STATE_DIR/vpn.lock" -maxdepth 0 -mmin +2 2>/dev/null)" ] && rmdir "$STATE_DIR/vpn.lock" 2>/dev/null
-  mkdir "$STATE_DIR/vpn.lock" 2>/dev/null || return 0
-
-  if [ "$VPN_PAUSE" = "1" ] && vpn_active; then
-    if [ ! -f "$VPN_OVERRIDE_FILE" ] && is_running && [ ! -f "$VPN_PAUSED_FILE" ]; then
-      log_msg "Активен VPN — обход приостановлен"
-      stop >/dev/null 2>&1
-      printf 'vpn' > "$VPN_PAUSED_FILE"
-      update_description paused vpn
-    fi
-  elif [ -f "$VPN_PAUSED_FILE" ]; then
-    rm -f "$VPN_PAUSED_FILE" "$VPN_OVERRIDE_FILE"
-    log_msg "VPN отключён — обход возобновлён"
-    local ssid=""
-    if [ "$HOME_WIFI" = "1" ]; then
-      ssid=$(current_ssid)
-    fi
-    if [ "$HOME_WIFI" = "1" ] && ssid_is_home "$ssid"; then
-      log_msg "Домашняя Wi-Fi «$ssid» — обход остаётся на паузе"
-      printf '%s' "$ssid" > "$HOME_PAUSED_FILE"
-      update_description paused "$ssid"
-    else
-      start >/dev/null 2>&1 || log_msg "Не удалось возобновить обход после VPN"
-    fi
-  elif [ -f "$VPN_OVERRIDE_FILE" ] && ! vpn_active; then
-    rm -f "$VPN_OVERRIDE_FILE"
-  fi
-  rmdir "$STATE_DIR/vpn.lock" 2>/dev/null
-  return 0
-}
-
-# home Wi-Fi: networks from home_wifi.list pause the service; leaving resumes
-# A manual start there is remembered in home_override while that SSID stays
+# home Wi-Fi and VPN pause: networks from home_wifi.list or active VPN pause the service; leaving resumes.
+# A manual start there is remembered in home_override while that condition stays (@vpn or SSID).
 home_check() {
-  # the lock dir keeps the two watchers from stop/starting twice; a lock older
-  # than two minutes is residue from a killed process
   [ -n "$(find "$STATE_DIR/home.lock" -maxdepth 0 -mmin +2 2>/dev/null)" ] && rmdir "$STATE_DIR/home.lock" 2>/dev/null
   mkdir "$STATE_DIR/home.lock" 2>/dev/null || return 0
-  local ssid=""
-  if [ "$HOME_WIFI" = "1" ]; then
-    ssid=$(current_ssid)
-    if [ -f "$HOME_OVERRIDE_FILE" ] && [ "$(cat "$HOME_OVERRIDE_FILE" 2>/dev/null)" != "$ssid" ]; then
-      rm -f "$HOME_OVERRIDE_FILE"
-    fi
+
+  local ssid="" vpn=0 ovr="" want=""
+  [ "$HOME_WIFI" = "1" ] && ssid=$(current_ssid)
+  [ "$VPN_PAUSE" = "1" ] && vpn_active && vpn=1
+  [ -f "$HOME_OVERRIDE_FILE" ] && ovr=$(cat "$HOME_OVERRIDE_FILE" 2>/dev/null)
+  case "$ovr" in
+    '') ;;
+    @vpn) [ "$vpn" = 1 ] || { rm -f "$HOME_OVERRIDE_FILE"; ovr=""; } ;;
+    *)    [ "$ovr" = "$ssid" ] || { rm -f "$HOME_OVERRIDE_FILE"; ovr=""; } ;;
+  esac
+
+  if [ "$vpn" = 1 ] && [ "$ovr" != "@vpn" ]; then
+    want="@vpn"
+  elif [ "$HOME_WIFI" = "1" ] && ssid_is_home "$ssid" && [ "$ovr" != "$ssid" ]; then
+    want="$ssid"
   fi
-  if [ "$HOME_WIFI" = "1" ] && ssid_is_home "$ssid"; then
-    if [ ! -f "$HOME_OVERRIDE_FILE" ] && is_running && [ ! -f "$HOME_PAUSED_FILE" ]; then
-      log_msg "Домашняя Wi-Fi «$ssid» — обход приостановлен"
+
+  if [ -n "$want" ]; then
+    if is_running && [ ! -f "$HOME_PAUSED_FILE" ]; then
+      if [ "$want" = "@vpn" ]; then log_msg "Включён VPN — обход приостановлен"
+      else log_msg "Домашний Wi-Fi «$want» — обход приостановлен"; fi
       stop >/dev/null 2>&1
-      printf '%s' "$ssid" > "$HOME_PAUSED_FILE"
-      update_description paused "$ssid"
+      printf '%s' "$want" > "$HOME_PAUSED_FILE"
+      update_description paused "$want"
+    elif [ -f "$HOME_PAUSED_FILE" ] && [ "$(cat "$HOME_PAUSED_FILE" 2>/dev/null)" != "$want" ]; then
+      printf '%s' "$want" > "$HOME_PAUSED_FILE"
+      update_description paused "$want"
     fi
   elif [ -f "$HOME_PAUSED_FILE" ]; then
+    if [ "$(cat "$HOME_PAUSED_FILE" 2>/dev/null)" = "@vpn" ]; then log_msg "VPN отключён — обход возобновлён"
+    else log_msg "Домашний Wi-Fi больше не активен — обход возобновлён"; fi
     rm -f "$HOME_PAUSED_FILE"
-    if [ "$VPN_PAUSE" = "1" ] && vpn_active; then
-      log_msg "Активен VPN — обход остаётся на паузе"
-      printf 'vpn' > "$VPN_PAUSED_FILE"
-      update_description paused vpn
-    else
-      log_msg "Домашняя Wi-Fi больше не активна — обход возобновлён"
-      start >/dev/null 2>&1 || log_msg "Не удалось возобновить обход после домашней Wi-Fi"
-    fi
+    start >/dev/null 2>&1 || log_msg "Не удалось возобновить обход после паузы"
   fi
   rmdir "$STATE_DIR/home.lock" 2>/dev/null
   return 0
@@ -568,16 +538,15 @@ network_strategy_check() {
   return 0
 }
 
-# Manual start clears the pause; on a home network it also records the SSID as
-# an override so the bypass keeps running there
+# Manual start clears the pause; on a home network or active VPN it records the condition as
+# an override (@vpn or SSID) so the bypass keeps running there
 manual_start() {
   local ssid
-  rm -f "$HOME_PAUSED_FILE" "$VPN_PAUSED_FILE"
-  if [ "$HOME_WIFI" = "1" ] && ssid=$(current_ssid) && ssid_is_home "$ssid"; then
-    printf '%s' "$ssid" > "$HOME_OVERRIDE_FILE"
-  fi
+  rm -f "$HOME_PAUSED_FILE"
   if [ "$VPN_PAUSE" = "1" ] && vpn_active; then
-    touch "$VPN_OVERRIDE_FILE"
+    printf '@vpn' > "$HOME_OVERRIDE_FILE"
+  elif [ "$HOME_WIFI" = "1" ] && ssid=$(current_ssid) && ssid_is_home "$ssid"; then
+    printf '%s' "$ssid" > "$HOME_OVERRIDE_FILE"
   fi
   start
 }
@@ -589,21 +558,15 @@ autostart_service() {
   local ssid
   if [ "$AUTOSTART" = "1" ] || [ -f "$DESIRED_FILE" ]; then
     if [ "$VPN_PAUSE" = "1" ] && vpn_active; then
-      if [ ! -f "$VPN_PAUSED_FILE" ]; then
-        log_msg "Активен VPN — автозапуск отложен"
-        printf 'vpn' > "$VPN_PAUSED_FILE"
-        update_description paused vpn
-      fi
+      log_msg "Включён VPN — автозапуск отложен до его отключения"
+      printf '@vpn' > "$HOME_PAUSED_FILE"
+      update_description paused "@vpn"
+    elif [ "$HOME_WIFI" = "1" ] && ssid=$(current_ssid) && ssid_is_home "$ssid"; then
+      log_msg "Домашняя Wi-Fi «$ssid» — автозапуск отложен до выхода из неё"
+      printf '%s' "$ssid" > "$HOME_PAUSED_FILE"
+      update_description paused "$ssid"
     else
-      if [ "$HOME_WIFI" = "1" ] && ssid=$(current_ssid) && ssid_is_home "$ssid"; then
-        if [ ! -f "$HOME_PAUSED_FILE" ]; then
-          log_msg "Домашняя Wi-Fi «$ssid» — автозапуск отложен до выхода из неё"
-          printf '%s' "$ssid" > "$HOME_PAUSED_FILE"
-          update_description paused "$ssid"
-        fi
-      else
-        is_running || start || log_msg "Автозапуск не удался"
-      fi
+      is_running || start || log_msg "Автозапуск не удался"
     fi
   else
     is_running || update_description stopped
@@ -622,9 +585,8 @@ status_service() {
 case "$1" in
   start)              manual_start ;;
   autostart)          autostart_service ;;
-  stop)               rm -f "$HOME_PAUSED_FILE" "$HOME_OVERRIDE_FILE" "$VPN_PAUSED_FILE" "$VPN_OVERRIDE_FILE"; stop ;;
-  vpn_check)          vpn_check; ensure_watchdog ;;
-  home_check)         home_check; ensure_watchdog ;;
+  stop)               rm -f "$HOME_PAUSED_FILE" "$HOME_OVERRIDE_FILE"; stop ;;
+  vpn_check|home_check) home_check; ensure_watchdog ;;
   net_check)          network_strategy_check ;;
   restart)
     if is_running; then

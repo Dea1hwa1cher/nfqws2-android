@@ -288,6 +288,7 @@ EN = {
  "Стратегия обхода": "Bypass strategy",
  "Параметры": "Options",
  "Для разработчиков": "For developers",
+ "Отказ QUIC для Instagram": "Reject QUIC for Instagram",
  "Watchdog": "Watchdog",
  "Wakelock": "Wakelock",
  "Режим обработки": "Processing mode",

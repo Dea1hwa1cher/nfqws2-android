@@ -164,10 +164,11 @@ cmd_json_status() {
   # понадобится, её стоит отдавать отдельной командой, а не в статусе.
   local ver cur_strat paused pending f
   ver=$(sed -n '/^version=/{s/^version=//p;q;}' "$MODDIR/module.prop")
-  if [ -f "$VPN_PAUSED_FILE" ]; then
-    paused="vpn"
-  else
+  if [ -f "$HOME_PAUSED_FILE" ]; then
     paused=$(cat "$HOME_PAUSED_FILE" 2>/dev/null)
+  elif [ -f "$VPN_PAUSED_FILE" ]; then
+    paused=$(cat "$VPN_PAUSED_FILE" 2>/dev/null)
+    [ -n "$paused" ] || paused="vpn"
   fi
   pending=""
   for f in "$LISTS_PENDING_DIR"/*.list; do
@@ -186,7 +187,7 @@ cmd_json_status() {
   if [ -f "$SNAPSHOT_DIR/nfqws2.conf" ]; then has_rb=1; else has_rb=0; fi
   # нечисловое значение обваливает весь JSON и убивает WebUI, поэтому проверяем каждое поле
   for v in appn cnt_user cnt_auto cnt_excl cnt_ipset cnt_ipset_excl cnt_apps uptime qdrop \
-           PKT_LIMIT_OUT PKT_LIMIT_IN BLOCK_QUIC AUTOSTART WATCHDOG IPV6_ENABLED LOG_LEVEL NFQUEUE_NUM WAKELOCK HOME_WIFI ENABLE_HOTSPOT NET_STRATEGY VPN_PAUSE has_rb; do
+           PKT_LIMIT_OUT PKT_LIMIT_IN BLOCK_QUIC AUTOSTART WATCHDOG IPV6_ENABLED LOG_LEVEL NFQUEUE_NUM WAKELOCK HOME_WIFI ENABLE_HOTSPOT NET_STRATEGY VPN_PAUSE META_QUIC_REJECT has_rb; do
     eval "case \"\${$v}\" in ''|*[!0-9]*) $v=0 ;; esac"
   done
 
@@ -194,7 +195,7 @@ cmd_json_status() {
 {"running":$run,"pid":"$pid","uptime":$uptime,"strategy":"$(json_str "$cur_strat")","version":"$(json_str "$ver")","mode":"$(json_str "$(current_mode)")",
 "limiter":"$(json_str "$(cat "$STATE_DIR/limiter" 2>/dev/null)")","pkt_limit_out":$PKT_LIMIT_OUT,"pkt_limit_in":$PKT_LIMIT_IN,"block_quic":$BLOCK_QUIC,"app_mode":"$(json_str "$APP_MODE")","autostart":$AUTOSTART,"watchdog":$WATCHDOG,"wakelock_on":$WAKELOCK,
 "ipv6":$IPV6_ENABLED,"log_level":$LOG_LEVEL,"qdrop":$qdrop,"queue":$NFQUEUE_NUM,"app_uids":$appn,
-"home_wifi":$HOME_WIFI,"enable_hotspot":$ENABLE_HOTSPOT,"net_strategy":$NET_STRATEGY,"vpn_pause":$VPN_PAUSE,"paused":"$(json_str "$paused")","pending":"$(json_str "$pending")",
+"home_wifi":$HOME_WIFI,"enable_hotspot":$ENABLE_HOTSPOT,"net_strategy":$NET_STRATEGY,"vpn_pause":$VPN_PAUSE,"meta_quic":$META_QUIC_REJECT,"paused":"$(json_str "$paused")","pending":"$(json_str "$pending")",
 "has_rollback":$has_rb,
 "counts":{"user":$cnt_user,"auto":$cnt_auto,"exclude":$cnt_excl,"ipset":$cnt_ipset,"ipset_exclude":$cnt_ipset_excl,"apps":$cnt_apps}}
 JSON
@@ -1937,7 +1938,7 @@ case "$1" in
 
   set)
     case "$2" in
-      BLOCK_QUIC|AUTOSTART|WATCHDOG|IPV6_ENABLED|NAT_FIX|LOG_LEVEL|WAKELOCK|HOME_WIFI|ENABLE_HOTSPOT|NET_STRATEGY|VPN_PAUSE) case "$3" in 0|1) ;; *) echo "Допустимо 0 или 1" >&2; exit 1 ;; esac ;;
+      BLOCK_QUIC|AUTOSTART|WATCHDOG|IPV6_ENABLED|NAT_FIX|LOG_LEVEL|WAKELOCK|HOME_WIFI|ENABLE_HOTSPOT|NET_STRATEGY|VPN_PAUSE|META_QUIC_REJECT) case "$3" in 0|1) ;; *) echo "Допустимо 0 или 1" >&2; exit 1 ;; esac ;;
       PKT_LIMIT_OUT|PKT_LIMIT_IN) case "$3" in [1-9]|1[0-5]) ;; *) echo "Допустимо 1..15" >&2; exit 1 ;; esac ;;
       APP_MODE) case "$3" in off|include|exclude) ;; *) echo "off|include|exclude" >&2; exit 1 ;; esac ;;
       *) echo "Параметр $2 нельзя менять этой командой" >&2; exit 1 ;;
@@ -1946,9 +1947,10 @@ case "$1" in
     case "$2" in
       APP_MODE) load_conf >/dev/null 2>&1; cmd_apply_apps ;;
       # Пауза в домашней сети, VPN и наблюдатели не требуют перезапуска службы
-      HOME_WIFI|WATCHDOG) sh "$SERVICE" home_check >/dev/null 2>&1 ;;
-      VPN_PAUSE) load_conf >/dev/null 2>&1; sh "$SERVICE" vpn_check >/dev/null 2>&1 ;;
+      HOME_WIFI|WATCHDOG|VPN_PAUSE) sh "$SERVICE" home_check >/dev/null 2>&1 ;;
       ENABLE_HOTSPOT) load_conf >/dev/null 2>&1; sh "$SERVICE" firewall_apply >/dev/null 2>&1 ;;
+      # отдельная цепочка — меняется без перезапуска службы
+      META_QUIC_REJECT) load_conf >/dev/null 2>&1; if is_running; then meta_quic_start; fi ;;
       NET_STRATEGY) load_conf >/dev/null 2>&1; sh "$SERVICE" net_check >/dev/null 2>&1; sh "$SERVICE" ensure_watchdog >/dev/null 2>&1 ;;
       WAKELOCK)
         load_conf >/dev/null 2>&1

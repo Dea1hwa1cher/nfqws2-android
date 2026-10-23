@@ -280,6 +280,7 @@ const SW = [
 ];
 const DEV_SW = [
   ['WATCHDOG', 'Watchdog', 'watchdog'],
+  ['META_QUIC_REJECT', 'Отказ QUIC для Instagram', 'meta_quic'],
   ['WAKELOCK', 'Wakelock', 'wakelock_on']
 ];
 const LIMITS = [
@@ -343,7 +344,7 @@ function renderStatus(){
   $('st').textContent = j.running ? t('Служба работает') : (paused ? t('Пауза') : t('Служба остановлена'));
   const lim = {connbytes: t('лимит connbytes'), connmark_out: t('лимит connmark')}[j.limiter] || '';
   $('sub').textContent = paused
-    ? (j.paused === 'vpn'
+    ? (j.paused === '@vpn' || j.paused === 'vpn'
         ? t('Активен VPN. Обход возобновится при отключении VPN.')
         : t('Домашняя Wi‑Fi «{0}». Обход возобновится, когда телефон уйдёт из этой сети.', j.paused))
     : t('Режим') + ' ' + (j.mode || '—') + (j.running && lim ? ', ' + lim : '');
