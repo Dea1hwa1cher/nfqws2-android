@@ -31,6 +31,12 @@ LISTS_PENDING_DIR="$LISTS_DIR/.pending"
 HOME_FILE="$CONFDIR/home_wifi.list"
 HOME_PAUSED_FILE="$STATE_DIR/home_paused"      # paused by home network; holds SSID
 HOME_OVERRIDE_FILE="$STATE_DIR/home_override"  # user re-enabled on this network
+SMART_DIR="$CONFDIR/smart"                     # умный режим: выученное по сетям (<сеть>.tsv)
+SMART_NET_FILE="$STATE_DIR/smart_net"          # id текущей сети для умного режима или offline
+SMART_TRAIN_FILE="$STATE_DIR/smart_train"      # ход обучения
+SMART_TRAIN_PID="$STATE_DIR/smart_train.pid"
+SK_PIDFILE="$STATE_DIR/smartkill.pid"          # обрыв застрявших соединений умного режима
+SMART_KILL_FILE="$STATE_DIR/smart_kill"        # их пишет оркестратор: «4|6 адрес локальный-порт»
 
 # VPN pause: bypass pauses while a VPN interface is active (VPN_PAUSE=1)
 VPN_PAUSED_FILE="$STATE_DIR/vpn_paused"        # paused by active VPN
@@ -618,11 +624,13 @@ validate_strategy_blob_references() { # <args_or_conffile>
   for p in $(printf '%s\n' "$content" | awk '
     {
       s = $0
+      if (s ~ /^[[:space:]]*#/) next
       while (match(s, /@[A-Za-z0-9_.\-\/$]+/)) {
         print substr(s, RSTART + 1, RLENGTH - 1)
         s = substr(s, RSTART + RLENGTH)
       }
     }' | sort -u); do
+    case "$p" in META*|TG*) continue ;; esac
     f="$p"
     f=$(printf '%s\n' "$f" | sed \
         -e "s#\\\$LUA_DIR#$LUA_DIR#g" \
@@ -1958,18 +1966,95 @@ merge_user_keys() { # <generated config> <settings source config>  -> stdout
 # ---------------------------------------------------------------- home Wi-Fi
 # Current SSID, rc 1 if not on Wi-Fi. cmd wifi needs Android 11; dumpsys is the fallback.
 current_ssid() {
-  local s
-  s=$(cmd wifi status </dev/null 2>/dev/null | sed -n 's/^Wifi is connected to "\(.*\)"[[:space:]]*$/\1/p' | head -n1)
-  if [ -z "$s" ]; then
-    s=$(dumpsys wifi 2>/dev/null | grep -m1 'mWifiInfo SSID: .*Supplicant state: COMPLETED' \
-        | sed -e 's/.*mWifiInfo SSID: //' -e 's/, BSSID:.*//' -e 's/^"\(.*\)"$/\1/')
-  fi
+  local out s
+  out=$(cmd wifi status </dev/null 2>/dev/null)   # без stdin: cmd иначе может ждать ввода
+  case "$out" in
+    *"Wifi is "*)
+      # cmd wifi отвечает — ему и верим: нет «connected to» значит не подключено.
+      # Раньше тут откатывались к dumpsys wifi, а в нём лежит история недавних
+      # состояний: сразу после ухода из дома первой находилась старая запись о
+      # домашней сети, и пауза оставалась на мобильном интернете.
+      s=$(printf '%s\n' "$out" | sed -n 's/^Wifi is connected to "\(.*\)"[[:space:]]*$/\1/p' | head -n1) ;;
+    *)
+      # старые Android без cmd wifi status
+      s=$(dumpsys wifi 2>/dev/null | grep -m1 'mWifiInfo SSID: .*Supplicant state: COMPLETED' \
+          | sed -e 's/.*mWifiInfo SSID: //' -e 's/, BSSID:.*//' -e 's/^"\(.*\)"$/\1/') ;;
+  esac
   case "$s" in ''|'<unknown ssid>'|'<none>'|0x) return 1 ;; esac
   printf '%s' "$s"
 }
 ssid_is_home() {
   if [ -z "$1" ] || [ ! -f "$HOME_FILE" ]; then return 1; fi
   grep -v -e '^[[:space:]]*#' -e '^[[:space:]]*$' "$HOME_FILE" 2>/dev/null | grep -Fxq -- "$1"
+}
+
+wifi_is_default() {
+  local r
+  r=$(dumpsys connectivity 2>/dev/null | awk '
+    /^ *Active default network:/ { act = $NF; seen = 1 }
+    /NetworkAgentInfo/ && match($0, /network\{[0-9]+\}/) {
+      id = substr($0, RSTART + 8, RLENGTH - 9)
+      if (!(id in kind)) kind[id] = ($0 ~ /ni\{WIFI/ || $0 ~ /Transports: [A-Z|]*WIFI/ || $0 ~ /InterfaceName: wlan/) ? "wifi" : "other"
+    }
+    END {
+      if (!seen) print "unknown"
+      else if (act == "none" || act == "null") print "none"
+      else if (act in kind) print kind[act]
+      else print "unknown"
+    }')
+  case "$r" in wifi|unknown) return 0 ;; *) return 1 ;; esac
+}
+
+active_ssid() {
+  local s
+  s=$(current_ssid) || return 1
+  wifi_is_default || return 1
+  printf '%s' "$s"
+}
+
+on_wifi() {
+  local d n="${NFQWS_SYSNET:-/sys/class/net}"
+  for d in "$n"/wlan*; do
+    [ "$(cat "$d/operstate" 2>/dev/null)" = up ] && return 0
+  done
+  return 1
+}
+
+# ── Умный режим ──────────────────────────────────────────────────────────
+# Стратегия с оркестратором smart (lua/zapret-smart.lua) учится, какой вариант
+# обхода работает для сайта, и запоминает это для каждой сети отдельно. Модуль
+# говорит ей, в какой сети телефон, и есть ли сеть вообще.
+smart_active() { case "$NFQWS_BASE_ARGS" in *zapret-smart.lua*) return 0 ;; esac; return 1; }
+
+# id и подпись сети: Wi‑Fi — по SSID, мобильная — по коду оператора. Нет
+# маршрута наружу — сети нет (offline): отказы тогда не считаются
+smart_net_id() {
+  local dev ssid op name
+  dev=$(ip route get 1.1.1.1 2>/dev/null | awk '{for (i = 1; i < NF; i++) if ($i == "dev") { print $(i + 1); exit }}')
+  if [ -z "$dev" ]; then printf 'offline\t'; return 0; fi
+  if on_wifi && ssid=$(active_ssid) && [ -n "$ssid" ]; then
+    printf 'wifi-%s\t%s' "$(printf '%s' "$ssid" | cksum | cut -d' ' -f1)" "$ssid"
+    return 0
+  fi
+  case "$dev" in wlan*) printf 'wifi\tWi‑Fi'; return 0 ;; esac
+  op=$(getprop gsm.operator.numeric 2>/dev/null); op=${op%%,*}
+  name=$(getprop gsm.operator.alpha 2>/dev/null); name=${name%%,*}
+  case "$op" in
+    ''|*[!0-9]*) printf 'mobile\t%s' "${name:-mobile}" ;;
+    *) printf 'mobile-%s\t%s' "$op" "${name:-$op}" ;;
+  esac
+}
+
+smart_net_update() {
+  smart_active || return 0
+  mkdir -p "$SMART_DIR" "$STATE_DIR" 2>/dev/null
+  local line id label
+  line=$(smart_net_id); id=${line%%	*}; label=${line#*	}
+  [ "$id" = "$(cat "$SMART_NET_FILE" 2>/dev/null)" ] || printf '%s\n' "$id" > "$SMART_NET_FILE"
+  [ "$id" = offline ] && return 0
+  # подпись сети для WebUI — один раз
+  grep -q "^$id	" "$SMART_DIR/nets.tsv" 2>/dev/null || printf '%s\t%s\n' "$id" "$label" >> "$SMART_DIR/nets.tsv"
+  return 0
 }
 
 # ---------------------------------------------------------------- VPN pause

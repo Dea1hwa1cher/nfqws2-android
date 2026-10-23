@@ -146,6 +146,7 @@ for s in $SHELLS; do
 done
 
 queue_suite "module: nfqws2-ctl" sh "$HERE/module/test_ctl.sh"
+queue_suite "module: smart mode" sh "$HERE/module/test_smart.sh"
 
 if [ "$FAST" = 1 ]; then
   queue_skip "module: service and firewall" "--fast"

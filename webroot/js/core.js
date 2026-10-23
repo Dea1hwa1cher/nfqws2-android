@@ -447,6 +447,7 @@ const PAGE_META = {
              actions: [{icon: 'refresh', label: 'Обновить журнал', fn: () => loadLog()}]},
   config:   {title: 'Конфиг', init: () => confInit()},
   settings: {title: 'Настройки', child: true, init: () => renderSettings()},
+  smart:    {title: 'Умный режим', child: true, parent: 'settings', init: () => smartInit()},
   wifi:     {title: 'Домашняя Wi‑Fi', child: true, parent: 'settings', init: () => wifiInit()},
   apps:     {title: 'Фильтр приложений', child: true, parent: 'settings', init: () => appsInit(),
              actions: [{icon: 'refresh', label: 'Обновить список приложений', fn: () => loadPk(true)}]},

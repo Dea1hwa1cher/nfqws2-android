@@ -29,6 +29,7 @@ function renderSettings(){
       {icon: 'shield', title: 'Пауза при VPN', sub: t('Пауза обхода при включённом VPN'), sw: true, checked: S.vpn_pause == 1, on: 'toggleVpnPause(this.checked)'}
     ]],
     ['Инструменты', [
+      {icon: 'auto', title: 'Умный режим', sub: S.smart == 1 ? t('Включён · сам подбирает обход для каждого сайта и сети') : t('Сам подбирает обход для каждого сайта и сети'), on: "navigate('smart')", chevron: true},
       {icon: 'apps', title: 'Фильтр приложений', sub: t('Обход только для выбранных приложений или для всех, кроме них'), on: "navigate('apps')", chevron: true},
       {icon: 'status', title: 'nfqws2 Helper', sub: t('Плитка быстрых настроек и уведомление о состоянии'), on: 'openHelperApp()', chevron: true},
       {icon: 'test', title: 'Проверка доступности', sub: t('Открывает адреса из probe_hosts.list через обход'), on: "navigate('test')", chevron: true},

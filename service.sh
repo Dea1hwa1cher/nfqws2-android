@@ -32,7 +32,9 @@ start_failed() {
 }
 
 # watchdog/netwatch: auto-restart, home Wi-Fi pause, VPN pause, per-network strategies
-watchers_wanted() { [ "$WATCHDOG" = "1" ] || [ "$HOME_WIFI" = "1" ] || [ "$NET_STRATEGY" = "1" ] || [ "$VPN_PAUSE" = "1" ]; }
+watchers_wanted() {
+  { [ -f "$DESIRED_FILE" ] && { [ "$WATCHDOG" = "1" ] || smart_active; }; } || [ "$HOME_WIFI" = "1" ] || [ "$NET_STRATEGY" = "1" ] || [ "$VPN_PAUSE" = "1" ];
+}
 
 start() {
   if is_running; then
@@ -71,6 +73,7 @@ start() {
     local args
     args=$(_startup_args)
     printf '%s\n' "$args" > "$ARGS_FILE"
+    smart_net_update
 
     local dry_err
     if ! dry_err=$(dry_run_check "$args"); then
@@ -78,6 +81,11 @@ start() {
       printf '%s\n' "$dry_err" >> "$NFQWS_LOG"
       start_failed "Ошибка: параметры запуска nfqws2 некорректны (проверка --dry-run отклонена)."
       return 1
+    fi
+    if [ -f "$SK_PIDFILE" ]; then
+      kill -KILL "$(cat "$SK_PIDFILE" 2>/dev/null)" 2>/dev/null
+      rm -f "$SK_PIDFILE"
+      smartkill_chain del
     fi
     save_strategy_receipt "$CONFFILE" 2>/dev/null || true
     export Z2K_ORCHESTRA_FILE="$ORCHESTRA_MEMORY_FILE"
@@ -285,6 +293,11 @@ rollback() {
 stop() {
   rm -f "$DESIRED_FILE" "$STARTED_FILE" "$STATE_DIR/rollback_armed"
   release_wakelock
+  if [ -f "$SK_PIDFILE" ]; then
+    kill -KILL "$(cat "$SK_PIDFILE" 2>/dev/null)" 2>/dev/null
+    rm -f "$SK_PIDFILE"
+    smartkill_chain del
+  fi
   firewall_stop
   if [ -f "$PIDFILE" ]; then
     local pid
@@ -342,9 +355,78 @@ ensure_helper() {
 }
 
 ensure_watchdog() {
+  # обрыв застрявших соединений — пока работает умный режим
+  is_running && ensure_helper "$SK_PIDFILE" smartkill smart_active
   watchers_wanted || return 0
   ensure_helper "$WD_PIDFILE" watchdog || return 0
   ensure_netwatch
+}
+
+# ── Умный режим: обрыв застрявших соединений ─────────────────────────────
+SK_CHAIN=nfqws_smartkill
+smartkill_chain() { # <add|del>
+  local c
+  for c in iptables ip6tables; do
+    command -v "$c" >/dev/null 2>&1 || continue
+    if [ "$1" = add ]; then
+      $c -w -t filter -N $SK_CHAIN 2>/dev/null
+      $c -w -t filter -C OUTPUT -j $SK_CHAIN 2>/dev/null || $c -w -t filter -I OUTPUT 1 -j $SK_CHAIN 2>/dev/null
+    else
+      while $c -w -t filter -D OUTPUT -j $SK_CHAIN 2>/dev/null; do :; done
+      $c -w -t filter -F $SK_CHAIN 2>/dev/null
+      $c -w -t filter -X $SK_CHAIN 2>/dev/null
+    fi
+  done
+}
+smartkill() {
+  echo $$ > "$SK_PIDFILE"
+  protect_process
+  trap 'smartkill_exit; exit 0' TERM INT HUP
+  local w="$SMART_KILL_FILE.work" ver ip lp c up flush=0 n killed=0 logged=0
+  # заявки прошлого запуска — до того, как цепочка заработает: их порты уже
+  # могли достаться другим соединениям
+  rm -f "$SMART_KILL_FILE"
+  smartkill_chain add
+  while :; do
+    sleep 3
+    conf_refresh
+    is_running && smart_active || break
+    read -r up _ < /proc/uptime; up=${up%.*}
+    if [ -s "$SMART_KILL_FILE" ]; then
+      mv -f "$SMART_KILL_FILE" "$w" 2>/dev/null
+      n=0
+      while read -r ver ip lp; do
+        case "$ver" in 4) c=iptables ;; 6) c=ip6tables ;; *) continue ;; esac
+        case "$ip" in ''|*[!0-9a-fA-F.:]*) continue ;; esac
+        case "$lp" in ''|*[!0-9]*) continue ;; esac
+        $c -w -t filter -A $SK_CHAIN -p tcp -d "$ip" --sport "$lp" -j REJECT --reject-with tcp-reset 2>/dev/null && n=$((n + 1))
+      done < "$w"
+      rm -f "$w"
+      [ "$n" -gt 0 ] && { killed=$((killed + n)); flush=$((up + 15)); }
+    fi
+    # в журнал — сводкой, не чаще раза в минуту: обрывов бывает много подряд
+    if [ "$killed" -gt 0 ] && [ $((up - logged)) -ge 60 ]; then
+      log_msg "Умный режим: оборвано застрявших соединений — $killed (приложения переподключатся на другом варианте)"
+      killed=0; logged=$up
+    fi
+    if [ "$flush" -gt 0 ] && [ "$up" -ge "$flush" ]; then
+      iptables -w -t filter -F $SK_CHAIN 2>/dev/null; ip6tables -w -t filter -F $SK_CHAIN 2>/dev/null
+      flush=0
+    fi
+  done
+  smartkill_chain del
+  smartkill_exit
+}
+smartkill_exit() {
+  [ "$(cat "$SK_PIDFILE" 2>/dev/null)" = "$$" ] && rm -f "$SK_PIDFILE"
+  rm -f "$STATE_DIR/conf_seen.$$"
+}
+conf_refresh() {
+  local st="$STATE_DIR/conf_seen.$$"
+  if [ ! -f "$st" ] || [ "$CONFFILE" -nt "$st" ]; then
+    : > "$st"
+    load_conf >/dev/null 2>&1
+  fi
 }
 
 # Rebuild rules on events, not on a timer. Routers use a netfilter.d firmware
@@ -397,6 +479,7 @@ netwatch() {
         continue
       fi
       if [ "$sz" != "$acted" ] && [ "$sz" != 0 ]; then
+        smart_net_update
         if [ -f "$DESIRED_FILE" ] && is_running; then
           log_msg "netwatch: сеть изменилась (ip monitor) — пересобираю правила"
           firewall_start
@@ -427,6 +510,7 @@ watchdog() {
     tick=$((tick + 1))
     { [ "$HOME_WIFI" = "1" ] || [ "$VPN_PAUSE" = "1" ]; } && [ $((tick % 3)) -eq 0 ] && home_check
     [ "$NET_STRATEGY" = "1" ] && [ $((tick % 3)) -eq 0 ] && network_strategy_check
+    [ $((tick % 3)) -eq 0 ] && is_running && smart_net_update
     [ "$WATCHDOG" = "1" ] || continue
     [ -f "$DESIRED_FILE" ] || continue
 
@@ -602,10 +686,11 @@ case "$1" in
   ensure_watchdog)    ensure_watchdog ;;
   watchdog)           watchdog ;;
   netwatch)           netwatch ;;
+  smartkill)          smartkill ;;
   firewall_apply)     firewall_start ;;
   firewall_stop)      firewall_stop ;;
   *)
-    rm -f "$HOME_PAUSED_FILE" "$HOME_OVERRIDE_FILE" "$VPN_PAUSED_FILE" "$VPN_OVERRIDE_FILE"
+    rm -f "$HOME_PAUSED_FILE" "$HOME_OVERRIDE_FILE" "$VPN_PAUSED_FILE" "$VPN_OVERRIDE_FILE" "$SK_PIDFILE" "$STATE_DIR"/conf_seen.*
     rmdir "$STATE_DIR/home.lock" "$STATE_DIR/vpn.lock" 2>/dev/null
     until [ "$(getprop sys.boot_completed 2>/dev/null)" = "1" ]; do sleep 3; done
     sleep 4

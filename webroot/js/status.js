@@ -36,7 +36,7 @@ function strategyGroup(s){
   return 'authors';
 }
 const groupTitle = g => t((STRATEGY_GROUPS.find(x => x[0] === g) || ['', ''])[1]);
-const strategyName = s => s === 'default' ? t('По умолчанию') : String(s).replace(/^imp:/, '');
+const strategyName = s => s === 'default' ? t('По умолчанию') : s === 'smart' ? t('Умный режим') : String(s).replace(/^imp:/, '');
 const findStrategy = n => strategies.find(s => s.name === n);
 
 async function loadStrategies(){
@@ -128,6 +128,7 @@ async function applyStrategy(val){
   renderStrategyRow();
   if(S.running) await act('restart');
   else { toast(t('Стратегия «{0}» применится при следующем запуске', strategyName(val))); stat(); }
+  if(val === 'smart' && currentPage !== 'smart') smartOffer();
 }
 function editStrategy(name){
   openEditorWith({target: 'strategy', key: name, title: strategyName(name) + '.conf', lang: 'conf', b64: true,
