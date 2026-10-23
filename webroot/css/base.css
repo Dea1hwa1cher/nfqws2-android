@@ -67,9 +67,9 @@
   --top-inset: var(--window-inset-top, env(safe-area-inset-top, 0px));
   --bottom-inset: var(--window-inset-bottom, env(safe-area-inset-bottom, 0px));
   --appbar-height: 64px;
+  --navbar-height: 80px;
   --navbar-pill: 60px;
   --navbar-gap: 10px;
-  --navbar-height: calc(var(--navbar-pill) + var(--navbar-gap));
   --content-max: 760px;
   --screen-margin: 16px;
   --gap: 12px;
@@ -254,40 +254,36 @@ svg.icon.s24 { width: 24px; height: 24px; }
 .app-bar .title.swap { animation: title-in var(--dur-medium) var(--emphasized-decelerate); }
 @keyframes title-in { from { opacity: 0; transform: translateY(4px); } }
 
-/* ── Navigation bar: плавающая капсула ──────────────────────────────────── */
+/* ── Navigation bar (Default M3 docked) ─────────────────────────────────── */
 .nav-bar {
-  position: fixed; left: 0; right: 0; bottom: calc(var(--bottom-inset) + var(--navbar-gap)); z-index: 30;
-  margin: 0 auto;
-  width: max-content; max-width: calc(100% - 2 * var(--screen-margin));
-  height: var(--navbar-pill); padding: 4px;
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+  width: 100%; height: calc(var(--navbar-height) + var(--bottom-inset));
+  padding-bottom: var(--bottom-inset);
   display: flex; justify-content: center;
-  border-radius: var(--shape-full);
-  background: var(--md-sys-color-surface-container-high);
-  box-shadow: 0 2px 6px rgb(0 0 0 / .12), 0 6px 20px rgb(0 0 0 / .10);
-  -webkit-backdrop-filter: blur(18px) saturate(1.6);
-  backdrop-filter: blur(18px) saturate(1.6);
+  background: var(--md-sys-color-surface-container);
+  box-shadow: none;
   transition: transform var(--dur-medium-long) var(--emphasized-decelerate),
-              background-color var(--dur-medium) var(--standard);
-}
-@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .nav-bar { background: color-mix(in srgb, var(--md-sys-color-surface-container-high) 62%, transparent); }
+              background-color var(--dur-medium) var(--standard),
+              border-radius var(--dur-medium) var(--standard),
+              box-shadow var(--dur-medium) var(--standard);
 }
 body.nav-hidden .nav-bar {
-  transform: translateY(calc(100% + var(--bottom-inset) + var(--navbar-gap) + 8px));
+  transform: translateY(100%);
   transition: transform var(--dur-medium) var(--emphasized-accelerate);
 }
-.nav-bar-inner { display: flex; min-width: 0; }
+.nav-bar-inner { display: flex; width: 100%; max-width: var(--content-max); }
 .nav-dest {
   position: relative;
   appearance: none; border: 0; background: none; cursor: pointer;
-  flex: 0 1 74px; width: 74px; min-width: 0;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
-  padding: 0 4px; border-radius: var(--shape-full);
+  flex: 1 1 0; min-width: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 4px;
+  padding: 12px 0 16px;
   color: var(--md-sys-color-on-surface-variant);
 }
 .nav-dest:focus-visible { outline: none; }
 .nav-dest:focus-visible .nav-ind { outline: 3px solid var(--md-sys-color-secondary); outline-offset: 2px; }
 .nav-ind {
+  position: relative;
   width: 64px; height: 32px; flex: none; border-radius: var(--shape-full);
   display: grid; place-items: center;
   transition: color var(--dur-short) var(--standard);
@@ -305,10 +301,44 @@ body.nav-hidden .nav-bar {
 .nav-dest[aria-current="page"] .nav-ind::before { transform: none; opacity: 1; }
 .nav-label {
   max-width: 100%; padding: 0 4px;
-  font-size: var(--ts-label-small); line-height: var(--lh-label-small); font-weight: var(--w-medium);
-  letter-spacing: .2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-size: var(--ts-label-medium); line-height: var(--lh-label-medium); font-weight: var(--w-medium);
+  letter-spacing: .5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .nav-dest[aria-current="page"] .nav-label { color: var(--md-sys-color-on-surface); font-weight: var(--w-bold); }
+
+/* ── Navigation bar: плавающая капсула (опция) ─────────────────────────── */
+html[data-nav-capsule="true"] {
+  --navbar-height: calc(var(--navbar-pill) + var(--navbar-gap));
+}
+html[data-nav-capsule="true"] .nav-bar {
+  left: 0; right: 0; bottom: calc(var(--bottom-inset) + var(--navbar-gap));
+  margin: 0 auto;
+  width: max-content; max-width: calc(100% - 2 * var(--screen-margin));
+  height: var(--navbar-pill); padding: 4px;
+  border-radius: var(--shape-full);
+  background: var(--md-sys-color-surface-container-high);
+  box-shadow: 0 2px 6px rgb(0 0 0 / .12), 0 6px 20px rgb(0 0 0 / .10);
+  -webkit-backdrop-filter: blur(18px) saturate(1.6);
+  backdrop-filter: blur(18px) saturate(1.6);
+}
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  html[data-nav-capsule="true"] .nav-bar {
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-high) 62%, transparent);
+  }
+}
+html[data-nav-capsule="true"] body.nav-hidden .nav-bar {
+  transform: translateY(calc(100% + var(--bottom-inset) + var(--navbar-gap) + 8px));
+}
+html[data-nav-capsule="true"] .nav-bar-inner { width: auto; min-width: 0; }
+html[data-nav-capsule="true"] .nav-dest {
+  flex: 0 1 74px; width: 74px; min-width: 0;
+  justify-content: center; gap: 1px;
+  padding: 0 4px; border-radius: var(--shape-full);
+}
+html[data-nav-capsule="true"] .nav-label {
+  font-size: var(--ts-label-small); line-height: var(--lh-label-small);
+  letter-spacing: .2px;
+}
 
 /* Content and pages */
 .content {

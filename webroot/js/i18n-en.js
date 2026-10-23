@@ -350,6 +350,8 @@ EN = {
  "Чёрно-белая схема без цветного акцента": "Black and white scheme without color accent",
  "Контейнеры пунктов": "Item containers",
  "Подложки для пунктов списков": "Background cards for list items",
+ "Капсула навигации": "Navigation capsule",
+ "Плавающая нижняя панель со скруглением": "Floating rounded bottom bar",
  "Отключение анимаций": "Remove animations",
  "Мгновенные переходы и отключение эффектов": "Instant transitions and disable motion effects",
  "Готовые палитры": "Palettes",

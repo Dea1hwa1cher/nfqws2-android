@@ -42,6 +42,7 @@ function renderSettings(){
     ]],
     ['Оформление', [
       {icon: 'palette', title: 'Тема оформления', sub: t('Светлая, тёмная, AMOLED и цвет акцента'), on: 'openMonetModal()'},
+      {icon: 'tune', title: 'Капсула навигации', sub: t('Плавающая нижняя панель со скруглением'), sw: true, checked: isNavCapsule(), id: 'capsule-toggle-settings', on: 'toggleNavCapsule(this.checked); renderSettings()'},
       {icon: 'motion', title: 'Отключение анимаций', sw: true, checked: isAnimationsDisabled(), id: 'animations-toggle', on: 'toggleAnimations(this.checked); renderSettings()'},
       {icon: 'apps', title: 'Ярлык на рабочий стол', sub: t('Добавить на главный экран телефона'), on: 'addDesktopShortcut()'},
       {icon: 'translate', title: 'Язык', sub: LANG === 'en' ? 'English' : 'Русский', on: 'pickLanguage(this)', menu: true, long: 'lang'}
@@ -218,7 +219,7 @@ async function setHomeWifi(on){
 }
 
 /* Backup */
-const UI_KEYS = ['m3_seed', 'm3_mode', 'm3_amoled', 'm3_containers', 'm3_monochrome', 'nfq_lang', 'nfq_dev'];
+const UI_KEYS = ['m3_seed', 'm3_mode', 'm3_amoled', 'm3_containers', 'm3_monochrome', 'm3_nav_capsule', 'm3_no_animations', 'm3_animations', 'nfq_lang', 'nfq_dev'];
 async function createBackup(){
   const targetDir = await promptSaveDir('Сохранить копию');
   if(!targetDir) return;

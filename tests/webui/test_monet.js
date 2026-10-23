@@ -50,6 +50,7 @@ const dom = {
   monochromeToggle: { checked: false, disabled: false },
   containersToggle: { checked: true, disabled: false },
   animationsToggle: { checked: false, disabled: false },
+  capsuleToggle: { checked: false, disabled: false },
   storage: {},
   shMockOutput: '',
 };
@@ -84,6 +85,7 @@ const sandbox = {
     if (id === 'amoled-toggle') return dom.amoledToggle;
     if (id === 'monochrome-toggle') return dom.monochromeToggle;
     if (id === 'containers-toggle') return dom.containersToggle;
+    if (id === 'capsule-toggle') return dom.capsuleToggle;
     if (id === 'animations-toggle' || id === 'settings-anim-toggle') return dom.animationsToggle;
     const mockEl = {
       checked: false, style: {}, setAttribute: () => {}, value: '',
@@ -291,6 +293,25 @@ sect('android monet detection');
   eq('true', dom.docEl.attrs['data-animations'], 'toggleAnimations(false) sets data-animations="true"');
   eq('false', dom.storage['m3_no_animations'], 'toggleAnimations(false) stores m3_no_animations="false"');
   truthy(!sandbox.isAnimationsDisabled(), 'isAnimationsDisabled() is false after re-enabling');
+
+  // ── 7. Navigation capsule toggle ──────────────────────────────────────────
+  sect('navigation capsule toggle');
+  truthy(typeof sandbox.toggleNavCapsule === 'function', 'toggleNavCapsule is defined');
+  truthy(typeof sandbox.isNavCapsule === 'function', 'isNavCapsule is defined');
+  truthy(!sandbox.isNavCapsule(), 'navigation capsule disabled by default');
+  eq('false', dom.docEl.attrs['data-nav-capsule'], 'data-nav-capsule="false" by default');
+
+  // Test toggleNavCapsule(true)
+  sandbox.toggleNavCapsule(true);
+  eq('true', dom.docEl.attrs['data-nav-capsule'], 'toggleNavCapsule(true) sets data-nav-capsule="true"');
+  eq('true', dom.storage['m3_nav_capsule'], 'toggleNavCapsule(true) stores m3_nav_capsule="true"');
+  truthy(sandbox.isNavCapsule(), 'isNavCapsule() is true after enabling');
+
+  // Test toggleNavCapsule(false)
+  sandbox.toggleNavCapsule(false);
+  eq('false', dom.docEl.attrs['data-nav-capsule'], 'toggleNavCapsule(false) sets data-nav-capsule="false"');
+  eq('false', dom.storage['m3_nav_capsule'], 'toggleNavCapsule(false) stores m3_nav_capsule="false"');
+  truthy(!sandbox.isNavCapsule(), 'isNavCapsule() is false after re-disabling');
 
   // Summary
   process.stdout.write('\n----------------------------------------\n');
