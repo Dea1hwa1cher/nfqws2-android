@@ -673,16 +673,16 @@ function slidePages(from, to, opt){
 /* Свайп влево-вправо по странице. Вертикальная прокрутка главнее: на
    .content стоит touch-action: pan-y, и браузер сам забирает жест, который
    начался вертикально (тогда приходит pointercancel). Горизонталь
-   захватывается, только когда палец ушёл вбок на 16 px и угол к горизонту
-   меньше ~27° (|dx| > 2|dy|), а по вертикали — не больше 24 px. Края экрана
-   (жест «Назад» Android), поле в фокусе, ползунки и всё, что само листается
-   вбок, свайп не трогает. */
+   захватывается при естественном движении пальца вбок, не конфликтуя с
+   вертикальной прокруткой и системными жестами. Поле в фокусе, ползунки
+   и внутренние горизонтальные списки свайп не трогает. */
 const swipe = {st: 0}, pageInited = new Set(['control']);
 function swipeBlocked(t){
-  if(!t || !t.closest || !t.closest('#content') || t.closest('.no-swipe')) return true;
+  if(!t || !t.closest || !t.closest('#content, #nav-bar, #app-bar') || t.closest('.no-swipe')) return true;
   const ed = t.closest('input, textarea, select, [contenteditable="true"]');
   if(ed && (ed === document.activeElement || ed.type === 'range')) return true;
-  for(let el = t; el && el.id !== 'content'; el = el.parentElement){
+  for(let el = t; el && el.id !== 'content' && el.id !== 'nav-bar' && el.id !== 'app-bar'; el = el.parentElement){
+    if(el.classList && el.classList.contains('log-view')) continue;
     if(el.scrollWidth > el.clientWidth + 1){
       const ox = getComputedStyle(el).overflowX;
       if(ox === 'auto' || ox === 'scroll') return true;
@@ -738,7 +738,8 @@ function swipeEnd(commit, v){
 }
 document.addEventListener('pointerdown', e => {
   if(swipe.st || !e.isPrimary || (e.pointerType === 'mouse' && e.button !== 0)) return;
-  if(!swipeAllowed() || inGestureZone(e.clientX, e.clientY) || swipeBlocked(e.target)) return;
+  if(!swipeAllowed() || swipeBlocked(e.target)) return;
+  if(e.pointerType !== 'mouse' && (e.clientX < 10 || e.clientX > innerWidth - 10)) return;
   swipe.st = 1; swipe.id = e.pointerId;
   swipe.x0 = e.clientX; swipe.y0 = e.clientY;
   swipe.trail = [[e.timeStamp, e.clientX]];
@@ -747,13 +748,14 @@ document.addEventListener('pointermove', e => {
   if(!swipe.st || e.pointerId !== swipe.id) return;
   const dx = e.clientX - swipe.x0, dy = e.clientY - swipe.y0;
   if(swipe.st === 1){
-    if(Math.abs(dy) > 24 || (Math.abs(dy) > 8 && Math.abs(dy) * 2 >= Math.abs(dx))){ swipe.st = 0; return; }
-    if(Math.abs(dx) < 16 || Math.abs(dx) <= Math.abs(dy) * 2) return;
+    const adx = Math.abs(dx), ady = Math.abs(dy);
+    if(ady > 16 && ady > adx * 1.2){ swipe.st = 0; return; }
+    if(adx < 10 || adx < ady * 0.9) return;
     swipe.st = 2;
     swipe.from = document.querySelector('.page.active');
     if(!swipe.from){ swipe.st = 0; return; }
     swipe.box = pageBox(swipe.from);
-    swipe.slop = Math.sign(dx) * 16;
+    swipe.slop = Math.sign(dx) * 10;
     swipe.peekDir = 0;
     document.body.classList.add('swiping');
     document.querySelectorAll('.ripple').forEach(r => r.remove());
@@ -770,9 +772,10 @@ function swipeRelease(e, cancel){
   if(swipe.st === 1){ swipe.st = 0; return; }
   const tr = swipe.trail, a = tr[0], b = tr[tr.length - 1];
   const v = b[0] > a[0] ? (b[1] - a[1]) / (b[0] - a[0]) : 0;
-  const dx = swipe.dx, W = innerWidth;
-  const fling = Math.abs(v) > .4 && Math.sign(v) === Math.sign(dx) && Math.abs(dx) > 24;
-  swipeEnd(!cancel && (Math.abs(dx) > W / 3 || fling), fling ? v : 0);
+  const dx = swipe.dx, W = innerWidth || 1;
+  const fling = Math.abs(v) > .25 && Math.sign(v) === Math.sign(dx) && Math.abs(dx) > 16;
+  const commitDist = Math.max(48, Math.min(W * .22, 120));
+  swipeEnd(!cancel && (Math.abs(dx) > commitDist || fling), fling ? v : 0);
   swipe.clickGuard = e.timeStamp + 60;
 }
 document.addEventListener('click', ev => {

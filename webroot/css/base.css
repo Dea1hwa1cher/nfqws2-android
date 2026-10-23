@@ -684,7 +684,7 @@ html[data-containers="true"] .list > .list-item:active {
   background: var(--md-sys-color-surface-container-lowest);
   border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-card); padding: 12px 14px;
-  overflow: auto;
+  overflow-y: auto; overflow-x: hidden;
   font-family: var(--md-font-code); font-size: 12px; line-height: 1.55;
   color: var(--md-sys-color-on-surface-variant);
   white-space: pre-wrap; overflow-wrap: anywhere;
