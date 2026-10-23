@@ -1154,19 +1154,17 @@ document.addEventListener('focusout', () => setTimeout(updateKeyboard, 60));
 addEventListener('orientationchange', () => { vpBase = 0; setTimeout(updateKeyboard, 300); });
 
 /* ── Bottom sheet: смахивание вниз за drag handle ───────────────────────── */
-const SHEET_BLUR = 6;
 function sheetScrimFollow(sheet, dy){
   const sc = $('sheet-scrim');
   if(!sc) return;
   const p = Math.max(0, Math.min(1, 1 - dy / Math.max(1, sheet.offsetHeight)));
   sc.style.transition = 'none';
   sc.style.opacity = p;
-  sc.style.webkitBackdropFilter = sc.style.backdropFilter = 'blur(' + (SHEET_BLUR * p).toFixed(2) + 'px)';
 }
 function sheetScrimRelease(){
   const sc = $('sheet-scrim');
   if(!sc) return;
-  sc.style.transition = sc.style.opacity = sc.style.webkitBackdropFilter = sc.style.backdropFilter = '';
+  sc.style.transition = sc.style.opacity = '';
 }
 function initSheetDrag(sheet){
   const zone = sheet.querySelector('.sheet-drag');
