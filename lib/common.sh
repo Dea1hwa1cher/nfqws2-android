@@ -53,6 +53,10 @@ IPT_GROUP_MQ="nfqws_mquic"     # filter: мгновенный отказ QUIC к
 META_NET4="157.240.0.0/16 31.13.24.0/21 31.13.64.0/18 57.144.0.0/14 163.70.128.0/17 129.134.0.0/16 69.171.224.0/19 173.252.64.0/18 179.60.192.0/22 185.60.216.0/22 66.220.144.0/20 69.63.176.0/20 102.132.96.0/20 204.15.20.0/22 45.64.40.0/22"
 META_NET6="2a03:2880::/32"
 
+# Сети Telegram: CIDR диапазоны мессенджера для обхода звонков
+TG_NET4="91.105.192.0/23 91.108.4.0/22 91.108.8.0/22 91.108.12.0/22 91.108.16.0/22 91.108.20.0/22 91.108.56.0/22 95.161.64.0/20 149.154.160.0/20 185.76.151.0/24"
+TG_NET6="2001:67c:4e8::/48 2001:b28:f23c::/48 2001:b28:f23d::/48 2001:b28:f23f::/48 2a0a:f280::/32"
+
 NET_STRATEGIES_DIR="$CONFDIR/net_strategies"
 IPT_CAP_CACHE="$STATE_DIR/iptables-capabilities"
 RECEIPT_FILE="$STATE_DIR/compiled.receipt"
@@ -98,6 +102,7 @@ set_defaults() {
   : "${NET_STRATEGY:=0}"
   : "${VPN_PAUSE:=0}"
   : "${META_QUIC_REJECT:=1}"
+  : "${CALLS_BYPASS:=0}"
   : "${AUTO_PORTS:=0}"
 }
 
@@ -415,6 +420,41 @@ app_rules() {
   return 0
 }
 
+# Профиль звонков с подставленными сетями Meta и Telegram
+calls_args() {
+  local m t
+  m=$(printf '%s' "$META_NET4 $META_NET6" | tr ' ' ',')
+  t=$(printf '%s' "$TG_NET4 $TG_NET6" | tr ' ' ',')
+  norm_args "$(sed -e "s#@META@#$m#g" -e "s#@TG@#$t#g" "$MODDIR/defaults/calls-bypass.conf")"
+}
+
+# Добавить порты или диапазоны (a:b) в список для iptables. То, что новый
+# диапазон покрывает целиком, из списка уходит: multiport берёт не больше 15
+# портов (диапазон — за два), и лишние записи переполнили бы правило.
+port_list_add() { # <список> <порт|a:b>...
+  local l="$1"; shift
+  printf '%s\n' "$@" | awk -v l="$l" '
+    function lo(x) { return x ~ /:/ ? substr(x, 1, index(x, ":") - 1) + 0 : x + 0 }
+    function hi(x) { return x ~ /:/ ? substr(x, index(x, ":") + 1) + 0 : x + 0 }
+    BEGIN { n = split(l, a, ",") }
+    NF { add[++m] = $0 }
+    END {
+      out = ""
+      for (i = 1; i <= n; i++) {
+        if (a[i] == "") continue
+        cov = 0
+        for (j = 1; j <= m; j++) if (a[i] != add[j] && lo(a[i]) >= lo(add[j]) && hi(a[i]) <= hi(add[j])) cov = 1
+        if (!cov) out = out (out == "" ? "" : ",") a[i]
+      }
+      for (j = 1; j <= m; j++) {
+        dup = 0
+        for (i = 1; i <= n; i++) if (lo(add[j]) >= lo(a[i]) && hi(add[j]) <= hi(a[i])) dup = 1
+        if (!dup) out = out (out == "" ? "" : ",") add[j]
+      }
+      printf "%s", out
+    }'
+}
+
 port_list_without() {
   printf ',%s,' "$1" | sed "s/,$2,/,/g; s/^,//; s/,\$//"
 }
@@ -446,6 +486,10 @@ _startup_args() {
   fi
 
   args="$args $base"
+  # Обход звонков — ставится перед стратегией
+  if [ "$CALLS_BYPASS" = "1" ] && [ -f "$MODDIR/defaults/calls-bypass.conf" ]; then
+    args="$args --blob=calls_stun:@$BLOBS_DIR/stun.bin --blob=calls_tls:@$BLOBS_DIR/tls_clienthello.bin $(calls_args) --new"
+  fi
   [ -n "$custom" ] && args="$args $custom --new"
   [ -n "$udp" ] && args="$args $udp --new"
 
@@ -1334,6 +1378,10 @@ _firewall_start() {
     IPT_UDP_EFF=$(printf '%s' "$UDP_PORTS" | tr '-' ':')
   fi
   [ "$BLOCK_QUIC" = "1" ] && IPT_UDP_EFF=$(port_list_without "$IPT_UDP_EFF" 443)
+  if [ "$CALLS_BYPASS" = "1" ]; then
+    IPT_UDP_EFF=$(port_list_add "$IPT_UDP_EFF" 590:1400 3478:3482)
+    IPT_TCP_PORTS=$(port_list_add "$IPT_TCP_PORTS" 5222)
+  fi
 
   LIMITER=$(detect_limiter "$REAL_CMD")
   [ "$REAL_CMD" = "iptables" ] && echo "$LIMITER" > "$STATE_DIR/limiter" 2>/dev/null
@@ -1873,7 +1921,7 @@ render_strategy() {
 
 # Module settings (same across strategies) are carried over whole from the live
 # config on strategy change/reset. NFQWS_EXTRA_ARGS only for standard $MODE_* refs.
-USER_KEYS="META_QUIC_REJECT IPV6_ENABLED TCP_PORTS UDP_PORTS NFQUEUE_NUM PKT_LIMIT_OUT PKT_LIMIT_IN BLOCK_QUIC NAT_FIX APP_MODE AUTOSTART WATCHDOG NFQWS_USER LOG_LEVEL LOG_MAX_KB WAKELOCK HOME_WIFI ENABLE_HOTSPOT NET_STRATEGY VPN_PAUSE AUTO_PORTS NFQWS_EXTRA_ARGS"
+USER_KEYS="META_QUIC_REJECT CALLS_BYPASS IPV6_ENABLED TCP_PORTS UDP_PORTS NFQUEUE_NUM PKT_LIMIT_OUT PKT_LIMIT_IN BLOCK_QUIC NAT_FIX APP_MODE AUTOSTART WATCHDOG NFQWS_USER LOG_LEVEL LOG_MAX_KB WAKELOCK HOME_WIFI ENABLE_HOTSPOT NET_STRATEGY VPN_PAUSE AUTO_PORTS NFQWS_EXTRA_ARGS"
 merge_user_keys() { # <generated config> <settings source config>  -> stdout
   awk -v keys=" $USER_KEYS " -v src="$2" '
     function quotes(str,   t) { t = str; return gsub(/"/, "", t) }

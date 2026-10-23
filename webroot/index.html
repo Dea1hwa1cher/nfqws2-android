@@ -349,6 +349,7 @@
       <button class="seg state" data-tab="web" onclick="selectTestTab('web')"><span data-t>Сайты</span></button>
       <button class="seg state" data-tab="tcp16" onclick="selectTestTab('tcp16')"><span data-t>TCP 16K</span></button>
       <button class="seg state" data-tab="dns" onclick="selectTestTab('dns')"><span data-t>DNS</span></button>
+      <button class="seg state" data-tab="domain" onclick="selectTestTab('domain')"><span data-t>Домен</span></button>
     </div>
 
     <div class="group">
@@ -415,6 +416,19 @@
       <div class="list" id="test-dns-list"></div>
     </div>
 
+    <!-- Проверка одного домена: списки, IP, доступность через обход -->
+    <div id="test-sec-domain" class="stack" hidden>
+      <div class="t-body-medium muted" data-t>Почему не открывается сайт: в каких списках домен, попадает ли он под обход при текущих настройках и открывается ли через него.</div>
+      <form class="find-bar" onsubmit="event.preventDefault(); runDomainCheck()">
+        <div class="search-bar">
+          <svg aria-hidden="true" class="icon"><use href="#i-search"/></svg>
+          <input type="search" id="dc-q" placeholder="example.com" aria-label="Домен или адрес сайта" data-ta="aria-label"
+                 autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" inputmode="url">
+        </div>
+        <button class="btn state" id="dc-go" type="submit"><span data-t>Проверить</span></button>
+      </form>
+      <div id="dc-res" class="stack"></div>
+    </div>
 
     <div class="empty" id="test-empty">
       <span class="empty-icon"><svg aria-hidden="true" class="icon"><use href="#i-wifi"/></svg></span>

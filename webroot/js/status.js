@@ -281,6 +281,7 @@ const SW = [
 const DEV_SW = [
   ['WATCHDOG', 'Watchdog', 'watchdog'],
   ['META_QUIC_REJECT', 'Отказ QUIC для Instagram', 'meta_quic'],
+  ['CALLS_BYPASS', 'Обход звонков (не тестировалось)', 'calls_bypass'],
   ['WAKELOCK', 'Wakelock', 'wakelock_on']
 ];
 const LIMITS = [
