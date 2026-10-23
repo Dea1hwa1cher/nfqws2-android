@@ -12,13 +12,24 @@ function fmtUptime(sec){
   if(h > 0) return p(h) + ':' + p(m) + ':' + p(sec);
   return p(m) + ':' + p(sec);
 }
-let uptBase = 0, uptAt = 0;
-function stopUptTimer(){ if(uptTimer){ clearInterval(uptTimer); uptTimer = null; } $('upt').textContent = '—'; }
-function startUptTimer(baseSec){
-  uptBase = Math.max(0, Math.floor(baseSec)); uptAt = Date.now();
-  const tick = () => { $('upt').textContent = fmtUptime(uptBase + (Date.now() - uptAt) / 1000); };
-  tick();
-  if(!uptTimer) uptTimer = setInterval(tick, 1000);
+let uptAnchor = null;   // {ms: время работы, t: performance.now() в тот момент}
+function uptElapsedMs(){ return uptAnchor.ms + (performance.now() - uptAnchor.t); }
+function stopUptTimer(){
+  if(uptTimer){ clearTimeout(uptTimer); uptTimer = null; }
+  uptAnchor = null;
+  $('upt').textContent = '—';
+}
+function uptTick(){
+  const ms = uptElapsedMs();
+  $('upt').textContent = fmtUptime(ms / 1000);
+  uptTimer = setTimeout(uptTick, 1000 - (ms % 1000) + 10);
+}
+function startUptTimer(ms){
+  ms = Math.max(0, ms);
+  if(uptAnchor && Math.abs(uptElapsedMs() - ms) < 2000) return;
+  uptAnchor = {ms, t: performance.now()};
+  if(uptTimer) clearTimeout(uptTimer);
+  uptTick();
 }
 
 /* Strategies carry no descriptions: what works depends on provider and region. Grouped by origin */
@@ -298,13 +309,15 @@ function banner(kind, ic, text){
 let svcBusy = '';
 function renderHeroActions(){
   const run = !!S.running, bt = $('bt'), rs = $('bt-restart');
-  const busyLabel = {start: t('Запуск…'), stop: t('Остановка…'), restart: t('Перезапуск…')}[svcBusy];
+  const busyLabel = {start: t('Запуск…'), stop: t('Остановка…'), restart: t('Перезапуск…'), 'home-pause': t('Пауза…')}[svcBusy];
   bt.disabled = !!svcBusy;
   bt.classList.toggle('with-icon', !!svcBusy);
   bt.innerHTML = busyLabel
     ? '<span class="spinner"></span><span>' + esc(busyLabel) + '</span>'
     : '<span>' + esc(run ? t('Остановить') : t('Запустить')) + '</span>';
   rs.hidden = !run || !!svcBusy;
+  const pBtn = $('bt-pause');
+  if(pBtn) pBtn.hidden = !run || !!svcBusy || !S.home_override;
 }
 
 function switchRow(k, label, on){
@@ -354,7 +367,7 @@ function renderStatus(){
   const qd = $('qdrop-num');
   qd.textContent = j.running ? (j.qdrop || 0) : '—';
   qd.classList.toggle('bad', j.running && j.qdrop > 0);
-  if(j.running) startUptTimer(j.uptime || 0); else stopUptTimer();
+  if(j.running) startUptTimer(j.uptime_ms != null ? j.uptime_ms : (j.uptime || 0) * 1000); else stopUptTimer();
   renderHeroActions();
   renderParams(j);
   $('dbg').checked = (j.log_level == 1);
@@ -427,9 +440,11 @@ async function act(a){
   renderHeroActions();
   const r = await withBusy([a], 40000);
   svcBusy = '';
-  const ok = {start: 'Служба запущена', stop: 'Служба остановлена', restart: 'Служба перезапущена'}[a];
+  const ok = {start: 'Служба запущена', stop: 'Служба остановлена', restart: 'Служба перезапущена',
+    'home-pause': 'Обход на паузе в домашнем Wi‑Fi'}[a];
   toast(r.code ? errText(r, 'Команда не выполнена') : t(ok));
   await stat();
 }
 function toggle(){ act(S.running ? 'stop' : 'start'); }
 function restartSvc(){ act('restart'); }
+function pauseHome(){ act('home-pause'); }

@@ -590,6 +590,23 @@ EN = {
   "Выученное забыто": "Learned data forgotten",
   "Не удалось начать обучение": "Failed to start training",
   "Не удалось остановить": "Failed to stop",
-  "Не удалось сбросить": "Failed to reset"
+  "Не удалось сбросить": "Failed to reset",
+  "Что нового": "What's new",
+  "Что нового в {0}": "What's new in {0}",
+  "Список изменений недоступен": "The changelog is not available",
+  "Поделиться": "Share",
+  "Файлом": "As a file",
+  "MT Manager и другие root-проводники": "MT Manager and other root file managers",
+  "Текстом": "As text",
+  "В чат, заметки, почту": "To a chat, notes, mail",
+  "Не удалось поделиться": "Couldn't share",
+  "Перезапуск": "Restart",
+  "Выбор стратегии": "Select strategy",
+  "Очистить auto.list": "Clear auto.list",
+  "Режим работы: {0}": "Mode: {0}",
+  "сейчас {0}": "currently {0}",
+  "Вернуть паузу в домашнем Wi‑Fi": "Resume pause on home Wi‑Fi",
+  "Пауза…": "Pausing…",
+  "Обход на паузе в домашнем Wi‑Fi": "Bypass paused on home Wi‑Fi"
 };
 

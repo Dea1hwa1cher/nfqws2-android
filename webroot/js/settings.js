@@ -11,8 +11,9 @@ function settingsRow(o){
         ' onchange="' + o.on + '"></span>' +
     '</label>';
   }
-  return '<div class="list-item' + (o.sub ? ' two-line' : '') + (o.on ? ' clickable state" role="button" tabindex="0"' +
-      (o.menu ? ' aria-haspopup="menu"' : '') + ' onclick="' + o.on + '"' : '"') + '>' +
+  return '<div class="list-item' + (o.sub ? ' two-line' : '') + (o.on ? ' clickable state' : '') + '"' +
+    (o.long ? ' data-long="' + o.long + '"' : '') +
+    (o.on ? ' role="button" tabindex="0"' + (o.menu ? ' aria-haspopup="menu"' : '') + ' onclick="' + o.on + '"' : '') + '>' +
     '<span class="li-icon">' + icon(o.icon, 's24') + '</span>' +
     '<span class="li-text"><span class="li-primary">' + esc(t(o.title)) + '</span>' +
       (o.sub ? '<span class="li-secondary">' + esc(o.sub) + '</span>' : '') + '</span>' +
@@ -43,10 +44,10 @@ function renderSettings(){
       {icon: 'palette', title: 'Тема оформления', sub: t('Светлая, тёмная, AMOLED и цвет акцента'), on: 'openMonetModal()'},
       {icon: 'motion', title: 'Отключение анимаций', sw: true, checked: isAnimationsDisabled(), id: 'animations-toggle', on: 'toggleAnimations(this.checked); renderSettings()'},
       {icon: 'apps', title: 'Ярлык на рабочий стол', sub: t('Добавить на главный экран телефона'), on: 'addDesktopShortcut()'},
-      {icon: 'translate', title: 'Язык', sub: LANG === 'en' ? 'English' : 'Русский', on: 'pickLanguage(this)', menu: true}
+      {icon: 'translate', title: 'Язык', sub: LANG === 'en' ? 'English' : 'Русский', on: 'pickLanguage(this)', menu: true, long: 'lang'}
     ]],
     ['О модуле', [
-      {icon: 'info', title: 'nfqws2 for Android', sub: t('Версия {0}', S.version || '—'), on: 'openUrl(' + jsArg(GITHUB_URL) + ')', chevron: true}
+      {icon: 'info', title: 'nfqws2 for Android', sub: t('Версия {0}', S.version || '—'), on: 'openWhatsNew()', chevron: true, long: 'ver'}
     ]]
   ];
   let devHtml = '';
@@ -58,6 +59,18 @@ function renderSettings(){
     devHtml, false);
 }
 const GITHUB_URL = 'https://github.com/Dea1hwa1cher/nfqws2-android';
+
+/* Долгое нажатие на строки настроек: быстрые действия для тех, кто знает */
+const SETTINGS_LONG = {
+  // версия — список изменений (раньше — отдельный пункт «Что нового»)
+  ver: () => openWhatsNew(),
+  // язык — сразу на другой из двух
+  lang: () => {
+    setLanguage(LANG === 'en' ? 'ru' : 'en');
+    toast(t('Язык переключён: {0}', LANG === 'en' ? 'English' : 'Русский'));
+  }
+};
+if(typeof onLongPress === 'function') onLongPress($('settings-body'), '[data-long]', el => { const f = SETTINGS_LONG[el.dataset.long]; if(f) f(); });
 const HELPER_PACKAGE = 'org.nfqws2.helper';
 const HELPER_RELEASE_URL = 'https://github.com/duhenduhen/nfqws2-helper/releases/tag/1.0';
 
@@ -541,5 +554,43 @@ function copyBenchReport(){
     rep += `- ${title} (${it.name}): ${it.ok}/${it.total} (${it.avg_ms} мс)` + (it.top_fail && it.top_fail !== '-' ? ` [${t(reasonsDict[it.top_fail] || it.top_fail)}]` : '') + '\n';
   }
   copyText(rep, t('Отчёт скопирован в буфер обмена'), t('Не удалось скопировать: выделите текст вручную'));
+}
+
+/* ══ Что нового ══════════════════════════════════════════════════════════
+   После обновления модуля, при первом открытии WebUI, — лист с изменениями
+   этой версии из changelog.md модуля. Версия, для которой лист уже
+   показывали, хранится в nfq_seen_ver; при первой установке не показываем. */
+async function checkWhatsNew(){
+  const v = S.version;
+  if(!v) return;
+  const seen = store.get('nfq_seen_ver');
+  if(seen === v) return;
+  store.set('nfq_seen_ver', v);
+  if(seen && !openSheetId && !editorCtx) await openWhatsNew(true);
+}
+/* Раздел changelog.md для версии: заголовок «### … vX.Y.Z:» — без суффиксов
+   вроде -ci.abc1234; нет такого — первый раздел. */
+function whatsNewSection(md, version){
+  const base = (version || '').replace(/^(v?\d+(?:\.\d+)*).*$/, '$1');
+  const parts = md.split(/^### /m).slice(1).map(p => {
+    const nl = p.indexOf('\n');
+    return {head: p.slice(0, nl < 0 ? p.length : nl).trim(), body: nl < 0 ? '' : p.slice(nl + 1)};
+  });
+  const esc2 = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return parts.find(p => base && new RegExp('\\b' + esc2(base) + '\\b').test(p.head)) || parts[0] || null;
+}
+function mdInline(s){
+  return esc(s).replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/`([^`]+)`/g, '<code>$1</code>');
+}
+async function openWhatsNew(auto){
+  const r = await ctlx(['changelog']);
+  const sec = !r.code && whatsNewSection(r.out || '', S.version);
+  if(!sec){ if(!auto) toast(errText(r, 'Список изменений недоступен')); return; }
+  const items = sec.body.split('\n').map(l => l.trim()).filter(l => /^[-*] /.test(l)).map(l => l.slice(2));
+  $('whatsnew-title').textContent = t('Что нового в {0}', (S.version || '').replace(/-.*$/, ''));
+  setHTML('whatsnew-body', items.length
+    ? '<ul>' + items.map(i => '<li>' + mdInline(i) + '</li>').join('') + '</ul>'
+    : '<p>' + mdInline(sec.body.trim()) + '</p>', false);
+  openSheet('whatsnew-sheet');
 }
 

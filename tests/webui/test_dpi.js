@@ -48,6 +48,7 @@ const sandbox = {
   S: { running: true, paused: false },
   currentStrategy: 'default',
   strategyName: s => s,
+  onLongPress: () => {},
   document: {
     querySelectorAll: () => [],
     createElement: () => ({ select: () => {}, appendChild: () => {} }),

@@ -7,6 +7,7 @@ umask 077
 load_conf
 
 STARTED_FILE="$STATE_DIR/started_at"
+STARTED_CS_FILE="$STATE_DIR/started_cs"
 
 wait_for_process() { # <pid> <expected state: up|down> <timeout in 50 ms ticks>
   local pid="$1" want="$2" ticks="${3:-24}" i=0 alive
@@ -115,6 +116,7 @@ start() {
     echo "$pid" > "$PIDFILE"
     protect_process "$pid"
     date +%s > "$STARTED_FILE"
+    awk '{ printf "%d\n", $1 * 100 }' /proc/uptime > "$STARTED_CS_FILE" 2>/dev/null
 
     # firewall_start can return 0 with no rule in place; without the POSTROUTING
     # jump the daemon runs but nothing reaches NFQUEUE
@@ -216,6 +218,7 @@ replace_daemon() {
     mv -f "$new_pidfile" "$PIDFILE"
     protect_process "$new_pid"
     date +%s > "$STARTED_FILE"
+    awk '{ printf "%d\n", $1 * 100 }' /proc/uptime > "$STARTED_CS_FILE" 2>/dev/null
 
     # Check topology change
     local old_fp new_fp
@@ -291,7 +294,7 @@ rollback() {
 }
 
 stop() {
-  rm -f "$DESIRED_FILE" "$STARTED_FILE" "$STATE_DIR/rollback_armed"
+  rm -f "$DESIRED_FILE" "$STARTED_FILE" "$STARTED_CS_FILE" "$STATE_DIR/rollback_armed"
   release_wakelock
   if [ -f "$SK_PIDFILE" ]; then
     kill -KILL "$(cat "$SK_PIDFILE" 2>/dev/null)" 2>/dev/null
@@ -670,7 +673,7 @@ case "$1" in
   start)              manual_start ;;
   autostart)          autostart_service ;;
   stop)               rm -f "$HOME_PAUSED_FILE" "$HOME_OVERRIDE_FILE"; stop ;;
-  vpn_check|home_check) home_check; ensure_watchdog ;;
+  vpn_check|home_check|net_recheck) home_check; smart_net_update; ensure_watchdog ;;
   net_check)          network_strategy_check ;;
   restart)
     if is_running; then

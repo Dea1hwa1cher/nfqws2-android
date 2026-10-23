@@ -14,14 +14,26 @@ SERVICE="$MODDIR/service.sh"
 # действительно нет — imports/.
 [ -d "$IMPORTS_DIR" ] || mkdir -p "$IMPORTS_DIR" 2>/dev/null
 
+# Данные больше ~100 КБ одной строкой не передать: и команда для sh -c, и
+# аргумент внешнего printf упираются в предел ядра на длину аргумента
+# (E2BIG, «Argument list too long»). Такие данные WebUI сначала кладёт
+# частями командой upload, а вместо них передаёт @up:<метка>.
+UPLOAD_DIR="$STATE_DIR/upload"
+upload_file() { # <@up:метка> -> путь файла или код 1
+  local tk="${1#@up:}"
+  case "$1" in @up:*) ;; *) return 1 ;; esac
+  case "$tk" in ''|*[!a-z0-9]*) return 1 ;; esac
+  printf '%s' "$UPLOAD_DIR/$tk"
+}
 b64d() {
-  if [ $# -gt 0 ]; then
-    { if command -v base64 >/dev/null 2>&1; then base64 -d 2>/dev/null; else busybox base64 -d 2>/dev/null; fi; } <<EOF
-$1
-EOF
-  else
-    if command -v base64 >/dev/null 2>&1; then base64 -d 2>/dev/null; else busybox base64 -d 2>/dev/null; fi
+  local f
+  if f=$(upload_file "$1"); then
+    { if command -v base64 >/dev/null 2>&1; then base64 -d; else busybox base64 -d; fi; } < "$f" 2>/dev/null
+    rm -f "$f"
+    return 0
   fi
+  if command -v base64 >/dev/null 2>&1; then printf '%s' "$1" | base64 -d 2>/dev/null
+  else printf '%s' "$1" | busybox base64 -d 2>/dev/null; fi
 }
 b64e() {
   if command -v base64 >/dev/null 2>&1; then base64 "$@"
@@ -56,7 +68,12 @@ set_conf_param() {   # только однострочные значения
   chmod 0644 "$CONFFILE"
 }
 
-json_str() { printf '%s' "$1" | tr -d '"\\\000-\037'; }
+# Кавычки, обратный слэш и управляющие символы ломают JSON. Именно [:cntrl:], а не
+# диапазон '\000-\037': tr из toybox (Android) диапазон с восьмеричными кодами не
+# понимает и удаляет его концы и сам «-», а с ним — дефисы в версии и именах.
+json_str() { printf '%s' "$1" | tr -d '"\\[:cntrl:]'; }
+
+uptime_cs() { awk '{ printf "%d", $1 * 100 }' /proc/uptime 2>/dev/null; }
 
 # Код возврата этой функции — последний в ветках save-conf-b64/set/set-mode, поэтому if, а не &&:
 # иначе сохранение успешного конфига выходило бы с 1, когда служба остановлена, и WebUI считал его ошибкой.
@@ -135,26 +152,28 @@ conf_modified() {
 }
 
 cmd_json_status() {
-  local run=false pid="" uptime=0
+  local run=false pid="" uptime=0 upms=0 cs st
   if is_running; then
     run=true
     pid=$(cat "$PIDFILE" 2>/dev/null)
-    if [ -f "$STATE_DIR/started_at" ]; then
+    # Часы с загрузки (/proc/uptime, сотые доли секунды): перевод часов и смена
+    # часового пояса их не трогают. Метки нет (служба запущена прежней
+    # версией) — по date, как раньше
+    st=$(cat "$STATE_DIR/started_cs" 2>/dev/null); cs=$(uptime_cs)
+    case "$st$cs" in
+      ''|*[!0-9]*) ;;
+      *) [ "$cs" -ge "$st" ] && { upms=$(( (cs - st) * 10 )); uptime=$(( upms / 1000 )); } ;;
+    esac
+    if [ "$upms" = 0 ] && [ -f "$STATE_DIR/started_at" ]; then
       local now st
       now=$(date +%s)
       st=$(cat "$STATE_DIR/started_at" 2>/dev/null)
-      # Проверяем ДО арифметики. Нечисловое значение («12x», «1+», «(») роняет
-      # `$((now - st))` с ошибкой арифметики, а переменная после неудачного
-      # присваивания остаётся пустой — тогда в JSON уходит `"uptime":` без числа
-      # и документ становится невалидным. WebUI его не разберёт, а json-status
-      # здесь — контракт. Пустое значение арифметика сама считает нулём, но
-      # uptime тогда равен `now`, то есть «57 лет»; честнее показать 0.
       case "$st" in
         ''|*[!0-9]*) uptime=0 ;;
         *)           uptime=$((now - st)) ;;
       esac
-      # Часы могли перевести назад — тогда разница отрицательная.
       [ "$uptime" -ge 0 ] 2>/dev/null || uptime=0
+      upms=$(( uptime * 1000 ))
     fi
   fi
   # Ничего сверх того, что читает WebUI: раньше здесь ещё считались
@@ -162,7 +181,7 @@ cmd_json_status() {
   # обоим наборам аргументов на КАЖДЫЙ вызов, — плюс всегда пустой preset.
   # Ни одно из этих полей интерфейс не читал. Если диагностика по стратегиям
   # понадобится, её стоит отдавать отдельной командой, а не в статусе.
-  local ver cur_strat paused pending f
+  local ver cur_strat paused pending f override=""
   ver=$(sed -n '/^version=/{s/^version=//p;q;}' "$MODDIR/module.prop")
   if [ -f "$HOME_PAUSED_FILE" ]; then
     paused=$(cat "$HOME_PAUSED_FILE" 2>/dev/null)
@@ -170,6 +189,7 @@ cmd_json_status() {
     paused=$(cat "$VPN_PAUSED_FILE" 2>/dev/null)
     [ -n "$paused" ] || paused="vpn"
   fi
+  [ -f "$HOME_OVERRIDE_FILE" ] && IFS= read -r override < "$HOME_OVERRIDE_FILE"
   pending=""
   for f in "$LISTS_PENDING_DIR"/*.list; do
     [ -e "$f" ] || continue
@@ -186,16 +206,16 @@ cmd_json_status() {
   local has_rb
   if [ -f "$SNAPSHOT_DIR/nfqws2.conf" ]; then has_rb=1; else has_rb=0; fi
   # нечисловое значение обваливает весь JSON и убивает WebUI, поэтому проверяем каждое поле
-  for v in appn cnt_user cnt_auto cnt_excl cnt_ipset cnt_ipset_excl cnt_apps uptime qdrop \
+  for v in appn cnt_user cnt_auto cnt_excl cnt_ipset cnt_ipset_excl cnt_apps uptime upms qdrop \
            PKT_LIMIT_OUT PKT_LIMIT_IN BLOCK_QUIC AUTOSTART WATCHDOG IPV6_ENABLED LOG_LEVEL NFQUEUE_NUM WAKELOCK HOME_WIFI ENABLE_HOTSPOT NET_STRATEGY VPN_PAUSE META_QUIC_REJECT CALLS_BYPASS has_rb; do
     eval "case \"\${$v}\" in ''|*[!0-9]*) $v=0 ;; esac"
   done
 
   cat <<JSON
-{"running":$run,"pid":"$pid","uptime":$uptime,"strategy":"$(json_str "$cur_strat")","version":"$(json_str "$ver")","mode":"$(json_str "$(current_mode)")",
+{"running":$run,"pid":"$pid","uptime":$uptime,"uptime_ms":$upms,"strategy":"$(json_str "$cur_strat")","version":"$(json_str "$ver")","mode":"$(json_str "$(current_mode)")",
 "limiter":"$(json_str "$(cat "$STATE_DIR/limiter" 2>/dev/null)")","pkt_limit_out":$PKT_LIMIT_OUT,"pkt_limit_in":$PKT_LIMIT_IN,"block_quic":$BLOCK_QUIC,"app_mode":"$(json_str "$APP_MODE")","autostart":$AUTOSTART,"watchdog":$WATCHDOG,"wakelock_on":$WAKELOCK,
 "ipv6":$IPV6_ENABLED,"log_level":$LOG_LEVEL,"qdrop":$qdrop,"queue":$NFQUEUE_NUM,"app_uids":$appn,
-"home_wifi":$HOME_WIFI,"enable_hotspot":$ENABLE_HOTSPOT,"net_strategy":$NET_STRATEGY,"vpn_pause":$VPN_PAUSE,"meta_quic":$META_QUIC_REJECT,"calls_bypass":$CALLS_BYPASS,"smart":$(smart_active && echo 1 || echo 0),"paused":"$(json_str "$paused")","pending":"$(json_str "$pending")",
+"home_wifi":$HOME_WIFI,"enable_hotspot":$ENABLE_HOTSPOT,"net_strategy":$NET_STRATEGY,"vpn_pause":$VPN_PAUSE,"meta_quic":$META_QUIC_REJECT,"calls_bypass":$CALLS_BYPASS,"smart":$(smart_active && echo 1 || echo 0),"paused":"$(json_str "$paused")","home_override":"$(json_str "$override")","pending":"$(json_str "$pending")",
 "has_rollback":$has_rb,
 "counts":{"user":$cnt_user,"auto":$cnt_auto,"exclude":$cnt_excl,"ipset":$cnt_ipset,"ipset_exclude":$cnt_ipset_excl,"apps":$cnt_apps}}
 JSON
@@ -1245,6 +1265,39 @@ cmd_check_domain() {
   fi
 }
 
+# ---------------------------------------------------------------- поделиться файлом
+# Файлом — ссылкой file:// на настоящий путь: root-проводник (MT Manager и
+# др.) откроет его на месте; текстом — содержимое в EXTRA_TEXT, для чатов.
+# Только файлы модуля: конфиг и файлы hosts/стратегий.
+share_file_ok() {
+  case "$1" in
+    */../*) return 1 ;;   # «*» в шаблоне пропускает и «/» с «..»
+    "$CONFFILE") ;;
+    "$CONFDIR"/hosts/*.txt) case "${1#"$CONFDIR"/hosts/}" in */*) return 1 ;; esac ;;
+    # файлы стратегий — «Поделиться» из меню стратегии (путь даёт strategy-path)
+    "$MODDIR/defaults/nfqws2.conf") ;;
+    "$STRATEGIES_DIR"/*.conf) case "${1#"$STRATEGIES_DIR"/}" in */*) return 1 ;; esac ;;
+    "$USER_STRATEGIES_DIR"/*.conf) case "${1#"$USER_STRATEGIES_DIR"/}" in */*) return 1 ;; esac ;;
+    "$IMPORTS_DIR"/*.conf) case "${1#"$IMPORTS_DIR"/}" in */*) return 1 ;; esac ;;
+    *) return 1 ;;
+  esac
+  [ -f "$1" ]
+}
+cmd_share() { # <file|text> <путь>
+  share_file_ok "$2" || { echo "Этим файлом делиться нельзя" >&2; return 1; }
+  local out
+  if [ "$1" = text ]; then
+    [ "$(wc -c < "$2")" -lt 90000 ] || { echo "Файл слишком большой, чтобы отправить текстом" >&2; return 1; }
+    out=$(am start -a android.intent.action.SEND -t text/plain --es android.intent.extra.SUBJECT "${2##*/}" \
+      --es android.intent.extra.TEXT "$(cat "$2")" 2>&1)
+  else
+    out=$(am start -a android.intent.action.SEND -t text/plain --es android.intent.extra.SUBJECT "${2##*/}" \
+      --eu android.intent.extra.STREAM "file://$2" --grant-read-uri-permission 2>&1)
+  fi
+  case "$out" in *Error*|*Exception*) echo "Не удалось открыть «Поделиться»: $out" >&2; return 1 ;; esac
+  echo OK
+}
+
 domain_norm() {
   printf '%s' "$1" | tr 'A-Z' 'a-z' | sed 's#^[a-z]*://##; s#[/?:].*##; s/^\*\.//; s/^\.//; s/\.$//'
 }
@@ -2034,6 +2087,10 @@ case "$1" in
     # в редактор он попадает уже приведённым к виду встроенной стратегии.
     case "$2" in imp:*) normalize_import "$f" ;; *) cat "$f" ;; esac \
       | b64e ;;
+  strategy-path) # файл, который действует для стратегии: правка пользователя или встроенный
+    case "$2" in default) f="$MODDIR/defaults/nfqws2.conf" ;; *) f=$(strategy_file "$2") ;; esac
+    [ -n "$f" ] && [ -f "$f" ] || { echo "Стратегия не найдена" >&2; exit 1; }
+    echo "$f" ;;
   strategy-save-b64)
     n="$2"; t="$STATE_DIR/strat_save.tmp"
     case "$n" in default|'') echo "Стандартную стратегию редактируйте во вкладке «Конфиг»" >&2; exit 1 ;; esac
@@ -2227,6 +2284,21 @@ case "$1" in
   probe-bench) cmd_bench_strategies "$2" ;;
   check-domain) cmd_check_domain "$2" ;;
   domain-check) cmd_domain_check "$2" ;;
+  home-pause)
+    rm -f "$HOME_OVERRIDE_FILE"
+    sh "$SERVICE" home_check >/dev/null 2>&1
+    [ -f "$HOME_PAUSED_FILE" ] && echo OK || { echo "$(M 'Причины для паузы больше нет: телефон не в домашней сети и VPN выключен' 'Nothing to pause for: not on home Wi‑Fi and VPN is off')" >&2; exit 1; } ;;
+  net-recheck) sh "$SERVICE" net_recheck >/dev/null 2>&1; echo OK ;;
+  upload)
+    f=$(upload_file "@up:$2") || { echo "Неверная метка" >&2; exit 1; }
+    mkdir -p "$UPLOAD_DIR" || exit 1
+    find "$UPLOAD_DIR" -type f -mmin +30 -exec rm -f {} + 2>/dev/null
+    cat >> "$f" <<EOF
+$3
+EOF
+    echo OK ;;
+  share) cmd_share "$2" "$3" ;;
+  changelog) cat "$MODDIR/changelog.md" 2>/dev/null || { echo "Нет changelog.md в модуле" >&2; exit 1; } ;;
   smart-status) cmd_smart_status ;;
   smart-reset) cmd_smart_reset "${2:-all}" ;;
   smart-train) cmd_smart_train "$2" ;;
@@ -2240,6 +2312,7 @@ case "$1" in
     echo "         get-list save-list-b64 list-update add-domain clear-auto reset-lists set set-mode list-apps" >&2
     echo "         get-logs export-logs clear-logs wifi-ssid backup-create backup-list backup-restore backup-restore-b64 probe-dpi probe-cancel net-info bench-strategies check-domain domain-check" >&2
     echo "         smart-status smart-reset smart-train" >&2
+    echo "         home-pause net-recheck upload strategy-path share changelog" >&2
     echo "         current-network list-net-strategies clear-net-strategies googlevideo-discovery orchestra-status orchestra-lock orchestra-unlock orchestra-block orchestra-unblock orchestra-clear tg-affinity" >&2
     echo "         list-catalogs get-catalog catalog-apply-module list-replaced-strategies restore-replaced-strategy" >&2
     exit 1 ;;

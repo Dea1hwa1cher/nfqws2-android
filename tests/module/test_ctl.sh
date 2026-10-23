@@ -652,6 +652,9 @@ ctl restore-replaced-strategy archived_test
 assert_rc 0 "$ctl_rc" "restore-replaced-strategy succeeds"
 assert_contains "$ctl_out" "восстановлен" "restore reports success"
 
+ctl set-strategy default
+assert_rc 0 "$ctl_rc" "set-strategy default restores config"
+
 # ── chunked lists ─────────────────────────────────────────────────────────────
 section "chunked lists"
 
