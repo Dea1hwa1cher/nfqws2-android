@@ -254,6 +254,7 @@ svg.icon.s24 { width: 24px; height: 24px; }
   padding-bottom: var(--bottom-inset);
   display: flex; justify-content: center;
   background: var(--md-sys-color-surface-container);
+  border: none;
   box-shadow: none;
   transition: transform var(--dur-medium-long) var(--emphasized-decelerate),
               background-color var(--dur-medium) var(--standard),
@@ -310,12 +311,12 @@ html[data-nav-capsule="true"] .nav-bar {
   height: var(--navbar-pill); padding: 4px 6px;
   border-radius: var(--shape-full);
   background: var(--md-sys-color-surface-container-high);
-  border: 1px solid var(--md-sys-color-outline-variant);
+  border: none;
   box-shadow: 0 3px 8px -1px rgba(0, 0, 0, .16), 0 8px 24px -2px rgba(0, 0, 0, .14);
 }
 html[data-nav-capsule="true"][data-amoled="true"] .nav-bar {
   background: var(--md-sys-color-surface-container);
-  border-color: var(--md-sys-color-outline-variant);
+  border: none;
   box-shadow: 0 4px 20px rgba(0, 0, 0, .6);
 }
 html[data-nav-capsule="true"] body.nav-hidden .nav-bar {
