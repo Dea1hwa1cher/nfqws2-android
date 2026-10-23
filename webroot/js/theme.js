@@ -312,7 +312,6 @@ function drawThemeUI(){
   $('amoled-toggle').disabled = !dark;
   if($('monochrome-toggle')) $('monochrome-toggle').checked = mono;
   if($('containers-toggle')) $('containers-toggle').checked = store.get('m3_containers') !== 'false';
-  if($('capsule-toggle')) $('capsule-toggle').checked = isNavCapsule();
   syncPicker(true);
 }
 /* fromSeed=false when the seed came off the wheel: the reverse conversion rounds and jitters the thumb */

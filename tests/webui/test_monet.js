@@ -50,7 +50,6 @@ const dom = {
   monochromeToggle: { checked: false, disabled: false },
   containersToggle: { checked: true, disabled: false },
   animationsToggle: { checked: false, disabled: false },
-  capsuleToggle: { checked: false, disabled: false },
   storage: {},
   shMockOutput: '',
 };
@@ -85,7 +84,6 @@ const sandbox = {
     if (id === 'amoled-toggle') return dom.amoledToggle;
     if (id === 'monochrome-toggle') return dom.monochromeToggle;
     if (id === 'containers-toggle') return dom.containersToggle;
-    if (id === 'capsule-toggle') return dom.capsuleToggle;
     if (id === 'animations-toggle' || id === 'settings-anim-toggle') return dom.animationsToggle;
     const mockEl = {
       checked: false, style: {}, setAttribute: () => {}, value: '',
