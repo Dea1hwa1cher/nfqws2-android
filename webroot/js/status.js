@@ -3,14 +3,12 @@
 /* Uptime */
 let uptTimer = null;
 function fmtUptime(sec){
-  sec = Math.max(0, Math.floor(sec));
-  const d = Math.floor(sec / 86400); sec -= d * 86400;
-  const h = Math.floor(sec / 3600); sec -= h * 3600;
-  const m = Math.floor(sec / 60); sec -= m * 60;
+  sec = Math.max(0, Math.floor(Number(sec) || 0));
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
   const p = n => String(n).padStart(2, '0');
-  if(d > 0) return d + ' ' + t('д') + ' ' + p(h) + ':' + p(m) + ':' + p(sec);
-  if(h > 0) return p(h) + ':' + p(m) + ':' + p(sec);
-  return p(m) + ':' + p(sec);
+  return p(h) + ':' + p(m) + ':' + p(s);
 }
 let uptAnchor = null;   // {ms: время работы, t: performance.now() в тот момент}
 function uptElapsedMs(){ return uptAnchor.ms + (performance.now() - uptAnchor.t); }
