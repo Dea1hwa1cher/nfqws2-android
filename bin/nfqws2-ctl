@@ -725,7 +725,6 @@ probe_tool() {
   echo "none"
   return 1
 }
-uptime_cs() { awk '{ printf "%d", $1 * 100 }' /proc/uptime 2>/dev/null; }
 PROBE_APP_RULE=""
 setup_probe_app_rule() {
   if is_running && [ "$APP_MODE" = "include" ] && iptables -w -t mangle -L $IPT_GROUP_APP -n >/dev/null 2>&1; then

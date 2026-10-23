@@ -394,13 +394,8 @@ function renderBenchBest(name, ok, total, avg_ms){
   const cur = (typeof currentStrategy !== 'undefined' && currentStrategy) ? currentStrategy : 'default';
   const isCurrent = cur === name;
 
-  const countBadge = (currentBenchTab === 'domain' && total <= 3)
-    ? t('{0}/{1} проверок ({2} мс)', ok, total, avg_ms)
-    : t('{0}/{1} хостов ({2} мс)', ok, total, avg_ms);
-
-  const descText = (currentBenchTab === 'domain' && benchLastCheckedDomain)
-    ? t('Стратегия «{0}» показала максимальную проходимость и скорость для {1}.', stratTitle, benchLastCheckedDomain)
-    : t('Стратегия «{0}» показала максимальную проходимость и скорость на контрольных ресурсах.', stratTitle);
+  const countBadge = t('{0}/{1} хостов ({2} мс)', ok, total, avg_ms);
+  const descText = t('Стратегия «{0}» показала максимальную проходимость и скорость на контрольных ресурсах.', stratTitle);
 
   el.innerHTML = '<div class="subhead-row" style="margin-top:0;">' +
     '<span class="subhead plain">' + esc(t('Лучшая стратегия по результатам прохода')) + '</span>' +

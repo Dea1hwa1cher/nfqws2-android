@@ -66,6 +66,7 @@ printf 'x\n\t\n  # y\nz\n' > "$LISTS_DIR/exclude.list"
 printf 'one\n' > "$LISTS_DIR/user.list.bak"
 : > "$LISTS_DIR/auto.list"
 mkdir -p "$LISTS_DIR/dir.list"
+set --
 want=""
 for f in user exclude auto user.list.bak dir does-not-exist user; do
   case "$f" in *.bak) p="$LISTS_DIR/$f" ;; *) p="$LISTS_DIR/$f.list" ;; esac
