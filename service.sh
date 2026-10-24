@@ -26,7 +26,7 @@ wait_for_process() { # <pid> <expected state: up|down> <timeout in 50 ms ticks>
 # both start() failures end with the log tail; keep it in one place
 start_failed() {
   log_msg "$1"
-  log_msg "Последние строки лога:"
+  log_msg "Last log lines:"
   tail -n 8 "$NFQWS_LOG" 2>/dev/null | while IFS= read -r l; do log_msg "  $l"; done
   update_description stopped
   firewall_stop
@@ -61,13 +61,13 @@ start() {
   _start_internal() {
     if [ ! -x "$NFQWS_BIN" ]; then
       chmod 0755 "$NFQWS_BIN" 2>/dev/null
-      [ -x "$NFQWS_BIN" ] || { log_msg "Ошибка: нет исполняемого $NFQWS_BIN"; return 1; }
+      [ -x "$NFQWS_BIN" ] || { log_msg "Error: executable $NFQWS_BIN not found"; return 1; }
     fi
     local err
     err=$(validate_args_conf) || { log_msg "$err"; return 1; }
     err=$(validate_strategy_blob_references "$CONFFILE") || { log_msg "$err"; return 1; }
 
-    log_msg "Запуск nfqws2..."
+    log_msg "Starting nfqws2..."
     kernel_modules
     rotate_logs start
 
@@ -78,9 +78,9 @@ start() {
 
     local dry_err
     if ! dry_err=$(dry_run_check "$args"); then
-      log_msg "Ошибка: проверка nfqws2 --dry-run не пройдена"
+      log_msg "Error: nfqws2 --dry-run check failed"
       printf '%s\n' "$dry_err" >> "$NFQWS_LOG"
-      start_failed "Ошибка: параметры запуска nfqws2 некорректны (проверка --dry-run отклонена)."
+      start_failed "Error: nfqws2 startup parameters invalid (--dry-run check rejected)."
       return 1
     fi
     if [ -f "$SK_PIDFILE" ]; then
@@ -100,7 +100,7 @@ start() {
     set +f
 
     if [ "$res" -ne 0 ]; then
-      start_failed "Ошибка: nfqws2 завершился с кодом $res."
+      start_failed "Error: nfqws2 exited with code $res."
       return 1
     fi
 
@@ -109,7 +109,7 @@ start() {
     [ -n "$pid" ] || pid=$(pidof nfqws2 2>/dev/null | awk '{print $1}')
 
     if [ -z "$pid" ] || ! wait_for_process "$pid" up 24; then
-      start_failed "Ошибка: nfqws2 не запустился."
+      start_failed "Error: nfqws2 failed to start."
       return 1
     fi
 
@@ -122,18 +122,18 @@ start() {
     # jump the daemon runs but nothing reaches NFQUEUE
     firewall_start
     if ! firewall_ok; then
-      log_msg "Ошибка: правила iptables не применились — трафик не перехватывается"
+      log_msg "Error: iptables rules failed to apply — traffic is not intercepted"
       # a daemon without rules is useless and a stale pidfile would claim it runs
       kill -TERM "$pid" 2>/dev/null
       rm -f "$PIDFILE"
-      start_failed "Ошибка: правила iptables не применились."
+      start_failed "Error: iptables rules failed to apply."
       return 1
     fi
 
     system_config
     acquire_wakelock
     echo 1 > "$DESIRED_FILE"
-    log_msg "nfqws2 запущен (PID $pid, Native Daemon)"
+    log_msg "nfqws2 started (PID $pid, Native Daemon)"
     update_description running
     save_working_snapshot
     printf '%s' "$(topology_fingerprint "$CONFFILE")" > "$STATE_DIR/last_topology"
@@ -173,7 +173,7 @@ replace_daemon() {
     err=$(validate_args_conf) || { log_msg "$err"; return 1; }
     err=$(validate_strategy_blob_references "$CONFFILE") || { log_msg "$err"; return 1; }
 
-    log_msg "Бесшовное переключение демона (Zero-Downtime Daemon Replace)..."
+    log_msg "Zero-Downtime Daemon Replace..."
     rotate_logs start
 
     local args
@@ -182,9 +182,9 @@ replace_daemon() {
 
     local dry_err
     if ! dry_err=$(dry_run_check "$args"); then
-      log_msg "Ошибка: проверка nfqws2 --dry-run не пройдена"
+      log_msg "Error: nfqws2 --dry-run check failed"
       printf '%s\n' "$dry_err" >> "$NFQWS_LOG"
-      log_msg "Параметры новой стратегии некорректны — прежний процесс PID $old_pid сохранён без простоя."
+      log_msg "New strategy parameters are invalid — existing process PID $old_pid preserved without downtime."
       return 1
     fi
     save_strategy_receipt "$CONFFILE" 2>/dev/null || true
@@ -201,7 +201,7 @@ replace_daemon() {
     set +f
 
     if [ "$res" -ne 0 ]; then
-      log_msg "Ошибка: новый nfqws2 завершился с кодом $res — оставляем старый процесс PID $old_pid"
+      log_msg "Error: new nfqws2 exited with code $res — keeping old process PID $old_pid"
       rm -f "$new_pidfile"
       return 1
     fi
@@ -209,7 +209,7 @@ replace_daemon() {
     local new_pid=""
     [ -f "$new_pidfile" ] && new_pid=$(cat "$new_pidfile" 2>/dev/null)
     if [ -z "$new_pid" ] || ! wait_for_process "$new_pid" up 24; then
-      log_msg "Ошибка: новый nfqws2 не запустился — оставляем старый процесс PID $old_pid"
+      log_msg "Error: new nfqws2 failed to start — keeping old process PID $old_pid"
       rm -f "$new_pidfile"
       return 1
     fi
@@ -225,10 +225,10 @@ replace_daemon() {
     old_fp=$(cat "$STATE_DIR/last_topology" 2>/dev/null)
     new_fp=$(topology_fingerprint "$CONFFILE")
     if [ "$old_fp" != "$new_fp" ]; then
-      log_msg "Топология фаервола изменилась — плавное обновление правил iptables"
+      log_msg "Firewall topology changed — updating iptables rules"
       firewall_start
     else
-      log_msg "Топология неизменна — правила iptables сохранены без перезагрузки (Zero Downtime)"
+      log_msg "Firewall topology unchanged — iptables rules preserved without reload (Zero Downtime)"
     fi
     printf '%s' "$new_fp" > "$STATE_DIR/last_topology"
 
@@ -240,7 +240,7 @@ replace_daemon() {
 
     acquire_wakelock
     echo 1 > "$DESIRED_FILE"
-    log_msg "nfqws2 успешно обновлён (Новый PID $new_pid, Zero-Downtime Replace)"
+    log_msg "nfqws2 successfully updated (New PID $new_pid, Zero-Downtime Replace)"
     update_description running
     ensure_watchdog
 
@@ -251,9 +251,9 @@ replace_daemon() {
         if is_running; then
           rm -f "$STATE_DIR/rollback_armed" 2>/dev/null
           save_working_snapshot
-          log_msg "Watchdog Gate: новая конфигурация успешно стабилизирована (5s)"
+          log_msg "Watchdog Gate: new configuration successfully stabilized (5s)"
         else
-          log_msg "Watchdog Gate: падение нового процесса в течение 5s — запуск автоотката!"
+          log_msg "Watchdog Gate: new process crashed within 5s — triggering auto-rollback!"
           rm -f "$STATE_DIR/rollback_armed" 2>/dev/null
           rollback
         fi
@@ -273,10 +273,10 @@ replace_daemon() {
 
 rollback() {
   if [ ! -f "$SNAPSHOT_DIR/nfqws2.conf" ]; then
-    log_msg "Rollback: нет сохранённого снимка для отката"
+    log_msg "Rollback: no saved snapshot for rollback"
     return 1
   fi
-  log_msg "ВНИМАНИЕ: Запущен гарантированный откат к предыдущей рабочей конфигурации"
+  log_msg "WARNING: Guaranteed rollback to previous working configuration started"
   rollback_to_snapshot || return 1
   load_conf >/dev/null 2>&1
   local res=0
@@ -286,7 +286,7 @@ rollback() {
     start || res=$?
   fi
   if [ "$res" -eq 0 ]; then
-    log_msg "Rollback: служба успешно восстановлена из рабочего снимка"
+    log_msg "Rollback: service successfully restored from working snapshot"
     printf '{"time":%d,"strategy":"%s","status":"restored"}\n' \
       "$(date +%s 2>/dev/null || echo 0)" "$(get_current_strategy)" > "$STATE_DIR/last_rollback.json"
   fi
@@ -319,11 +319,11 @@ stop() {
   # a leftover chain still jumps to NFQUEUE with no listener, so the kernel
   # drops that traffic: stopped must mean rules gone
   if firewall_ok; then
-    log_msg "Ошибка: правила iptables остались на месте — трафик в NFQUEUE без слушателя"
+    log_msg "Error: iptables rules remained active — traffic queued to NFQUEUE without listener"
     return 1
   fi
 
-  log_msg "nfqws2 остановлен"
+  log_msg "nfqws2 stopped"
   update_description stopped
   return 0
 }
@@ -332,7 +332,7 @@ stop() {
 reload_lists() {
   is_running || { echo "Служба не запущена"; return 1; }
   kill -HUP "$(cat "$PIDFILE")" 2>/dev/null
-  log_msg "Списки перечитаны (SIGHUP)"
+  log_msg "Lists reloaded (SIGHUP)"
 }
 
 # Start a helper unless it already runs. Returns 0 when it was just started,
@@ -409,7 +409,7 @@ smartkill() {
     fi
     # в журнал — сводкой, не чаще раза в минуту: обрывов бывает много подряд
     if [ "$killed" -gt 0 ] && [ $((up - logged)) -ge 60 ]; then
-      log_msg "Умный режим: оборвано застрявших соединений — $killed (приложения переподключатся на другом варианте)"
+      log_msg "Smart mode: stuck connections killed — $killed (apps will reconnect on alternative strategy)"
       killed=0; logged=$up
     fi
     if [ "$flush" -gt 0 ] && [ "$up" -ge "$flush" ]; then
@@ -484,7 +484,7 @@ netwatch() {
       if [ "$sz" != "$acted" ] && [ "$sz" != 0 ]; then
         smart_net_update
         if [ -f "$DESIRED_FILE" ] && is_running; then
-          log_msg "netwatch: сеть изменилась (ip monitor) — пересобираю правила"
+          log_msg "netwatch: network changed (ip monitor) — rebuilding rules"
           firewall_start
         fi
         home_check
@@ -519,17 +519,17 @@ watchdog() {
 
     if ! is_running; then
       if [ -f "$STATE_DIR/rollback_armed" ]; then
-        log_msg "watchdog: обнаружено падение при взведённом rollback_armed — инициирую автооткат"
+        log_msg "watchdog: crash detected while rollback_armed — triggering auto-rollback"
         rm -f "$STATE_DIR/rollback_armed" 2>/dev/null
         rollback
         continue
       fi
       fails=$((fails + 1))
-      log_msg "watchdog: nfqws2 не активен, автоперезапуск (#$fails)..."
+      log_msg "watchdog: nfqws2 is inactive, auto-restarting (#$fails)..."
       firewall_stop
       start
       if [ "$fails" -ge 5 ]; then
-        log_msg "watchdog: частые сбои службы (#$fails), пауза 60s..."
+        log_msg "watchdog: frequent service crashes (#$fails), pausing 60s..."
         sleep 60
       else
         sleep 2
@@ -547,7 +547,7 @@ watchdog() {
 
     # fast iptables recovery after a network switch
     if ! firewall_ok; then
-      log_msg "watchdog: правила iptables сброшены системой — восстановление"
+      log_msg "watchdog: iptables rules flushed by system — restoring"
       firewall_start
     fi
     [ $((tick % 25)) -eq 0 ] && rotate_logs
@@ -579,8 +579,8 @@ home_check() {
 
   if [ -n "$want" ]; then
     if is_running && [ ! -f "$HOME_PAUSED_FILE" ]; then
-      if [ "$want" = "@vpn" ]; then log_msg "Включён VPN — обход приостановлен"
-      else log_msg "Домашний Wi-Fi «$want» — обход приостановлен"; fi
+      if [ "$want" = "@vpn" ]; then log_msg "VPN active — bypass paused"
+      else log_msg "Home Wi-Fi «$want» — bypass paused"; fi
       stop >/dev/null 2>&1
       printf '%s' "$want" > "$HOME_PAUSED_FILE"
       update_description paused "$want"
@@ -589,10 +589,10 @@ home_check() {
       update_description paused "$want"
     fi
   elif [ -f "$HOME_PAUSED_FILE" ]; then
-    if [ "$(cat "$HOME_PAUSED_FILE" 2>/dev/null)" = "@vpn" ]; then log_msg "VPN отключён — обход возобновлён"
-    else log_msg "Домашний Wi-Fi больше не активен — обход возобновлён"; fi
+    if [ "$(cat "$HOME_PAUSED_FILE" 2>/dev/null)" = "@vpn" ]; then log_msg "VPN disconnected — bypass resumed"
+    else log_msg "Home Wi-Fi no longer active — bypass resumed"; fi
     rm -f "$HOME_PAUSED_FILE"
-    start >/dev/null 2>&1 || log_msg "Не удалось возобновить обход после паузы"
+    start >/dev/null 2>&1 || log_msg "Failed to resume bypass after pause"
   fi
   rmdir "$STATE_DIR/home.lock" 2>/dev/null
   return 0
@@ -615,7 +615,7 @@ network_strategy_check() {
     saved=$(load_net_strategy "$cur_net" 2>/dev/null)
     cur_strat=$(get_current_strategy 2>/dev/null)
     if [ -n "$saved" ] && [ "$saved" != "$cur_strat" ]; then
-      log_msg "Смена сети на $(current_network_title 2>/dev/null || echo "$cur_net") — переключение на сохранённую стратегию «$saved»"
+      log_msg "Network changed to $(current_network_title 2>/dev/null || echo "$cur_net") — switching to saved strategy «$saved»"
       if sh "$MODDIR/bin/nfqws2-ctl" set-strategy "$saved" >/dev/null 2>&1; then
         stop >/dev/null 2>&1
         start >/dev/null 2>&1
@@ -641,19 +641,19 @@ manual_start() {
 # Boot/autostart respects disable, VPN pause, and Home Wi-Fi pause without
 # setting user override files.
 autostart_service() {
-  [ -f "$CONFDIR/disable" ] && { log_msg "Найден $CONFDIR/disable — автозапуск пропущен"; return 0; }
+  [ -f "$CONFDIR/disable" ] && { log_msg "Found $CONFDIR/disable — autostart skipped"; return 0; }
   local ssid
   if [ "$AUTOSTART" = "1" ] || [ -f "$DESIRED_FILE" ]; then
     if [ "$VPN_PAUSE" = "1" ] && vpn_active; then
-      log_msg "Включён VPN — автозапуск отложен до его отключения"
+      log_msg "VPN active — autostart deferred until disconnected"
       printf '@vpn' > "$HOME_PAUSED_FILE"
       update_description paused "@vpn"
     elif [ "$HOME_WIFI" = "1" ] && ssid=$(current_ssid) && ssid_is_home "$ssid"; then
-      log_msg "Домашняя Wi-Fi «$ssid» — автозапуск отложен до выхода из неё"
+      log_msg "Home Wi-Fi «$ssid» — autostart deferred until disconnected"
       printf '%s' "$ssid" > "$HOME_PAUSED_FILE"
       update_description paused "$ssid"
     else
-      is_running || start || log_msg "Автозапуск не удался"
+      is_running || start || log_msg "Autostart failed"
     fi
   else
     is_running || update_description stopped

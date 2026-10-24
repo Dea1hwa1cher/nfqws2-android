@@ -130,11 +130,11 @@ i=0; while [ "$i" -lt 40 ] && ! grep -q nfqws_smartkill "$MOCK_IPT_STORE/iptable
 assert_contains "$(cat "$MOCK_IPT_STORE/iptables/filter/OUTPUT" 2>/dev/null)" "-j nfqws_smartkill" "its chain is hooked into OUTPUT"
 printf '4 104.244.42.1 40001\n6 2a00:1450:4010:c05::64 40002\nx bad; line\n4 1.2.3.4 notaport\n' > "$SMART_KILL_FILE"
 i=0; while [ "$i" -lt 40 ] && ! grep -q 40002 "$MOCK_IPT_STORE/ip6tables/filter/nfqws_smartkill" 2>/dev/null; do sleep 0.5; i=$((i + 1)); done
-i=0; while [ "$i" -lt 20 ] && ! grep -q "оборвано застрявших" "$SERVICE_LOG" 2>/dev/null; do sleep 0.5; i=$((i + 1)); done
+i=0; while [ "$i" -lt 20 ] && ! grep -q "stuck connections killed" "$SERVICE_LOG" 2>/dev/null; do sleep 0.5; i=$((i + 1)); done
 assert_contains "$(cat "$MOCK_IPT_STORE/iptables/filter/nfqws_smartkill" 2>/dev/null)" "-p tcp -d 104.244.42.1 --sport 40001 -j REJECT --reject-with tcp-reset" "an IPv4 connection is cut with a reset"
 assert_contains "$(cat "$MOCK_IPT_STORE/ip6tables/filter/nfqws_smartkill" 2>/dev/null)" "-d 2a00:1450:4010:c05::64 --sport 40002" "an IPv6 one too"
 assert_not_contains "$(cat "$MOCK_IPT_STORE/iptables/filter/nfqws_smartkill" 2>/dev/null)" "notaport" "garbage lines are skipped"
-assert_contains "$(cat "$SERVICE_LOG")" "оборвано застрявших соединений — 2" "the log says how many"
+assert_contains "$(cat "$SERVICE_LOG")" "stuck connections killed — 2" "the log says how many"
 svc stop
 # наблюдатели сети этого запуска песочнице больше не нужны: иначе netwatch с
 # заглушкой ip крутился бы в фоне и мешал соседним наборам тестов

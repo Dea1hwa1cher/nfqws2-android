@@ -446,7 +446,7 @@ cmd_import_add() { # $1 = имя, $2 = путь к файлу с содержи�
   local bad
   bad=$(unsupported_opts "$src" | sed 's/^/--/' | tr '\n' ' ' | sed 's/ $//')
   if [ -n "$bad" ]; then
-    log_msg "Импорт «$(basename "$dst" .conf)»: убраны параметры, которых нет в этой сборке nfqws2: $bad" >/dev/null
+    log_msg "Import «$(basename "$dst" .conf)»: removed parameters not supported in this nfqws2 build: $bad" >/dev/null
     printf 'removed\t%s\n' "$bad"
   fi
 }
@@ -480,17 +480,17 @@ cmd_log_summary() {
       function T(ru, en) { return L == "en" ? en : ru }
       function ts(line,   e) { e = index(line, "]"); return (substr(line, 1, 1) == "[" && e) ? substr(line, 2, e - 2) : "" }
       function msg(line,   e) { e = index(line, "] "); return (substr(line, 1, 1) == "[" && e) ? substr(line, e + 2) : line }
-      /nfqws2 запущен/        { last_start = ts($0); m = msg($0); pid = ""; if (match(m, /PID [0-9]+/)) pid = substr(m, RSTART, RLENGTH); last_ev = "start" }
-      /nfqws2 остановлен/     { last_stop = ts($0); last_ev = "stop" }
-      /обход приостановлен/   { last_pause = ts($0); last_ev = "pause"; pmsg = msg($0) }
-      /watchdog: nfqws2 (упал|не активен)/ { crash++; last_crash = ts($0) }
-      /netwatch: сеть изменилась/ { net++ }
-      /правила iptables сброшены системой/ { lost++ }
-      /Ошибка|не удался|Не удалось/ { err++; last_err = msg($0); last_err_ts = ts($0) }
+      /nfqws2 (запущен|started)/              { last_start = ts($0); m = msg($0); pid = ""; if (match(m, /PID [0-9]+/)) pid = substr(m, RSTART, RLENGTH); last_ev = "start" }
+      /nfqws2 (остановлен|stopped)/           { last_stop = ts($0); last_ev = "stop" }
+      /(обход приостановлен|bypass paused)/   { last_pause = ts($0); last_ev = "pause"; pmsg = msg($0) }
+      /watchdog: nfqws2 (упал|не активен|is inactive)/ { crash++; last_crash = ts($0) }
+      /netwatch: (сеть изменилась|network changed)/ { net++ }
+      /(правила iptables сброшены системой|watchdog: iptables rules flushed by system)/ { lost++ }
+      /(Ошибка|не удался|Не удалось|Error|failed|Failed)/ { err++; last_err = msg($0); last_err_ts = ts($0) }
       END {
         if (last_ev == "start") printf "ok\t%s\t%s\n", T("nfqws2 запущен", "nfqws2 started"), last_start (pid != "" ? " · " pid : "")
         else if (last_ev == "stop") printf "info\t%s\t%s\n", T("nfqws2 остановлен", "nfqws2 stopped"), last_stop
-        else if (last_ev == "pause") printf "info\t%s\t%s\n", (pmsg ~ /Активен VPN/ ? T("Пауза: активен VPN", "Paused: VPN active") : T("Пауза в домашней Wi-Fi", "Paused on home Wi-Fi")), last_pause
+        else if (last_ev == "pause") printf "info\t%s\t%s\n", (pmsg ~ /(Активен VPN|Включён VPN|VPN active)/ ? T("Пауза: активен VPN", "Paused: VPN active") : T("Пауза в домашней Wi-Fi", "Paused on home Wi-Fi")), last_pause
         if (crash) printf "warn\t%s\t%s\n", T("Автоперезапусков: ", "Automatic restarts: ") crash, T("последний ", "last ") last_crash
         if (net) printf "info\t%s\t%s\n", T("Пересборок правил при смене сети: ", "Rule rebuilds on network change: ") net, ""
         if (lost) printf "info\t%s\t%s\n", T("Правила восстановлены после сброса системой: ", "Rules restored after a system reset: ") lost, ""

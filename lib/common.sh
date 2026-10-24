@@ -215,7 +215,7 @@ load_conf() {
   fi
   local err
   err=$(validate_conf "$CONFFILE" 2>&1) || {
-    log_msg "Конфиг $CONFFILE содержит ошибки: $err"
+    log_msg "Config $CONFFILE contains errors: $err"
     . "$MODDIR/defaults/nfqws2.conf"
     set_defaults
     return 1
@@ -230,7 +230,7 @@ validate_args_conf() {
   for var in NFQWS_BASE_ARGS NFQWS_ARGS NFQWS_ARGS_QUIC NFQWS_ARGS_UDP NFQWS_EXTRA_ARGS NFQWS_ARGS_IPSET; do
     eval "v=\$$var"
     case "$v" in
-      *--new*) echo "Использовать --new в $var нельзя. Используйте NFQWS_ARGS_CUSTOM"; return 1 ;;
+      *--new*) echo "--new cannot be used in $var. Use NFQWS_ARGS_CUSTOM"; return 1 ;;
     esac
   done
   return 0
@@ -389,7 +389,7 @@ app_rules() {
     return 1
   fi
   if ! app_features_ok "$REAL_CMD"; then
-    [ "$REAL_CMD" = "iptables" ] && log_msg "Нет xt_owner/xt_CONNMARK — фильтр по приложениям не применяется"
+    [ "$REAL_CMD" = "iptables" ] && log_msg "No xt_owner/xt_CONNMARK — app filter is not applied"
     return 2
   fi
   uids=$(resolve_app_uids)
@@ -399,7 +399,7 @@ app_rules() {
     n=$(app_uid_count)
   fi
   if [ "$n" = "0" ]; then
-    log_msg "apps.list: ни один пакет не сопоставлен с UID — фильтр по приложениям ($APP_MODE) не действует"
+    log_msg "apps.list: no packages mapped to UIDs — app filter ($APP_MODE) is inactive"
     return 2
   fi
 
@@ -422,7 +422,7 @@ app_rules() {
     $CMD -w -t mangle -A $IPT_GROUP_POST -m connmark ! --mark "$MARK_INCLUDE" -j RETURN
     [ "$LIMITER" = "connbytes" ] && $CMD -w -t mangle -A $IPT_GROUP_PRE -m connmark ! --mark "$MARK_INCLUDE" -j RETURN
   fi
-  log_msg "Фильтр по приложениям ($APP_MODE): $n UID"
+  log_msg "App filter ($APP_MODE): $n UIDs"
   return 0
 }
 
@@ -526,7 +526,7 @@ dry_run_check() { # <args...>
     if [ -n "$out" ]; then
       printf '%s\n' "$out"
     else
-      echo "nfqws2: ошибка параметров (код $rc)"
+      echo "nfqws2: parameter error (code $rc)"
     fi
     return "$rc"
   fi
@@ -641,7 +641,7 @@ validate_strategy_blob_references() { # <args_or_conffile>
       */nfqws2-debug.log|*/nfqws2.log|*/auto.log) continue ;;
     esac
     if [ ! -f "$f" ]; then
-      log_msg "Ошибка: файл блоба или скрипта не найден: $f"
+      log_msg "Error: blob or script file not found: $f"
       missing=$((missing + 1))
     fi
   done
@@ -1551,7 +1551,7 @@ _meta_quic_chain() { # <iptables|ip6tables> <сети> <reject-with>
   $C -w -t filter -N $IPT_GROUP_MQ 2>/dev/null || return 0
   n=$(printf '%s' "$2" | tr -s ' ' ',')
   $C -w -t filter -A $IPT_GROUP_MQ -p udp --dport 443 -d "$n" -j REJECT --reject-with "$3" 2>/dev/null || {
-    log_msg "$C: нет REJECT — отказ QUIC к Meta недоступен"
+    log_msg "$C: no REJECT support — Meta QUIC reject is unavailable"
     $C -w -t filter -F $IPT_GROUP_MQ 2>/dev/null; $C -w -t filter -X $IPT_GROUP_MQ 2>/dev/null
     return 0
   }
@@ -1690,10 +1690,10 @@ system_config() {
   local cur_est cur_max
   cur_est=$(sysctl -n net.netfilter.nf_conntrack_tcp_timeout_established 2>/dev/null)
   cur_max=$(sysctl -n net.netfilter.nf_conntrack_max 2>/dev/null)
-  [ -n "$cur_est" ] && log_msg "conntrack: nf_conntrack_tcp_timeout_established было $cur_est, ставим 1200 (как на эталонном роутере)"
+  [ -n "$cur_est" ] && log_msg "conntrack: nf_conntrack_tcp_timeout_established was $cur_est, setting 1200 (reference router value)"
   sysctl -w net.netfilter.nf_conntrack_tcp_timeout_established=1200 >/dev/null 2>&1
   if [ -n "$cur_max" ] && [ "$cur_max" -lt 16384 ] 2>/dev/null; then
-    log_msg "conntrack: nf_conntrack_max было $cur_max, поднимаем до 16384 (как на эталонном роутере)"
+    log_msg "conntrack: nf_conntrack_max was $cur_max, raising to 16384 (reference router value)"
     sysctl -w net.netfilter.nf_conntrack_max=16384 >/dev/null 2>&1
   fi
   setup_cli_symlinks
@@ -2122,8 +2122,8 @@ current_network_title() {
   raw=$(_raw_network_id)
   case "$raw" in
     wifi:*) printf 'Wi-Fi «%s»' "${raw#wifi:}" ;;
-    cell:*) printf 'Мобильная сеть (%s)' "${raw#cell:}" ;;
-    *)      printf 'Мобильная сеть' ;;
+    cell:*) printf 'Mobile network (%s)' "${raw#cell:}" ;;
+    *)      printf 'Mobile network' ;;
   esac
   return 0
 }

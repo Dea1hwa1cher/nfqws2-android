@@ -87,8 +87,8 @@ MOCK_NFQWS_FAIL=3
 export MOCK_NFQWS_FAIL
 svc start
 assert_rc 1 "$svc_rc" "start reports failure through its exit status"
-assert_contains "$(cat "$SERVICE_LOG")" "завершился с кодом 3" "the exit code reaches the log"
-assert_contains "$(cat "$SERVICE_LOG")" "Последние строки лога" "the log tail is announced"
+assert_contains "$(cat "$SERVICE_LOG")" "exited with code 3" "the exit code reaches the log"
+assert_contains "$(cat "$SERVICE_LOG")" "Last log lines:" "the log tail is announced"
 assert_contains "$(cat "$SERVICE_LOG")" "refusing to start" "and the tail itself is included"
 unset MOCK_NFQWS_FAIL
 assert_no_file "$CONFDIR/state/nfqws2.pid" "no pidfile is left behind"
@@ -192,7 +192,7 @@ MOCK_IPT_FAIL=1
 export MOCK_IPT_FAIL
 svc start
 assert_rc 1 "$svc_rc" "start fails when the rules cannot be installed"
-assert_contains "$(cat "$SERVICE_LOG")" "не применились" "and says why"
+assert_contains "$(cat "$SERVICE_LOG")" "failed to apply" "and says why"
 assert_no_file "$CONFDIR/state/desired" "the service is not marked as desired"
 assert_no_file "$CONFDIR/state/nfqws2.pid" "and the daemon is rolled back"
 unset MOCK_IPT_FAIL
