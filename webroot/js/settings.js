@@ -341,7 +341,7 @@ function updateBenchButtonsStopping(){
   el.innerHTML = '<span class="spinner"></span><span>' + esc(t('Остановка…')) + '</span>';
 }
 
-function renderBenchRow(idx, name, ok, total, avg_ms, top_fail, isRunning){
+function renderBenchRow(idx, name, ok, total, avg_ms, top_fail, isRunning, yt_ok, dc_ok){
   const stratTitle = typeof strategyName === 'function' ? strategyName(name) : name;
   if(isRunning){
     return '<div class="list-item two-line" id="benchrow' + idx + '">' +
@@ -369,18 +369,30 @@ function renderBenchRow(idx, name, ok, total, avg_ms, top_fail, isRunning){
       sub += ` · ${failReason}`;
     }
   }
+
+  let svcBadges = '';
+  if(total > 0 && (yt_ok !== undefined || dc_ok !== undefined)){
+    const ytPill = yt_ok > 0
+      ? '<span class="pill ok" style="padding:1px 6px; font-size:11px;">YT ✓</span>'
+      : '<span class="pill tonal" style="padding:1px 6px; font-size:11px;">YT ✗</span>';
+    const dcPill = dc_ok > 0
+      ? '<span class="pill ok" style="padding:1px 6px; font-size:11px;">DC ✓</span>'
+      : '<span class="pill tonal" style="padding:1px 6px; font-size:11px;">DC ✗</span>';
+    svcBadges = ' <span style="display:inline-flex; gap:4px; margin-left:6px; vertical-align:middle;">' + ytPill + dcPill + '</span>';
+  }
+
   const pct = total > 0 ? Math.round((ok / total) * 100) + '%' : '0%';
   return '<div class="list-item two-line" id="benchrow' + idx + '">' +
     '<span class="status ' + stClass + '">' + icon(icName, 's16') + '</span>' +
     '<span class="li-text">' +
-      '<span class="li-primary truncate">' + esc(stratTitle) + ' <span class="muted li-mono">(' + esc(name) + ')</span></span>' +
+      '<span class="li-primary truncate">' + esc(stratTitle) + ' <span class="muted li-mono">(' + esc(name) + ')</span>' + svcBadges + '</span>' +
       '<span class="li-secondary">' + esc(sub) + '</span>' +
     '</span>' +
     '<span class="li-trail ' + (isAllOk || isPartOk ? 'li-value' : 't-label-medium bad') + '">' + esc(pct) + '</span>' +
   '</div>';
 }
 
-function renderBenchBest(name, ok, total, avg_ms){
+function renderBenchBest(name, ok, total, avg_ms, best_yt, best_dc){
   const el = $('bench-best');
   if(!el) return;
   if(!name || ok <= 0){
@@ -397,6 +409,24 @@ function renderBenchBest(name, ok, total, avg_ms){
   const countBadge = t('{0}/{1} хостов ({2} мс)', ok, total, avg_ms);
   const descText = t('Стратегия «{0}» показала максимальную проходимость и скорость на контрольных ресурсах.', stratTitle);
 
+  let extraButtons = '';
+  if(best_yt && best_yt !== '-' && best_yt !== name){
+    const ytTitle = typeof strategyName === 'function' ? strategyName(best_yt) : best_yt;
+    const isYtCurrent = cur === best_yt;
+    extraButtons += '<button class="btn with-icon state ' + (isYtCurrent ? 'tonal' : '') + '" onclick="applyBenchStrategy(' + jsArg(best_yt) + ')"' + (isYtCurrent ? ' disabled' : '') + '>' +
+      icon(isYtCurrent ? 'check' : 'tune', 's18') +
+      '<span>' + (isYtCurrent ? esc(t('YouTube: «{0}» активна', ytTitle)) : esc(t('YouTube Focus: «{0}»', ytTitle))) + '</span>' +
+    '</button>';
+  }
+  if(best_dc && best_dc !== '-' && best_dc !== name && best_dc !== best_yt){
+    const dcTitle = typeof strategyName === 'function' ? strategyName(best_dc) : best_dc;
+    const isDcCurrent = cur === best_dc;
+    extraButtons += '<button class="btn with-icon state ' + (isDcCurrent ? 'tonal' : '') + '" onclick="applyBenchStrategy(' + jsArg(best_dc) + ')"' + (isDcCurrent ? ' disabled' : '') + '>' +
+      icon(isDcCurrent ? 'check' : 'tune', 's18') +
+      '<span>' + (isDcCurrent ? esc(t('Discord: «{0}» активна', dcTitle)) : esc(t('Discord Focus: «{0}»', dcTitle))) + '</span>' +
+    '</button>';
+  }
+
   el.innerHTML = '<div class="subhead-row" style="margin-top:0;">' +
     '<span class="subhead plain">' + esc(t('Лучшая стратегия по результатам прохода')) + '</span>' +
     '<span class="pill tonal">' + esc(countBadge) + '</span>' +
@@ -404,11 +434,12 @@ function renderBenchBest(name, ok, total, avg_ms){
   '<div class="t-body-medium">' +
     esc(descText) +
   '</div>' +
-  '<div class="row" style="margin-top:12px; gap:8px;">' +
+  '<div class="row" style="margin-top:12px; gap:8px; flex-wrap:wrap;">' +
     '<button class="btn with-icon state ' + (isCurrent ? 'tonal' : '') + '" onclick="applyBenchStrategy(' + jsArg(name) + ')"' + (isCurrent ? ' disabled' : '') + '>' +
       icon(isCurrent ? 'check' : 'tune', 's18') +
       '<span>' + (isCurrent ? esc(t('Стратегия «{0}» уже действует', stratTitle)) : esc(t('Применить «{0}»', stratTitle))) + '</span>' +
     '</button>' +
+    extraButtons +
   '</div>';
 }
 
@@ -416,7 +447,7 @@ function sortBenchList(){
   const listEl = $('bench-list');
   if(!listEl) return;
   const sorted = Object.values(benchResults).sort((a, b) => b.ok - a.ok || a.avg_ms - b.avg_ms);
-  listEl.innerHTML = sorted.map(it => renderBenchRow(it.idx, it.name, it.ok, it.total, it.avg_ms, it.top_fail, false)).join('');
+  listEl.innerHTML = sorted.map(it => renderBenchRow(it.idx, it.name, it.ok, it.total, it.avg_ms, it.top_fail, false, it.yt_ok, it.dc_ok)).join('');
 }
 
 function resetBenchResults(){
@@ -476,16 +507,20 @@ async function runBench(){
       else if($('bench-list')) $('bench-list').insertAdjacentHTML('beforeend', rowHtml);
     } else if(p[0] === 'BENCH_RES') {
       const idx = p[1], strat = p[2], ok = +p[3] || 0, total = +p[4] || 0, avg_ms = +p[5] || 0, top_fail = p[6] || '-';
-      benchResults[strat] = { idx, name: strat, ok, total, avg_ms, top_fail };
+      const yt_ok = p[7] !== undefined ? +p[7] : undefined;
+      const dc_ok = p[8] !== undefined ? +p[8] : undefined;
+      benchResults[strat] = { idx, name: strat, ok, total, avg_ms, top_fail, yt_ok, dc_ok };
       const existing = $('benchrow' + idx);
-      const rowHtml = renderBenchRow(idx, strat, ok, total, avg_ms, top_fail, false);
+      const rowHtml = renderBenchRow(idx, strat, ok, total, avg_ms, top_fail, false, yt_ok, dc_ok);
       if(existing) existing.outerHTML = rowHtml;
       else if($('bench-list')) $('bench-list').insertAdjacentHTML('beforeend', rowHtml);
     } else if(p[0] === 'BENCH_BEST') {
       const strat = p[1], ok = +p[2] || 0, total = +p[3] || 0, avg_ms = +p[4] || 0;
-      benchBestStrat = { name: strat, ok, total, avg_ms };
+      const best_yt = p[5] && p[5] !== '-' ? p[5] : null;
+      const best_dc = p[6] && p[6] !== '-' ? p[6] : null;
+      benchBestStrat = { name: strat, ok, total, avg_ms, best_yt, best_dc };
       sortBenchList();
-      renderBenchBest(strat, ok, total, avg_ms);
+      renderBenchBest(strat, ok, total, avg_ms, best_yt, best_dc);
       const badge = $('bench-badge');
       if(badge){
         badge.hidden = false;

@@ -614,6 +614,54 @@ collect_capture_ports() { # <proto: tcp|udp> [args_string]
     }'
 }
 
+heal_blob() { # <blob_path> -> 0 if healed/exists, 1 if not healable
+  local target="$1"
+  [ -f "$target" ] && return 0
+  local base="${target##*/}" dir="${target%/*}"
+  [ -n "$dir" ] && mkdir -p "$dir" 2>/dev/null
+
+  # 1. Try to restore from $MODDIR/blobs/ if target is in another directory
+  if [ -n "$MODDIR" ] && [ -f "$MODDIR/blobs/$base" ]; then
+    cp -f "$MODDIR/blobs/$base" "$target" 2>/dev/null && return 0
+  fi
+
+  # 2. Heal known standard zero blobs
+  case "$base" in
+    zero_256.bin)
+      dd if=/dev/zero of="$target" bs=256 count=1 >/dev/null 2>&1 && return 0
+      ;;
+    zero_512.bin)
+      dd if=/dev/zero of="$target" bs=512 count=1 >/dev/null 2>&1 && return 0
+      ;;
+    zero_1024.bin)
+      dd if=/dev/zero of="$target" bs=1024 count=1 >/dev/null 2>&1 && return 0
+      ;;
+    quic_initial.bin|quic_initial_www_google_com.bin)
+      if [ -f "$dir/quic_initial.bin" ]; then
+        cp -f "$dir/quic_initial.bin" "$target" 2>/dev/null && return 0
+      elif [ -f "$dir/quic_initial_www_google_com.bin" ]; then
+        cp -f "$dir/quic_initial_www_google_com.bin" "$target" 2>/dev/null && return 0
+      elif [ -n "$MODDIR" ] && [ -f "$MODDIR/blobs/quic_initial.bin" ]; then
+        cp -f "$MODDIR/blobs/quic_initial.bin" "$target" 2>/dev/null && return 0
+      elif [ -n "$MODDIR" ] && [ -f "$MODDIR/blobs/quic_initial_www_google_com.bin" ]; then
+        cp -f "$MODDIR/blobs/quic_initial_www_google_com.bin" "$target" 2>/dev/null && return 0
+      fi
+      ;;
+    tls_clienthello.bin|tls_clienthello_www_google_com.bin)
+      if [ -f "$dir/tls_clienthello.bin" ]; then
+        cp -f "$dir/tls_clienthello.bin" "$target" 2>/dev/null && return 0
+      elif [ -f "$dir/tls_clienthello_www_google_com.bin" ]; then
+        cp -f "$dir/tls_clienthello_www_google_com.bin" "$target" 2>/dev/null && return 0
+      elif [ -n "$MODDIR" ] && [ -f "$MODDIR/blobs/tls_clienthello.bin" ]; then
+        cp -f "$MODDIR/blobs/tls_clienthello.bin" "$target" 2>/dev/null && return 0
+      elif [ -n "$MODDIR" ] && [ -f "$MODDIR/blobs/tls_clienthello_www_google_com.bin" ]; then
+        cp -f "$MODDIR/blobs/tls_clienthello_www_google_com.bin" "$target" 2>/dev/null && return 0
+      fi
+      ;;
+  esac
+  return 1
+}
+
 validate_strategy_blob_references() { # <args_or_conffile>
   local content="$1" f p
   if [ -f "$content" ]; then
@@ -640,6 +688,9 @@ validate_strategy_blob_references() { # <args_or_conffile>
     case "$f" in
       */nfqws2-debug.log|*/nfqws2.log|*/auto.log) continue ;;
     esac
+    if [ ! -f "$f" ]; then
+      heal_blob "$f" 2>/dev/null || true
+    fi
     if [ ! -f "$f" ]; then
       log_msg "Error: blob or script file not found: $f"
       missing=$((missing + 1))
