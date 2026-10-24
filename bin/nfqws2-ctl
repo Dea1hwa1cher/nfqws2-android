@@ -335,7 +335,7 @@ cmd_doctor() {
     fi
     _cg=$(cat "/proc/$_pid/cgroup" 2>/dev/null | tr '\n' ' ')
     row info cgroup "${_cg:-$(M недоступно unavailable)}"
-  elif [ -f "$VPN_PAUSED_FILE" ]; then
+  elif [ -f "$VPN_PAUSED_FILE" ] || { [ -f "$HOME_PAUSED_FILE" ] && [ "$(cat "$HOME_PAUSED_FILE" 2>/dev/null)" = "@vpn" ]; }; then
     row info process "$(M "пауза: активен VPN" "paused: VPN active")"
     row info "$(M 'ОЗУ' 'RAM')" "$(M 'пауза' 'paused')"
   elif [ -f "$HOME_PAUSED_FILE" ]; then

@@ -396,6 +396,11 @@ assert_contains "$ctl_out" "NFQUEUE" "doctor checks the NFQUEUE target"
 assert_contains "$ctl_out" "limiter" "doctor reports the limiter in use"
 assert_contains "$ctl_out" "ОЗУ" "doctor reports memory consumption"
 
+printf '@vpn' > "$HOME_PAUSED_FILE"
+ctl doctor
+assert_contains "$ctl_out" "активен VPN" "doctor reports VPN pause when HOME_PAUSED_FILE contains @vpn"
+rm -f "$HOME_PAUSED_FILE"
+
 section "doctor without kernel features"
 
 MOCK_IPT_FEATURES="multiport NFQUEUE"
