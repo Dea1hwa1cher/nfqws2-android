@@ -11,8 +11,9 @@ function settingsRow(o){
         ' onchange="' + o.on + '"></span>' +
     '</label>';
   }
-  return '<div class="list-item' + (o.sub ? ' two-line' : '') + (o.on ? ' clickable state" role="button" tabindex="0"' +
-      (o.menu ? ' aria-haspopup="menu"' : '') + ' onclick="' + o.on + '"' : '"') + '>' +
+  return '<div class="list-item' + (o.sub ? ' two-line' : '') + (o.on ? ' clickable state' : '') + '"' +
+    (o.long ? ' data-long="' + o.long + '"' : '') +
+    (o.on ? ' role="button" tabindex="0"' + (o.menu ? ' aria-haspopup="menu"' : '') + ' onclick="' + o.on + '"' : '') + '>' +
     '<span class="li-icon">' + icon(o.icon, 's24') + '</span>' +
     '<span class="li-text"><span class="li-primary">' + esc(t(o.title)) + '</span>' +
       (o.sub ? '<span class="li-secondary">' + esc(o.sub) + '</span>' : '') + '</span>' +
@@ -29,6 +30,7 @@ function renderSettings(){
       {icon: 'shield', title: 'Пауза при VPN', sub: t('Пауза обхода при включённом VPN'), sw: true, checked: S.vpn_pause == 1, on: 'toggleVpnPause(this.checked)'}
     ]],
     ['Инструменты', [
+      {icon: 'auto', title: 'Умный режим', sub: S.smart == 1 ? t('Включён · сам подбирает обход для каждого сайта и сети') : t('Сам подбирает обход для каждого сайта и сети'), on: "navigate('smart')", chevron: true},
       {icon: 'apps', title: 'Фильтр приложений', sub: t('Обход только для выбранных приложений или для всех, кроме них'), on: "navigate('apps')", chevron: true},
       {icon: 'status', title: 'nfqws2 Helper', sub: t('Плитка быстрых настроек и уведомление о состоянии'), on: 'openHelperApp()', chevron: true},
       {icon: 'test', title: 'Проверка доступности', sub: t('Открывает адреса из probe_hosts.list через обход'), on: "navigate('test')", chevron: true},
@@ -40,12 +42,13 @@ function renderSettings(){
     ]],
     ['Оформление', [
       {icon: 'palette', title: 'Тема оформления', sub: t('Светлая, тёмная, AMOLED и цвет акцента'), on: 'openMonetModal()'},
+      {icon: 'tune', title: 'Капсула навигации', sub: t('Плавающая нижняя панель со скруглением'), sw: true, checked: isNavCapsule(), id: 'capsule-toggle-settings', on: 'toggleNavCapsule(this.checked); renderSettings()'},
       {icon: 'motion', title: 'Отключение анимаций', sw: true, checked: isAnimationsDisabled(), id: 'animations-toggle', on: 'toggleAnimations(this.checked); renderSettings()'},
       {icon: 'apps', title: 'Ярлык на рабочий стол', sub: t('Добавить на главный экран телефона'), on: 'addDesktopShortcut()'},
-      {icon: 'translate', title: 'Язык', sub: LANG === 'en' ? 'English' : 'Русский', on: 'pickLanguage(this)', menu: true}
+      {icon: 'translate', title: 'Язык', sub: LANG === 'en' ? 'English' : 'Русский', on: 'pickLanguage(this)', menu: true, long: 'lang'}
     ]],
     ['О модуле', [
-      {icon: 'info', title: 'nfqws2 for Android', sub: t('Версия {0}', S.version || '—'), on: 'openUrl(' + jsArg(GITHUB_URL) + ')', chevron: true}
+      {icon: 'info', title: 'nfqws2 for Android', sub: t('Версия {0}', S.version || '—'), on: 'openWhatsNew()', chevron: true, long: 'ver'}
     ]]
   ];
   let devHtml = '';
@@ -57,6 +60,18 @@ function renderSettings(){
     devHtml, false);
 }
 const GITHUB_URL = 'https://github.com/Dea1hwa1cher/nfqws2-android';
+
+/* Долгое нажатие на строки настроек: быстрые действия для тех, кто знает */
+const SETTINGS_LONG = {
+  // версия — список изменений (раньше — отдельный пункт «Что нового»)
+  ver: () => openWhatsNew(),
+  // язык — сразу на другой из двух
+  lang: () => {
+    setLanguage(LANG === 'en' ? 'ru' : 'en');
+    toast(t('Язык переключён: {0}', LANG === 'en' ? 'English' : 'Русский'));
+  }
+};
+if(typeof onLongPress === 'function') onLongPress($('settings-body'), '[data-long]', el => { const f = SETTINGS_LONG[el.dataset.long]; if(f) f(); });
 const HELPER_PACKAGE = 'org.nfqws2.helper';
 const HELPER_RELEASE_URL = 'https://github.com/duhenduhen/nfqws2-helper/releases/tag/1.0';
 
@@ -204,7 +219,7 @@ async function setHomeWifi(on){
 }
 
 /* Backup */
-const UI_KEYS = ['m3_seed', 'm3_mode', 'm3_amoled', 'm3_containers', 'm3_monochrome', 'nfq_lang', 'nfq_dev'];
+const UI_KEYS = ['m3_seed', 'm3_mode', 'm3_amoled', 'm3_containers', 'm3_monochrome', 'm3_nav_capsule', 'm3_no_animations', 'm3_animations', 'nfq_lang', 'nfq_dev'];
 async function createBackup(){
   const targetDir = await promptSaveDir('Сохранить копию');
   if(!targetDir) return;
@@ -326,7 +341,7 @@ function updateBenchButtonsStopping(){
   el.innerHTML = '<span class="spinner"></span><span>' + esc(t('Остановка…')) + '</span>';
 }
 
-function renderBenchRow(idx, name, ok, total, avg_ms, top_fail, isRunning){
+function renderBenchRow(idx, name, ok, total, avg_ms, top_fail, isRunning, yt_ok, dc_ok){
   const stratTitle = typeof strategyName === 'function' ? strategyName(name) : name;
   if(isRunning){
     return '<div class="list-item two-line" id="benchrow' + idx + '">' +
@@ -354,18 +369,30 @@ function renderBenchRow(idx, name, ok, total, avg_ms, top_fail, isRunning){
       sub += ` · ${failReason}`;
     }
   }
+
+  let svcBadges = '';
+  if(total > 0 && (yt_ok !== undefined || dc_ok !== undefined)){
+    const ytPill = yt_ok > 0
+      ? '<span class="pill ok" style="padding:1px 6px; font-size:11px;">YT ✓</span>'
+      : '<span class="pill tonal" style="padding:1px 6px; font-size:11px;">YT ✗</span>';
+    const dcPill = dc_ok > 0
+      ? '<span class="pill ok" style="padding:1px 6px; font-size:11px;">DC ✓</span>'
+      : '<span class="pill tonal" style="padding:1px 6px; font-size:11px;">DC ✗</span>';
+    svcBadges = ' <span style="display:inline-flex; gap:4px; margin-left:6px; vertical-align:middle;">' + ytPill + dcPill + '</span>';
+  }
+
   const pct = total > 0 ? Math.round((ok / total) * 100) + '%' : '0%';
   return '<div class="list-item two-line" id="benchrow' + idx + '">' +
     '<span class="status ' + stClass + '">' + icon(icName, 's16') + '</span>' +
     '<span class="li-text">' +
-      '<span class="li-primary truncate">' + esc(stratTitle) + ' <span class="muted li-mono">(' + esc(name) + ')</span></span>' +
+      '<span class="li-primary truncate">' + esc(stratTitle) + ' <span class="muted li-mono">(' + esc(name) + ')</span>' + svcBadges + '</span>' +
       '<span class="li-secondary">' + esc(sub) + '</span>' +
     '</span>' +
     '<span class="li-trail ' + (isAllOk || isPartOk ? 'li-value' : 't-label-medium bad') + '">' + esc(pct) + '</span>' +
   '</div>';
 }
 
-function renderBenchBest(name, ok, total, avg_ms){
+function renderBenchBest(name, ok, total, avg_ms, best_yt, best_dc){
   const el = $('bench-best');
   if(!el) return;
   if(!name || ok <= 0){
@@ -379,13 +406,26 @@ function renderBenchBest(name, ok, total, avg_ms){
   const cur = (typeof currentStrategy !== 'undefined' && currentStrategy) ? currentStrategy : 'default';
   const isCurrent = cur === name;
 
-  const countBadge = (currentBenchTab === 'domain' && total <= 3)
-    ? t('{0}/{1} проверок ({2} мс)', ok, total, avg_ms)
-    : t('{0}/{1} хостов ({2} мс)', ok, total, avg_ms);
+  const countBadge = t('{0}/{1} хостов ({2} мс)', ok, total, avg_ms);
+  const descText = t('Стратегия «{0}» показала максимальную проходимость и скорость на контрольных ресурсах.', stratTitle);
 
-  const descText = (currentBenchTab === 'domain' && benchLastCheckedDomain)
-    ? t('Стратегия «{0}» показала максимальную проходимость и скорость для {1}.', stratTitle, benchLastCheckedDomain)
-    : t('Стратегия «{0}» показала максимальную проходимость и скорость на контрольных ресурсах.', stratTitle);
+  let extraButtons = '';
+  if(best_yt && best_yt !== '-' && best_yt !== name){
+    const ytTitle = typeof strategyName === 'function' ? strategyName(best_yt) : best_yt;
+    const isYtCurrent = cur === best_yt;
+    extraButtons += '<button class="btn with-icon state ' + (isYtCurrent ? 'tonal' : '') + '" onclick="applyBenchStrategy(' + jsArg(best_yt) + ')"' + (isYtCurrent ? ' disabled' : '') + '>' +
+      icon(isYtCurrent ? 'check' : 'tune', 's18') +
+      '<span>' + (isYtCurrent ? esc(t('YouTube: «{0}» активна', ytTitle)) : esc(t('YouTube Focus: «{0}»', ytTitle))) + '</span>' +
+    '</button>';
+  }
+  if(best_dc && best_dc !== '-' && best_dc !== name && best_dc !== best_yt){
+    const dcTitle = typeof strategyName === 'function' ? strategyName(best_dc) : best_dc;
+    const isDcCurrent = cur === best_dc;
+    extraButtons += '<button class="btn with-icon state ' + (isDcCurrent ? 'tonal' : '') + '" onclick="applyBenchStrategy(' + jsArg(best_dc) + ')"' + (isDcCurrent ? ' disabled' : '') + '>' +
+      icon(isDcCurrent ? 'check' : 'tune', 's18') +
+      '<span>' + (isDcCurrent ? esc(t('Discord: «{0}» активна', dcTitle)) : esc(t('Discord Focus: «{0}»', dcTitle))) + '</span>' +
+    '</button>';
+  }
 
   el.innerHTML = '<div class="subhead-row" style="margin-top:0;">' +
     '<span class="subhead plain">' + esc(t('Лучшая стратегия по результатам прохода')) + '</span>' +
@@ -394,19 +434,33 @@ function renderBenchBest(name, ok, total, avg_ms){
   '<div class="t-body-medium">' +
     esc(descText) +
   '</div>' +
-  '<div class="row" style="margin-top:12px; gap:8px;">' +
+  '<div class="row" style="margin-top:12px; gap:8px; flex-wrap:wrap;">' +
     '<button class="btn with-icon state ' + (isCurrent ? 'tonal' : '') + '" onclick="applyBenchStrategy(' + jsArg(name) + ')"' + (isCurrent ? ' disabled' : '') + '>' +
       icon(isCurrent ? 'check' : 'tune', 's18') +
       '<span>' + (isCurrent ? esc(t('Стратегия «{0}» уже действует', stratTitle)) : esc(t('Применить «{0}»', stratTitle))) + '</span>' +
     '</button>' +
+    extraButtons +
   '</div>';
+}
+
+function wilsonScore(ok, total) {
+  if (!total || total <= 0) return 0;
+  const z = 1.96;
+  const n = total;
+  const p = ok / n;
+  const z2 = z * z;
+  return (p + z2 / (2 * n) - z * Math.sqrt((p * (1 - p) + z2 / (4 * n)) / n)) / (1 + z2 / n);
 }
 
 function sortBenchList(){
   const listEl = $('bench-list');
   if(!listEl) return;
-  const sorted = Object.values(benchResults).sort((a, b) => b.ok - a.ok || a.avg_ms - b.avg_ms);
-  listEl.innerHTML = sorted.map(it => renderBenchRow(it.idx, it.name, it.ok, it.total, it.avg_ms, it.top_fail, false)).join('');
+  const sorted = Object.values(benchResults).sort((a, b) => {
+    const sA = wilsonScore(a.ok, a.total);
+    const sB = wilsonScore(b.ok, b.total);
+    return (sB - sA) || (b.ok - a.ok) || (a.avg_ms - b.avg_ms);
+  });
+  listEl.innerHTML = sorted.map(it => renderBenchRow(it.idx, it.name, it.ok, it.total, it.avg_ms, it.top_fail, false, it.yt_ok, it.dc_ok)).join('');
 }
 
 function resetBenchResults(){
@@ -466,16 +520,20 @@ async function runBench(){
       else if($('bench-list')) $('bench-list').insertAdjacentHTML('beforeend', rowHtml);
     } else if(p[0] === 'BENCH_RES') {
       const idx = p[1], strat = p[2], ok = +p[3] || 0, total = +p[4] || 0, avg_ms = +p[5] || 0, top_fail = p[6] || '-';
-      benchResults[strat] = { idx, name: strat, ok, total, avg_ms, top_fail };
+      const yt_ok = p[7] !== undefined ? +p[7] : undefined;
+      const dc_ok = p[8] !== undefined ? +p[8] : undefined;
+      benchResults[strat] = { idx, name: strat, ok, total, avg_ms, top_fail, yt_ok, dc_ok };
       const existing = $('benchrow' + idx);
-      const rowHtml = renderBenchRow(idx, strat, ok, total, avg_ms, top_fail, false);
+      const rowHtml = renderBenchRow(idx, strat, ok, total, avg_ms, top_fail, false, yt_ok, dc_ok);
       if(existing) existing.outerHTML = rowHtml;
       else if($('bench-list')) $('bench-list').insertAdjacentHTML('beforeend', rowHtml);
     } else if(p[0] === 'BENCH_BEST') {
       const strat = p[1], ok = +p[2] || 0, total = +p[3] || 0, avg_ms = +p[4] || 0;
-      benchBestStrat = { name: strat, ok, total, avg_ms };
+      const best_yt = p[5] && p[5] !== '-' ? p[5] : null;
+      const best_dc = p[6] && p[6] !== '-' ? p[6] : null;
+      benchBestStrat = { name: strat, ok, total, avg_ms, best_yt, best_dc };
       sortBenchList();
-      renderBenchBest(strat, ok, total, avg_ms);
+      renderBenchBest(strat, ok, total, avg_ms, best_yt, best_dc);
       const badge = $('bench-badge');
       if(badge){
         badge.hidden = false;
@@ -540,5 +598,43 @@ function copyBenchReport(){
     rep += `- ${title} (${it.name}): ${it.ok}/${it.total} (${it.avg_ms} мс)` + (it.top_fail && it.top_fail !== '-' ? ` [${t(reasonsDict[it.top_fail] || it.top_fail)}]` : '') + '\n';
   }
   copyText(rep, t('Отчёт скопирован в буфер обмена'), t('Не удалось скопировать: выделите текст вручную'));
+}
+
+/* ══ Что нового ══════════════════════════════════════════════════════════
+   После обновления модуля, при первом открытии WebUI, — лист с изменениями
+   этой версии из changelog.md модуля. Версия, для которой лист уже
+   показывали, хранится в nfq_seen_ver; при первой установке не показываем. */
+async function checkWhatsNew(){
+  const v = S.version;
+  if(!v) return;
+  const seen = store.get('nfq_seen_ver');
+  if(seen === v) return;
+  store.set('nfq_seen_ver', v);
+  if(seen && !openSheetId && !editorCtx) await openWhatsNew(true);
+}
+/* Раздел changelog.md для версии: заголовок «### … vX.Y.Z:» — без суффиксов
+   вроде -ci.abc1234; нет такого — первый раздел. */
+function whatsNewSection(md, version){
+  const base = (version || '').replace(/^(v?\d+(?:\.\d+)*).*$/, '$1');
+  const parts = md.split(/^### /m).slice(1).map(p => {
+    const nl = p.indexOf('\n');
+    return {head: p.slice(0, nl < 0 ? p.length : nl).trim(), body: nl < 0 ? '' : p.slice(nl + 1)};
+  });
+  const esc2 = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return parts.find(p => base && new RegExp('\\b' + esc2(base) + '\\b').test(p.head)) || parts[0] || null;
+}
+function mdInline(s){
+  return esc(s).replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/`([^`]+)`/g, '<code>$1</code>');
+}
+async function openWhatsNew(auto){
+  const r = await ctlx(['changelog']);
+  const sec = !r.code && whatsNewSection(r.out || '', S.version);
+  if(!sec){ if(!auto) toast(errText(r, 'Список изменений недоступен')); return; }
+  const items = sec.body.split('\n').map(l => l.trim()).filter(l => /^[-*] /.test(l)).map(l => l.slice(2));
+  $('whatsnew-title').textContent = t('Что нового в {0}', (S.version || '').replace(/-.*$/, ''));
+  setHTML('whatsnew-body', items.length
+    ? '<ul>' + items.map(i => '<li>' + mdInline(i) + '</li>').join('') + '</ul>'
+    : '<p>' + mdInline(sec.body.trim()) + '</p>', false);
+  openSheet('whatsnew-sheet');
 }
 

@@ -48,13 +48,15 @@ const sandbox = {
   S: { running: true, paused: false },
   currentStrategy: 'default',
   strategyName: s => s,
+  jsArg: v => JSON.stringify(String(v == null ? '' : v)),
+  onLongPress: () => {},
   document: {
     querySelectorAll: () => [],
     createElement: () => ({ select: () => {}, appendChild: () => {} }),
     body: { appendChild: () => {}, removeChild: () => {} }
   },
   navigator: {},
-  $: id => ({ textContent: '', innerHTML: '', hidden: false, disabled: false, insertAdjacentHTML: () => {} })
+  $: id => (sandbox._els = sandbox._els || {}, sandbox._els[id] = sandbox._els[id] || { textContent: '', innerHTML: '', hidden: false, disabled: false, insertAdjacentHTML: () => {} })
 };
 
 vm.createContext(sandbox);
@@ -69,6 +71,7 @@ eq('TLS RST (сброс ClientHello)', probeReason.tls_rst, 'tls_rst maps to Cli
 eq('TLS Alert (SNI блок)', probeReason.tls_alert, 'tls_alert maps to SNI block');
 eq('Тихий сброс (Drop)', probeReason.drop, 'drop maps to silent TSPU drop');
 eq('Заглушка провайдера (RKN)', probeReason.isp_redir, 'isp_redir maps to RKN block page');
+eq('WebSocket Gateway заблокирован (ТСПУ)', probeReason.ws_blocked, 'ws_blocked maps to Discord WebSocket block');
 eq('Подмена сертификата (MITM)', probeReason.tls_mitm, 'tls_mitm maps to MITM');
 eq('Подмена ответа (Spoof)', probeReason.tls_spoof, 'tls_spoof maps to response spoof');
 eq('Ошибка DNS', probeReason.dns_fail, 'dns_fail maps to DNS failure');
@@ -95,6 +98,23 @@ truthy(benchRowOk.includes('status ok') && benchRowOk.includes('100%') && benchR
 
 const benchRowFail = sandbox.renderBenchRow(2, 'default', 0, 30, 0, 'tls_rst', false);
 truthy(benchRowFail.includes('status bad') && benchRowFail.includes('0%') && benchRowFail.includes('TLS RST'), 'Bench failed row renders with status bad and reason');
+
+const benchRowSvc = sandbox.renderBenchRow(3, 'fake_tls_auto', 20, 30, 40, '-', false, 1, 0);
+truthy(benchRowSvc.includes('YT ✓') && benchRowSvc.includes('DC ✗'), 'Bench row displays YouTube and Discord status pills');
+
+sandbox.renderBenchBest('fake_tls_auto', 25, 30, 45, 'alt4', 'fake_tls_auto');
+const bestEl = sandbox.$('bench-best');
+truthy(bestEl.innerHTML.includes('YouTube Focus') && bestEl.innerHTML.includes('alt4'), 'Bench best renders dedicated YouTube focus button when different');
+
+// ── Wilson score strategy ranking ─────────────────────────────────────────
+sect('Wilson score strategy ranking');
+truthy(typeof sandbox.wilsonScore === 'function', 'wilsonScore helper is exported');
+eq(0, sandbox.wilsonScore(0, 0), 'wilsonScore returns 0 on zero total');
+const scoreLuckySingle = sandbox.wilsonScore(1, 1);
+const scoreSolidBatch = sandbox.wilsonScore(29, 30);
+truthy(scoreSolidBatch > scoreLuckySingle, 'Wilson score prioritizes high sample size (29/30) over 1/1 fluke');
+truthy(scoreLuckySingle > 0.15 && scoreLuckySingle < 0.35, '1/1 Wilson score lower bound is discounted (~0.20)');
+truthy(scoreSolidBatch > 0.75 && scoreSolidBatch < 0.95, '29/30 Wilson score lower bound is solid (~0.83)');
 
 // ── 3. Strategy auto-selection logic ───────────────────────────────────────
 sect('strategy auto-selection logic');

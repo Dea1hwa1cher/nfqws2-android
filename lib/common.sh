@@ -31,6 +31,12 @@ LISTS_PENDING_DIR="$LISTS_DIR/.pending"
 HOME_FILE="$CONFDIR/home_wifi.list"
 HOME_PAUSED_FILE="$STATE_DIR/home_paused"      # paused by home network; holds SSID
 HOME_OVERRIDE_FILE="$STATE_DIR/home_override"  # user re-enabled on this network
+SMART_DIR="$CONFDIR/smart"                     # умный режим: выученное по сетям (<сеть>.tsv)
+SMART_NET_FILE="$STATE_DIR/smart_net"          # id текущей сети для умного режима или offline
+SMART_TRAIN_FILE="$STATE_DIR/smart_train"      # ход обучения
+SMART_TRAIN_PID="$STATE_DIR/smart_train.pid"
+SK_PIDFILE="$STATE_DIR/smartkill.pid"          # обрыв застрявших соединений умного режима
+SMART_KILL_FILE="$STATE_DIR/smart_kill"        # их пишет оркестратор: «4|6 адрес локальный-порт»
 
 # VPN pause: bypass pauses while a VPN interface is active (VPN_PAUSE=1)
 VPN_PAUSED_FILE="$STATE_DIR/vpn_paused"        # paused by active VPN
@@ -47,6 +53,16 @@ IPT_GROUP_QOUT="nfqws_qout"
 IPT_GROUP_QIN="nfqws_qin" # like QOUT, for incoming when connbytes is missing
 IPT_GROUP_APP="nfqws_app"
 IPT_GROUP_FWD="nfqws_fwd"
+IPT_GROUP_MQ="nfqws_mquic"     # filter: мгновенный отказ QUIC к Meta (META_QUIC_REJECT)
+
+# Сети Meta (Instagram, Facebook, WhatsApp): AS32934
+META_NET4="157.240.0.0/16 31.13.24.0/21 31.13.64.0/18 57.144.0.0/14 163.70.128.0/17 129.134.0.0/16 69.171.224.0/19 173.252.64.0/18 179.60.192.0/22 185.60.216.0/22 66.220.144.0/20 69.63.176.0/20 102.132.96.0/20 204.15.20.0/22 45.64.40.0/22"
+META_NET6="2a03:2880::/32"
+
+# Сети Telegram: CIDR диапазоны мессенджера для обхода звонков
+TG_NET4="91.105.192.0/23 91.108.4.0/22 91.108.8.0/22 91.108.12.0/22 91.108.16.0/22 91.108.20.0/22 91.108.56.0/22 95.161.64.0/20 149.154.160.0/20 185.76.151.0/24"
+TG_NET6="2001:67c:4e8::/48 2001:b28:f23c::/48 2001:b28:f23d::/48 2001:b28:f23f::/48 2a0a:f280::/32"
+
 NET_STRATEGIES_DIR="$CONFDIR/net_strategies"
 IPT_CAP_CACHE="$STATE_DIR/iptables-capabilities"
 RECEIPT_FILE="$STATE_DIR/compiled.receipt"
@@ -91,6 +107,9 @@ set_defaults() {
   : "${ENABLE_HOTSPOT:=1}"
   : "${NET_STRATEGY:=0}"
   : "${VPN_PAUSE:=0}"
+  : "${META_QUIC_REJECT:=1}"
+  : "${CALLS_BYPASS:=0}"
+  : "${TCP_MSS_CLAMP:=0}"
   : "${AUTO_PORTS:=0}"
 }
 
@@ -197,7 +216,7 @@ load_conf() {
   fi
   local err
   err=$(validate_conf "$CONFFILE" 2>&1) || {
-    log_msg "Конфиг $CONFFILE содержит ошибки: $err"
+    log_msg "Config $CONFFILE contains errors: $err"
     . "$MODDIR/defaults/nfqws2.conf"
     set_defaults
     return 1
@@ -212,7 +231,7 @@ validate_args_conf() {
   for var in NFQWS_BASE_ARGS NFQWS_ARGS NFQWS_ARGS_QUIC NFQWS_ARGS_UDP NFQWS_EXTRA_ARGS NFQWS_ARGS_IPSET; do
     eval "v=\$$var"
     case "$v" in
-      *--new*) echo "Использовать --new в $var нельзя. Используйте NFQWS_ARGS_CUSTOM"; return 1 ;;
+      *--new*) echo "--new cannot be used in $var. Use NFQWS_ARGS_CUSTOM"; return 1 ;;
     esac
   done
   return 0
@@ -371,7 +390,7 @@ app_rules() {
     return 1
   fi
   if ! app_features_ok "$REAL_CMD"; then
-    [ "$REAL_CMD" = "iptables" ] && log_msg "Нет xt_owner/xt_CONNMARK — фильтр по приложениям не применяется"
+    [ "$REAL_CMD" = "iptables" ] && log_msg "No xt_owner/xt_CONNMARK — app filter is not applied"
     return 2
   fi
   uids=$(resolve_app_uids)
@@ -381,7 +400,7 @@ app_rules() {
     n=$(app_uid_count)
   fi
   if [ "$n" = "0" ]; then
-    log_msg "apps.list: ни один пакет не сопоставлен с UID — фильтр по приложениям ($APP_MODE) не действует"
+    log_msg "apps.list: no packages mapped to UIDs — app filter ($APP_MODE) is inactive"
     return 2
   fi
 
@@ -404,8 +423,43 @@ app_rules() {
     $CMD -w -t mangle -A $IPT_GROUP_POST -m connmark ! --mark "$MARK_INCLUDE" -j RETURN
     [ "$LIMITER" = "connbytes" ] && $CMD -w -t mangle -A $IPT_GROUP_PRE -m connmark ! --mark "$MARK_INCLUDE" -j RETURN
   fi
-  log_msg "Фильтр по приложениям ($APP_MODE): $n UID"
+  log_msg "App filter ($APP_MODE): $n UIDs"
   return 0
+}
+
+# Профиль звонков с подставленными сетями Meta и Telegram
+calls_args() {
+  local m t
+  m=$(printf '%s' "$META_NET4 $META_NET6" | tr ' ' ',')
+  t=$(printf '%s' "$TG_NET4 $TG_NET6" | tr ' ' ',')
+  norm_args "$(sed -e "s#@META@#$m#g" -e "s#@TG@#$t#g" "$MODDIR/defaults/calls-bypass.conf")"
+}
+
+# Добавить порты или диапазоны (a:b) в список для iptables. То, что новый
+# диапазон покрывает целиком, из списка уходит: multiport берёт не больше 15
+# портов (диапазон — за два), и лишние записи переполнили бы правило.
+port_list_add() { # <список> <порт|a:b>...
+  local l="$1"; shift
+  printf '%s\n' "$@" | awk -v l="$l" '
+    function lo(x) { return x ~ /:/ ? substr(x, 1, index(x, ":") - 1) + 0 : x + 0 }
+    function hi(x) { return x ~ /:/ ? substr(x, index(x, ":") + 1) + 0 : x + 0 }
+    BEGIN { n = split(l, a, ",") }
+    NF { add[++m] = $0 }
+    END {
+      out = ""
+      for (i = 1; i <= n; i++) {
+        if (a[i] == "") continue
+        cov = 0
+        for (j = 1; j <= m; j++) if (a[i] != add[j] && lo(a[i]) >= lo(add[j]) && hi(a[i]) <= hi(add[j])) cov = 1
+        if (!cov) out = out (out == "" ? "" : ",") a[i]
+      }
+      for (j = 1; j <= m; j++) {
+        dup = 0
+        for (i = 1; i <= n; i++) if (lo(add[j]) >= lo(a[i]) && hi(add[j]) <= hi(a[i])) dup = 1
+        if (!dup) out = out (out == "" ? "" : ",") add[j]
+      }
+      printf "%s", out
+    }'
 }
 
 port_list_without() {
@@ -439,6 +493,10 @@ _startup_args() {
   fi
 
   args="$args $base"
+  # Обход звонков — ставится перед стратегией
+  if [ "$CALLS_BYPASS" = "1" ] && [ -f "$MODDIR/defaults/calls-bypass.conf" ]; then
+    args="$args --blob=calls_stun:@$BLOBS_DIR/stun.bin --blob=calls_tls:@$BLOBS_DIR/tls_clienthello.bin $(calls_args) --new"
+  fi
   [ -n "$custom" ] && args="$args $custom --new"
   [ -n "$udp" ] && args="$args $udp --new"
 
@@ -469,7 +527,7 @@ dry_run_check() { # <args...>
     if [ -n "$out" ]; then
       printf '%s\n' "$out"
     else
-      echo "nfqws2: ошибка параметров (код $rc)"
+      echo "nfqws2: parameter error (code $rc)"
     fi
     return "$rc"
   fi
@@ -557,6 +615,54 @@ collect_capture_ports() { # <proto: tcp|udp> [args_string]
     }'
 }
 
+heal_blob() { # <blob_path> -> 0 if healed/exists, 1 if not healable
+  local target="$1"
+  [ -f "$target" ] && return 0
+  local base="${target##*/}" dir="${target%/*}"
+  [ -n "$dir" ] && mkdir -p "$dir" 2>/dev/null
+
+  # 1. Try to restore from $MODDIR/blobs/ if target is in another directory
+  if [ -n "$MODDIR" ] && [ -f "$MODDIR/blobs/$base" ]; then
+    cp -f "$MODDIR/blobs/$base" "$target" 2>/dev/null && return 0
+  fi
+
+  # 2. Heal known standard zero blobs
+  case "$base" in
+    zero_256.bin)
+      dd if=/dev/zero of="$target" bs=256 count=1 >/dev/null 2>&1 && return 0
+      ;;
+    zero_512.bin)
+      dd if=/dev/zero of="$target" bs=512 count=1 >/dev/null 2>&1 && return 0
+      ;;
+    zero_1024.bin)
+      dd if=/dev/zero of="$target" bs=1024 count=1 >/dev/null 2>&1 && return 0
+      ;;
+    quic_initial.bin|quic_initial_www_google_com.bin)
+      if [ -f "$dir/quic_initial.bin" ]; then
+        cp -f "$dir/quic_initial.bin" "$target" 2>/dev/null && return 0
+      elif [ -f "$dir/quic_initial_www_google_com.bin" ]; then
+        cp -f "$dir/quic_initial_www_google_com.bin" "$target" 2>/dev/null && return 0
+      elif [ -n "$MODDIR" ] && [ -f "$MODDIR/blobs/quic_initial.bin" ]; then
+        cp -f "$MODDIR/blobs/quic_initial.bin" "$target" 2>/dev/null && return 0
+      elif [ -n "$MODDIR" ] && [ -f "$MODDIR/blobs/quic_initial_www_google_com.bin" ]; then
+        cp -f "$MODDIR/blobs/quic_initial_www_google_com.bin" "$target" 2>/dev/null && return 0
+      fi
+      ;;
+    tls_clienthello.bin|tls_clienthello_www_google_com.bin)
+      if [ -f "$dir/tls_clienthello.bin" ]; then
+        cp -f "$dir/tls_clienthello.bin" "$target" 2>/dev/null && return 0
+      elif [ -f "$dir/tls_clienthello_www_google_com.bin" ]; then
+        cp -f "$dir/tls_clienthello_www_google_com.bin" "$target" 2>/dev/null && return 0
+      elif [ -n "$MODDIR" ] && [ -f "$MODDIR/blobs/tls_clienthello.bin" ]; then
+        cp -f "$MODDIR/blobs/tls_clienthello.bin" "$target" 2>/dev/null && return 0
+      elif [ -n "$MODDIR" ] && [ -f "$MODDIR/blobs/tls_clienthello_www_google_com.bin" ]; then
+        cp -f "$MODDIR/blobs/tls_clienthello_www_google_com.bin" "$target" 2>/dev/null && return 0
+      fi
+      ;;
+  esac
+  return 1
+}
+
 validate_strategy_blob_references() { # <args_or_conffile>
   local content="$1" f p
   if [ -f "$content" ]; then
@@ -567,11 +673,13 @@ validate_strategy_blob_references() { # <args_or_conffile>
   for p in $(printf '%s\n' "$content" | awk '
     {
       s = $0
+      if (s ~ /^[[:space:]]*#/) next
       while (match(s, /@[A-Za-z0-9_.\-\/$]+/)) {
         print substr(s, RSTART + 1, RLENGTH - 1)
         s = substr(s, RSTART + RLENGTH)
       }
     }' | sort -u); do
+    case "$p" in META*|TG*) continue ;; esac
     f="$p"
     f=$(printf '%s\n' "$f" | sed \
         -e "s#\\\$LUA_DIR#$LUA_DIR#g" \
@@ -582,7 +690,10 @@ validate_strategy_blob_references() { # <args_or_conffile>
       */nfqws2-debug.log|*/nfqws2.log|*/auto.log) continue ;;
     esac
     if [ ! -f "$f" ]; then
-      log_msg "Ошибка: файл блоба или скрипта не найден: $f"
+      heal_blob "$f" 2>/dev/null || true
+    fi
+    if [ ! -f "$f" ]; then
+      log_msg "Error: blob or script file not found: $f"
       missing=$((missing + 1))
     fi
   done
@@ -1283,6 +1394,15 @@ _fw_iface_rules() {
     _fw_add_rule "$CMD" $IPT_GROUP_POST "$OUT" tcp dports "$TP" "--tcp-flags rst rst" "$JNFQ"
   fi
 
+  # TCP MSS Clamping to mitigate HTTP/2 mid-stream reassembly blocks (TSPU 2026)
+  if [ -n "$TCP_MSS_CLAMP" ] && [ "$TCP_MSS_CLAMP" != "0" ]; then
+    local mss_val="$TCP_MSS_CLAMP"
+    [ "$mss_val" = "1" ] && mss_val=536
+    if [ -n "$TP" ]; then
+      _fw_add_rule "$CMD" $IPT_GROUP_POST "$OUT" tcp dports "$TP" "--tcp-flags syn,rst syn" "-j TCPMSS --set-mss $mss_val"
+    fi
+  fi
+
   # NAT fix for UDP
   if [ "$REAL_CMD" = "iptables" ] && [ "$NAT_FIX" = "1" ]; then
     $CMD -w -t nat -A $IPT_GROUP_NAT $OUT -p udp -m mark --mark $MARK_PROCESSED -j MASQUERADE
@@ -1327,6 +1447,10 @@ _firewall_start() {
     IPT_UDP_EFF=$(printf '%s' "$UDP_PORTS" | tr '-' ':')
   fi
   [ "$BLOCK_QUIC" = "1" ] && IPT_UDP_EFF=$(port_list_without "$IPT_UDP_EFF" 443)
+  if [ "$CALLS_BYPASS" = "1" ]; then
+    IPT_UDP_EFF=$(port_list_add "$IPT_UDP_EFF" 590:1400 3478:3482)
+    IPT_TCP_PORTS=$(port_list_add "$IPT_TCP_PORTS" 5222)
+  fi
 
   LIMITER=$(detect_limiter "$REAL_CMD")
   [ "$REAL_CMD" = "iptables" ] && echo "$LIMITER" > "$STATE_DIR/limiter" 2>/dev/null
@@ -1423,9 +1547,43 @@ _firewall_start() {
 }
 
 
+_firewall_stop_batch() { # <iptables|ip6tables>
+  local CMD="$1" t chains in
+  if ! command -v "$CMD-save" >/dev/null 2>&1 || ! command -v "$CMD-restore" >/dev/null 2>&1; then
+    return 1
+  fi
+  for t in mangle nat; do
+    if [ "$t" = mangle ]; then
+      chains="$IPT_GROUP_POST $IPT_GROUP_PRE $IPT_GROUP_FWD $IPT_GROUP_QOUT $IPT_GROUP_QIN $IPT_GROUP_APP"
+    else
+      [ "$CMD" = iptables ] || continue
+      chains="$IPT_GROUP_NAT"
+    fi
+    in=$("$CMD-save" -t "$t" 2>/dev/null) || return 1
+    in=$(printf '%s\n' "$in" | awk -v t="$t" -v list=" $chains " '
+      function ours(c) { return index(list, " " c " ") > 0 }
+      /^:/ { c = substr($1, 2); if (ours(c)) own[++m] = c; next }
+      /^-A / && !ours($2) {
+        for (i = 3; i < NF; i++) if ($i == "-j" && ours($(i + 1))) { sub(/^-A /, "-D "); del[++n] = $0; break }
+      }
+      END {
+        if (!n && !m) exit
+        print "*" t
+        for (i = 1; i <= n; i++) print del[i]
+        for (i = 1; i <= m; i++) print "-F " own[i]
+        for (i = 1; i <= m; i++) print "-X " own[i]
+        print "COMMIT"
+      }')
+    [ -n "$in" ] || continue
+    printf '%s\n' "$in" | "$CMD-restore" --noflush 2>/dev/null || return 1
+  done
+  return 0
+}
+
 _firewall_stop() {
   local CMD="$1"
   while $CMD -w -t mangle -D POSTROUTING -m mark --mark $MARK_PROCESSED -j MARK --set-xmark 0x0/0x40000000 2>/dev/null; do :; done
+  _firewall_stop_batch "$CMD" && return 0
   while $CMD -w -t mangle -D POSTROUTING -j $IPT_GROUP_POST 2>/dev/null; do :; done
   while $CMD -w -t mangle -D PREROUTING -j $IPT_GROUP_PRE 2>/dev/null; do :; done
   while $CMD -w -t mangle -D FORWARD -j $IPT_GROUP_FWD 2>/dev/null; do :; done
@@ -1439,6 +1597,44 @@ _firewall_stop() {
     while $CMD -w -t nat -D POSTROUTING -j $IPT_GROUP_NAT 2>/dev/null; do :; done
     $CMD -w -t nat -F $IPT_GROUP_NAT 2>/dev/null; $CMD -w -t nat -X $IPT_GROUP_NAT 2>/dev/null
   fi
+  return 0
+}
+
+# QUIC к Meta — сразу отказ (ICMP «порт недоступен»), а не молчаливая потеря.
+# На мобильных сетях QUIC Instagram проходит обход, но потом встаёт посреди
+# ролика, а к cdn.fbsbx.com (картинки и GIF) не проходит вовсе; на молчаливую
+# потерю приложение ждёт таймаута. Получив отказ, оно сразу идёт по TCP — как
+# за роутером, где провайдер QUIC к Meta не пропускает. Правила в таблице
+# filter (REJECT в mangle нельзя), снимаются вместе с остальными.
+_meta_quic_chain() { # <iptables|ip6tables> <сети> <reject-with>
+  local C="$1" n
+  command -v "$C" >/dev/null 2>&1 || return 0
+  $C -w -t filter -N $IPT_GROUP_MQ 2>/dev/null || return 0
+  n=$(printf '%s' "$2" | tr -s ' ' ',')
+  $C -w -t filter -A $IPT_GROUP_MQ -p udp --dport 443 -d "$n" -j REJECT --reject-with "$3" 2>/dev/null || {
+    log_msg "$C: no REJECT support — Meta QUIC reject is unavailable"
+    $C -w -t filter -F $IPT_GROUP_MQ 2>/dev/null; $C -w -t filter -X $IPT_GROUP_MQ 2>/dev/null
+    return 0
+  }
+  $C -w -t filter -I OUTPUT 1 -j $IPT_GROUP_MQ
+  $C -w -t filter -I FORWARD 1 -j $IPT_GROUP_MQ 2>/dev/null
+  return 0
+}
+meta_quic_stop() {
+  local C
+  for C in iptables ip6tables; do
+    command -v "$C" >/dev/null 2>&1 || continue
+    while $C -w -t filter -D OUTPUT -j $IPT_GROUP_MQ 2>/dev/null; do :; done
+    while $C -w -t filter -D FORWARD -j $IPT_GROUP_MQ 2>/dev/null; do :; done
+    $C -w -t filter -F $IPT_GROUP_MQ 2>/dev/null; $C -w -t filter -X $IPT_GROUP_MQ 2>/dev/null
+  done
+  return 0
+}
+meta_quic_start() {
+  meta_quic_stop
+  [ "$META_QUIC_REJECT" = "1" ] || return 0
+  _meta_quic_chain iptables "$META_NET4" icmp-port-unreachable
+  _meta_quic_chain ip6tables "$META_NET6" icmp6-port-unreachable
 }
 
 firewall_iptables()  { _firewall_start iptables; }
@@ -1464,6 +1660,8 @@ restore_tether_offload() {
 # check both rc: firewall_ip6tables returns 0 when IPv6 is off, masking an iptables failure
 firewall_start() {
   local rc=0
+  sysctl -w net.netfilter.nf_conntrack_acct=1 >/dev/null 2>&1 ||
+    { [ -w /proc/sys/net/netfilter/nf_conntrack_acct ] && echo 1 > /proc/sys/net/netfilter/nf_conntrack_acct 2>/dev/null; }
   FW_RESTORE_DIR="$STATE_DIR/firewall-restore"
   mkdir -p "$FW_RESTORE_DIR" 2>/dev/null
   if command -v iptables-restore >/dev/null 2>&1; then
@@ -1478,6 +1676,7 @@ firewall_start() {
   else
     firewall_ip6tables || rc=1
   fi
+  meta_quic_start
   apply_tether_offload
   return $rc
 }
@@ -1486,6 +1685,7 @@ firewall_stop() {
   local rc=0
   _firewall_stop iptables || rc=1
   _firewall_stop ip6tables || rc=1
+  meta_quic_stop
   restore_tether_offload
   return $rc
 }
@@ -1551,10 +1751,10 @@ system_config() {
   local cur_est cur_max
   cur_est=$(sysctl -n net.netfilter.nf_conntrack_tcp_timeout_established 2>/dev/null)
   cur_max=$(sysctl -n net.netfilter.nf_conntrack_max 2>/dev/null)
-  [ -n "$cur_est" ] && log_msg "conntrack: nf_conntrack_tcp_timeout_established было $cur_est, ставим 1200 (как на эталонном роутере)"
+  [ -n "$cur_est" ] && log_msg "conntrack: nf_conntrack_tcp_timeout_established was $cur_est, setting 1200 (reference router value)"
   sysctl -w net.netfilter.nf_conntrack_tcp_timeout_established=1200 >/dev/null 2>&1
   if [ -n "$cur_max" ] && [ "$cur_max" -lt 16384 ] 2>/dev/null; then
-    log_msg "conntrack: nf_conntrack_max было $cur_max, поднимаем до 16384 (как на эталонном роутере)"
+    log_msg "conntrack: nf_conntrack_max was $cur_max, raising to 16384 (reference router value)"
     sysctl -w net.netfilter.nf_conntrack_max=16384 >/dev/null 2>&1
   fi
   setup_cli_symlinks
@@ -1727,7 +1927,7 @@ update_description() { # running | stopped | paused <ssid>
       mode=$(current_mode)
       d="✅ Работает · ${strat:-default}${mode:+ · $mode}" ;;
     paused)
-      if [ "$2" = "vpn" ] || [ "$2" = "VPN" ]; then
+      if [ "$2" = "@vpn" ] || [ "$2" = "vpn" ] || [ "$2" = "VPN" ]; then
         d="⏸ Пауза: активен VPN"
       else
         d="⏸ Пауза: домашняя Wi-Fi «$2»"
@@ -1790,7 +1990,7 @@ render_strategy() {
 
 # Module settings (same across strategies) are carried over whole from the live
 # config on strategy change/reset. NFQWS_EXTRA_ARGS only for standard $MODE_* refs.
-USER_KEYS="IPV6_ENABLED TCP_PORTS UDP_PORTS NFQUEUE_NUM PKT_LIMIT_OUT PKT_LIMIT_IN BLOCK_QUIC NAT_FIX APP_MODE AUTOSTART WATCHDOG NFQWS_USER LOG_LEVEL LOG_MAX_KB WAKELOCK HOME_WIFI ENABLE_HOTSPOT NET_STRATEGY VPN_PAUSE AUTO_PORTS NFQWS_EXTRA_ARGS"
+USER_KEYS="META_QUIC_REJECT CALLS_BYPASS TCP_MSS_CLAMP IPV6_ENABLED TCP_PORTS UDP_PORTS NFQUEUE_NUM PKT_LIMIT_OUT PKT_LIMIT_IN BLOCK_QUIC NAT_FIX APP_MODE AUTOSTART WATCHDOG NFQWS_USER LOG_LEVEL LOG_MAX_KB WAKELOCK HOME_WIFI ENABLE_HOTSPOT NET_STRATEGY VPN_PAUSE AUTO_PORTS NFQWS_EXTRA_ARGS"
 merge_user_keys() { # <generated config> <settings source config>  -> stdout
   awk -v keys=" $USER_KEYS " -v src="$2" '
     function quotes(str,   t) { t = str; return gsub(/"/, "", t) }
@@ -1827,12 +2027,20 @@ merge_user_keys() { # <generated config> <settings source config>  -> stdout
 # ---------------------------------------------------------------- home Wi-Fi
 # Current SSID, rc 1 if not on Wi-Fi. cmd wifi needs Android 11; dumpsys is the fallback.
 current_ssid() {
-  local s
-  s=$(cmd wifi status </dev/null 2>/dev/null | sed -n 's/^Wifi is connected to "\(.*\)"[[:space:]]*$/\1/p' | head -n1)
-  if [ -z "$s" ]; then
-    s=$(dumpsys wifi 2>/dev/null | grep -m1 'mWifiInfo SSID: .*Supplicant state: COMPLETED' \
-        | sed -e 's/.*mWifiInfo SSID: //' -e 's/, BSSID:.*//' -e 's/^"\(.*\)"$/\1/')
-  fi
+  local out s
+  out=$(cmd wifi status </dev/null 2>/dev/null)   # без stdin: cmd иначе может ждать ввода
+  case "$out" in
+    *"Wifi is "*)
+      # cmd wifi отвечает — ему и верим: нет «connected to» значит не подключено.
+      # Раньше тут откатывались к dumpsys wifi, а в нём лежит история недавних
+      # состояний: сразу после ухода из дома первой находилась старая запись о
+      # домашней сети, и пауза оставалась на мобильном интернете.
+      s=$(printf '%s\n' "$out" | sed -n 's/^Wifi is connected to "\(.*\)"[[:space:]]*$/\1/p' | head -n1) ;;
+    *)
+      # старые Android без cmd wifi status
+      s=$(dumpsys wifi 2>/dev/null | grep -m1 'mWifiInfo SSID: .*Supplicant state: COMPLETED' \
+          | sed -e 's/.*mWifiInfo SSID: //' -e 's/, BSSID:.*//' -e 's/^"\(.*\)"$/\1/') ;;
+  esac
   case "$s" in ''|'<unknown ssid>'|'<none>'|0x) return 1 ;; esac
   printf '%s' "$s"
 }
@@ -1841,21 +2049,94 @@ ssid_is_home() {
   grep -v -e '^[[:space:]]*#' -e '^[[:space:]]*$' "$HOME_FILE" 2>/dev/null | grep -Fxq -- "$1"
 }
 
+wifi_is_default() {
+  local r
+  r=$(dumpsys connectivity 2>/dev/null | awk '
+    /^ *Active default network:/ { act = $NF; seen = 1 }
+    /NetworkAgentInfo/ && match($0, /network\{[0-9]+\}/) {
+      id = substr($0, RSTART + 8, RLENGTH - 9)
+      if (!(id in kind)) kind[id] = ($0 ~ /ni\{WIFI/ || $0 ~ /Transports: [A-Z|]*WIFI/ || $0 ~ /InterfaceName: wlan/) ? "wifi" : "other"
+    }
+    END {
+      if (!seen) print "unknown"
+      else if (act == "none" || act == "null") print "none"
+      else if (act in kind) print kind[act]
+      else print "unknown"
+    }')
+  case "$r" in wifi|unknown) return 0 ;; *) return 1 ;; esac
+}
+
+active_ssid() {
+  local s
+  s=$(current_ssid) || return 1
+  wifi_is_default || return 1
+  printf '%s' "$s"
+}
+
+on_wifi() {
+  local d n="${NFQWS_SYSNET:-/sys/class/net}"
+  for d in "$n"/wlan*; do
+    [ "$(cat "$d/operstate" 2>/dev/null)" = up ] && return 0
+  done
+  return 1
+}
+
+# ── Умный режим ──────────────────────────────────────────────────────────
+# Стратегия с оркестратором smart (lua/zapret-smart.lua) учится, какой вариант
+# обхода работает для сайта, и запоминает это для каждой сети отдельно. Модуль
+# говорит ей, в какой сети телефон, и есть ли сеть вообще.
+smart_active() { case "$NFQWS_BASE_ARGS" in *zapret-smart.lua*) return 0 ;; esac; return 1; }
+
+# id и подпись сети: Wi‑Fi — по SSID, мобильная — по коду оператора. Нет
+# маршрута наружу — сети нет (offline): отказы тогда не считаются
+smart_net_id() {
+  local dev ssid op name
+  dev=$(ip route get 1.1.1.1 2>/dev/null | awk '{for (i = 1; i < NF; i++) if ($i == "dev") { print $(i + 1); exit }}')
+  if [ -z "$dev" ]; then printf 'offline\t'; return 0; fi
+  if on_wifi && ssid=$(active_ssid) && [ -n "$ssid" ]; then
+    printf 'wifi-%s\t%s' "$(printf '%s' "$ssid" | cksum | cut -d' ' -f1)" "$ssid"
+    return 0
+  fi
+  case "$dev" in wlan*) printf 'wifi\tWi‑Fi'; return 0 ;; esac
+  op=$(getprop gsm.operator.numeric 2>/dev/null); op=${op%%,*}
+  name=$(getprop gsm.operator.alpha 2>/dev/null); name=${name%%,*}
+  case "$op" in
+    ''|*[!0-9]*) printf 'mobile\t%s' "${name:-mobile}" ;;
+    *) printf 'mobile-%s\t%s' "$op" "${name:-$op}" ;;
+  esac
+}
+
+smart_net_update() {
+  smart_active || return 0
+  mkdir -p "$SMART_DIR" "$STATE_DIR" 2>/dev/null
+  local line id label
+  line=$(smart_net_id); id=${line%%	*}; label=${line#*	}
+  [ "$id" = "$(cat "$SMART_NET_FILE" 2>/dev/null)" ] || printf '%s\n' "$id" > "$SMART_NET_FILE"
+  [ "$id" = offline ] && return 0
+  # подпись сети для WebUI — один раз
+  grep -q "^$id	" "$SMART_DIR/nets.tsv" 2>/dev/null || printf '%s\t%s\n' "$id" "$label" >> "$SMART_DIR/nets.tsv"
+  return 0
+}
+
 # ---------------------------------------------------------------- VPN pause
 # Returns 0 if an active VPN interface is up (tun+, wg+, ppp+, tap+, tailscale+)
 vpn_active() {
   local dev flags
-  for dev in /sys/class/net/tun* /sys/class/net/wg* /sys/class/net/ppp* /sys/class/net/tap* /sys/class/net/tailscale*; do
+  local n="${NFQWS_SYSNET:-/sys/class/net}"
+  for dev in "$n"/tun* "$n"/wg* "$n"/ppp* "$n"/ipsec* "$n"/tap* "$n"/tailscale*; do
     [ -d "$dev" ] || continue
     flags=$(cat "$dev/flags" 2>/dev/null)
     if [ -n "$flags" ]; then
-      [ $(( flags & 1 )) -eq 1 ] && return 0
+      case "$flags" in
+        0x*) [ $(( flags & 1 )) -eq 1 ] && return 0 ;;
+        *)   [ $(( flags & 1 )) -eq 1 ] 2>/dev/null && return 0 ;;
+      esac
     elif [ -f "$dev/operstate" ] && [ "$(cat "$dev/operstate" 2>/dev/null)" != "down" ]; then
       return 0
     fi
   done
   if command -v ip >/dev/null 2>&1; then
-    ip link show 2>/dev/null | grep -Eq ':[[:space:]]*(tun|wg|ppp|tap|tailscale)[0-9]*[ :].*<[A-Z0-9_,]*UP' && return 0
+    ip link show 2>/dev/null | grep -Eq ':[[:space:]]*(tun|wg|ppp|ipsec|tap|tailscale)[0-9]*[ :].*<[A-Z0-9_,]*UP' && return 0
   fi
   return 1
 }
@@ -1902,8 +2183,8 @@ current_network_title() {
   raw=$(_raw_network_id)
   case "$raw" in
     wifi:*) printf 'Wi-Fi «%s»' "${raw#wifi:}" ;;
-    cell:*) printf 'Мобильная сеть (%s)' "${raw#cell:}" ;;
-    *)      printf 'Мобильная сеть' ;;
+    cell:*) printf 'Mobile network (%s)' "${raw#cell:}" ;;
+    *)      printf 'Mobile network' ;;
   esac
   return 0
 }

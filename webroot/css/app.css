@@ -130,9 +130,6 @@ html.scroll-locked, html.scroll-locked body { overflow: hidden; }
 .sheet, .sheet-scroll, .fs-body, .code-edit > textarea, .log-view, .menu { overscroll-behavior: contain; }
 .scrim, .dialog-scrim, .menu-back { touch-action: none; }
 
-/* AMOLED nav bar divider */
-html[data-amoled="true"] .nav-bar { box-shadow: inset 0 1px 0 color-mix(in srgb, var(--md-sys-color-outline-variant) 70%, transparent); }
-
 /* Theme sheet */
 .theme-sheet { gap: 14px; }
 .theme-preview {
@@ -271,4 +268,10 @@ html[data-containers="true"] #pk .list-item.selected + .list-item:not(.selected)
   color: var(--md-sys-color-on-primary) !important;
   border-radius: 2px;
 }
+
+/* «Что нового»: список изменений версии */
+.whatsnew ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 10px; }
+.whatsnew li, .whatsnew p { margin: 0; font-size: var(--ts-body-medium); line-height: var(--lh-body-medium); color: var(--md-sys-color-on-surface); }
+.whatsnew code { font-family: var(--md-font-code); font-size: .92em; padding: 0 3px; border-radius: 4px;
+  background: var(--md-sys-color-surface-container-highest); }
 

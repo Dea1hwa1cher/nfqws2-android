@@ -111,6 +111,9 @@ function isDark(){
 function isAnimationsDisabled(){
   return store.get('m3_no_animations') === 'true' || store.get('m3_animations') === 'false';
 }
+function isNavCapsule(){
+  return store.get('m3_nav_capsule') === 'true';
+}
 function isMonochrome(){
   return store.get('m3_monochrome') === 'true' || currentSeed === '#757575';
 }
@@ -280,6 +283,8 @@ function applyTheme(skipUI){
   document.documentElement.setAttribute('data-monochrome', monochrome ? 'true' : 'false');
   const noAnim = isAnimationsDisabled();
   document.documentElement.setAttribute('data-animations', noAnim ? 'false' : 'true');
+  const capsule = isNavCapsule();
+  document.documentElement.setAttribute('data-nav-capsule', capsule ? 'true' : 'false');
   const meta = document.querySelector('meta[name="theme-color"]');
   if(meta) meta.setAttribute('content', R.background);
   if(!skipUI) drawThemeUI();
@@ -403,6 +408,10 @@ function toggleAnimations(disabled){
   store.set('m3_animations', disabled ? 'false' : 'true');
   applyTheme();
 }
+function toggleNavCapsule(on){
+  store.set('m3_nav_capsule', on ? 'true' : 'false');
+  applyTheme();
+}
 function onHexInput(val){
   const clean = val.replace(/[^0-9a-fA-F]/g, '').slice(0, 6);
   $('custom-hex-input').value = clean;
@@ -420,7 +429,7 @@ function onHexInput(val){
   syncPicker(true);
 }
 function resetTheme(){
-  ['m3_seed', 'm3_mode', 'm3_amoled', 'm3_containers', 'm3_monochrome', 'm3_last_color_seed', 'm3_no_animations', 'm3_animations'].forEach(k => store.del(k));
+  ['m3_seed', 'm3_mode', 'm3_amoled', 'm3_containers', 'm3_monochrome', 'm3_last_color_seed', 'm3_no_animations', 'm3_animations', 'm3_nav_capsule'].forEach(k => store.del(k));
   currentMode = 'auto';
   currentSeed = systemSeed();
   applyTheme();

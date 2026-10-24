@@ -89,6 +89,8 @@ sandbox_init() {
   cp "$REPO_DIR/boot-completed.sh"     "$MODDIR/boot-completed.sh" 2>/dev/null || true
   cp "$REPO_DIR/module.prop"           "$MODDIR/module.prop"
   cp "$REPO_DIR/defaults/nfqws2.conf"  "$MODDIR/defaults/nfqws2.conf"
+  cp "$REPO_DIR/defaults/calls-bypass.conf" "$MODDIR/defaults/calls-bypass.conf" 2>/dev/null || true
+  cp "$REPO_DIR/defaults/smart-train.list" "$MODDIR/defaults/smart-train.list" 2>/dev/null || true
   # -R on the directories: one process per tree instead of one per file, which
   # matters a lot when every spawn costs a few hundred milliseconds.
   cp -R "$REPO_DIR"/strategies/.       "$MODDIR/strategies/"
@@ -107,6 +109,10 @@ sandbox_init() {
 
   cp "$TESTS_DIR/lib/mock/iptables"    "$MOCKBIN/iptables"
   cp "$TESTS_DIR/lib/mock/iptables"    "$MOCKBIN/ip6tables"
+  cp "$TESTS_DIR/lib/mock/iptables-restore" "$MOCKBIN/iptables-restore"
+  cp "$TESTS_DIR/lib/mock/iptables-restore" "$MOCKBIN/ip6tables-restore"
+  cp "$TESTS_DIR/lib/mock/iptables-save" "$MOCKBIN/iptables-save"
+  cp "$TESTS_DIR/lib/mock/iptables-save" "$MOCKBIN/ip6tables-save"
   cp "$TESTS_DIR/lib/mock/rm"          "$MOCKBIN/rm"
   for n in pm getprop sysctl modprobe settings; do
     cp "$TESTS_DIR/lib/mock/android-stub" "$MOCKBIN/$n"

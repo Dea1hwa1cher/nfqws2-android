@@ -141,6 +141,11 @@ const store = {
   set(k, v){ try { localStorage.setItem(k, v); } catch(e) {} },
   del(k){ try { localStorage.removeItem(k); } catch(e) {} }
 };
+/* Страницы прокручиваются в #scroller, а не в окне (см. base.css: корень
+   неподвижен, чтобы WebView не растягивал шапку и навигацию) */
+const scroller = document.getElementById('scroller');
+const scrollPos = () => scroller.scrollTop;
+const scrollToY = y => { scroller.scrollTop = y; };
 
 /* Keys are the Russian strings themselves; EN maps them. data-t / data-ta mark static nodes */
 let LANG = store.get('nfq_lang') === 'en' ? 'en' : 'ru';
@@ -191,7 +196,7 @@ document.addEventListener('keydown', e => {
 /* Menu opens under the anchor, flips up when there is no room; outside click only closes */
 let openMenuEntry = null;
 function closeMenu(){ if(openMenuEntry) openMenuEntry.close(); }
-function openMenu(anchor, items){
+function openMenu(anchor, items, opts){
   if(openMenuEntry && openMenuEntry.anchor === anchor){ closeMenu(); return null; }
   closeMenu();
   const viaKeyboard = anchor.matches(':focus-visible');
@@ -206,7 +211,7 @@ function openMenu(anchor, items){
     mi.setAttribute('role', 'menuitem');
     mi.innerHTML = ('icon' in it ? '<span class="mi-icon">' + (it.icon ? icon(it.icon, 's24') :
         '<span style="display:block;width:24px;height:24px"></span>') + '</span>' : '') +
-      '<span class="mi-text">' + esc(it.label) + '</span>';
+      '<span class="mi-text">' + esc(it.label) + (it.sub ? '<span class="mi-sub">' + esc(it.sub) + '</span>' : '') + '</span>';
     mi.onclick = () => { close(); if(it.onClick) it.onClick(); };
     menu.append(mi);
   }
@@ -238,9 +243,12 @@ function openMenu(anchor, items){
   let closed = false;
   const entry = { close, anchor };
   openMenuEntry = entry;
+  const scrim = opts && opts.scrim && $('nav-scrim');
+  if(scrim) scrim.classList.add('show');
   scheduleSync();
   function close(){
     if(closed) return; closed = true;
+    if(scrim) scrim.classList.remove('show');
     removeEventListener('keydown', onKey, true);
     back.remove();
     menu.classList.add('closing');
@@ -323,12 +331,33 @@ async function detectSpawn(){
   spawnOK = r.code === 3 && r.out === 'nfq_a\n\nnfq_b';
 }
 const ctlCmd = a => (LANG === 'en' ? 'NFQWS_LANG=en ' : '') + 'sh ' + q(CTL) + ' ' + a.map(q).join(' ');
+/* Длинный аргумент (base64 архива или большого списка) одной командой не
+   пройдёт: предел ядра на длину аргумента ~128 КБ. Такой уходит частями
+   командой upload, а в саму команду идёт ссылка @up:<метка>. */
+const UPLOAD_CHUNK = 48000;
+async function uploadArgs(a){
+  const out = [];
+  for(const v of a){
+    if(typeof v !== 'string' || v.length <= UPLOAD_CHUNK){ out.push(v); continue; }
+    const tk = 'u' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    for(let i = 0; i < v.length; i += UPLOAD_CHUNK){
+      const r = await sh(ctlCmd(['upload', tk, v.slice(i, i + UPLOAD_CHUNK)]), 20000);
+      if(r.code) throw new Error((r.err || r.out || 'upload').trim());
+    }
+    out.push('@up:' + tk);
+  }
+  return out;
+}
 async function ctl(a, ms){
+  try { a = await uploadArgs(a); } catch(e){ toast(String(e.message || e).slice(0, 160)); return ''; }
   const r = await sh(ctlCmd(a), ms);
   if(r.code && r.err && !r.out) toast(r.err.slice(0, 160));
   return r.out + (r.code && r.err ? '\n' + r.err : '');
 }
-async function ctlx(a, ms, onLine){ return await sh(ctlCmd(a), ms, onLine); }
+async function ctlx(a, ms, onLine){
+  try { a = await uploadArgs(a); } catch(e){ return {code: 1, out: '', err: String(e.message || e)}; }
+  return await sh(ctlCmd(a), ms, onLine);
+}
 const errText = (r, fallback) => ((r.err || '').trim() || (r.out || '').trim().split('\n').pop() || t(fallback));
 
 /* Snackbar */
@@ -350,6 +379,63 @@ $('prompt-action').onclick = () => {
   if(a && a.fn) a.fn();
 };
 
+/* Системные жесты Android: полоса навигации снизу и узкие полосы
+   слева/справа («назад»). Касание оттуда — жест системы, а не нажатие на
+   то, что под пальцем. Нижняя зона — не меньше системного отступа снизу. */
+let insetProbe = null;
+function inGestureZone(x, y){
+  if(!insetProbe){
+    insetProbe = document.createElement('div');
+    insetProbe.style.cssText = 'position:fixed;left:0;bottom:0;width:0;visibility:hidden;pointer-events:none;height:var(--bottom-inset)';
+    document.body.append(insetProbe);
+  }
+  const inset = insetProbe.offsetHeight || 0;
+  return y > innerHeight - Math.max(32, inset + 8) || x < 24 || x > innerWidth - 24;
+}
+
+/* ── Долгое нажатие (500ms): контекстное меню или выбор ──────────────────
+   root слушает, sel выбирает элемент (без sel — сам root). Click, который
+   приходит после срабатывания, гасится на уровне документа — до onclick
+   элемента и до переключения radio в label (и до подложки открытого меню). Касание у края экрана — жест
+   системы Android, его не считаем; свернули WebView или увели экран — отмена. */
+let longGuard = null;
+document.addEventListener('click', e => {
+  const g = longGuard;
+  if(!g) return;
+  longGuard = null;
+  if(performance.now() - g.at < 1500){ e.stopPropagation(); e.preventDefault(); }
+}, true);
+document.addEventListener('pointerdown', () => { longGuard = null; }, true);
+const longCancels = [];
+['blur', 'pagehide'].forEach(ev => addEventListener(ev, () => longCancels.forEach(c => c())));
+document.addEventListener('visibilitychange', () => longCancels.forEach(c => c()));
+function onLongPress(root, sel, fn){
+  if(!root) return;
+  let tm = 0, x0 = 0, y0 = 0;
+  const cancel = () => { clearTimeout(tm); tm = 0; };
+  longCancels.push(cancel);
+  root.addEventListener('pointerdown', e => {
+    cancel();
+    longGuard = null;
+    if(e.pointerType === 'mouse' && e.button !== 0) return;
+    const el = sel ? e.target.closest(sel) : root;
+    if(!el || !root.contains(el)) return;
+    if(e.pointerType !== 'mouse' && inGestureZone(e.clientX, e.clientY)) return;
+    x0 = e.clientX; y0 = e.clientY;
+    const page = currentPage;
+    tm = setTimeout(() => {
+      tm = 0;
+      if(!el.isConnected || currentPage !== page || document.hidden) return;
+      longGuard = {el, at: performance.now()};
+      document.querySelectorAll('.ripple').forEach(r => r.remove());
+      fn(el);
+    }, 500);
+  });
+  root.addEventListener('pointermove', e => { if(tm && Math.hypot(e.clientX - x0, e.clientY - y0) > 10) cancel(); });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => root.addEventListener(ev, cancel));
+  root.addEventListener('contextmenu', e => { if(!sel || e.target.closest(sel)) e.preventDefault(); });
+}
+
 /* Busy indicator under the app bar */
 let busyCount = 0;
 function busy(on){
@@ -361,6 +447,20 @@ function busy(on){
 async function withBusy(a, ms){
   busy(true);
   try { return await ctlx(a, ms); } finally { busy(false); }
+}
+
+/* «Поделиться» файлом модуля: файлом (file:// на настоящий путь — root-
+   проводник вроде MT Manager откроет его на месте) или текстом (в чат). */
+const CONFFILE_PATH = '/data/adb/nfqws2/nfqws2.conf';
+function shareFileMenu(anchor, path){
+  openMenu(anchor, [
+    {label: t('Файлом'), sub: t('MT Manager и другие root-проводники'), icon: 'file', onClick: () => shareFile('file', path)},
+    {label: t('Текстом'), sub: t('В чат, заметки, почту'), icon: 'copy', onClick: () => shareFile('text', path)}
+  ]);
+}
+async function shareFile(how, path){
+  const r = await withBusy(['share', how, path]);
+  if(r.code) toast(errText(r, 'Не удалось поделиться'));
 }
 
 /* Repaint only when the content really differs */
@@ -447,6 +547,7 @@ const PAGE_META = {
              actions: [{icon: 'refresh', label: 'Обновить журнал', fn: () => loadLog()}]},
   config:   {title: 'Конфиг', init: () => confInit()},
   settings: {title: 'Настройки', child: true, init: () => renderSettings()},
+  smart:    {title: 'Умный режим', child: true, parent: 'settings', init: () => smartInit()},
   wifi:     {title: 'Домашняя Wi‑Fi', child: true, parent: 'settings', init: () => wifiInit()},
   apps:     {title: 'Фильтр приложений', child: true, parent: 'settings', init: () => appsInit(),
              actions: [{icon: 'refresh', label: 'Обновить список приложений', fn: () => loadPk(true)}]},
@@ -464,9 +565,12 @@ function renderAppBar(page, animate){
   const tEl = $('app-title');
   tEl.textContent = t(m.title);
   if(animate !== false && !isAnimationsDisabled()){ tEl.classList.remove('swap'); void tEl.offsetWidth; tEl.classList.add('swap'); }
+  fillBarActions(m.actions);
+}
+function fillBarActions(actions){
   const box = $('bar-actions');
   box.innerHTML = '';
-  (m.actions || []).forEach(a => {
+  (actions || []).forEach(a => {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'icon-btn state';
@@ -474,6 +578,7 @@ function renderAppBar(page, animate){
     b.setAttribute('aria-label', t(a.label));
     b.innerHTML = icon(a.icon, 's24');
     b.onclick = a.fn;
+    if(a.disabled) b.disabled = true;
     box.append(b);
   });
 }
@@ -484,13 +589,18 @@ function renderNavBar(page){
   });
   document.body.classList.toggle('nav-hidden', !!PAGE_META[page].child);
 }
-/* End the screen animation on animationend: a timer can fire before the first frame while the thread is busy */
-function showPage(page, mode){
+
+/* Прокрутка экранов: уходя, экран запоминает её; вперёд (в дочерний экран)
+   открываем с начала, а назад и по вкладкам — там, где пользователь был. */
+const pageScroll = {};
+function showPage(page, mode, slide){
   if(transitionCleanup) transitionCleanup();
   const from = document.querySelector('.page.active');
   const to = document.querySelector('.page[data-page="' + page + '"]');
   if(!to || from === to) return;
   const animate = !matchMedia('(prefers-reduced-motion: reduce)').matches && !isAnimationsDisabled();
+  if(mode === 'slide' && from && animate) return slidePages(from, to, slide);
+  if(mode === 'slide') mode = 'fade';
   if(from){
     if(animate){
       const r = from.getBoundingClientRect();
@@ -501,8 +611,9 @@ function showPage(page, mode){
   }
   to.classList.add('active');
   if(animate) to.classList.add('enter-' + mode);
-  scrollTo(0, 0);
-  $('app-bar').classList.remove('scrolled');
+  const y = mode === 'forward' ? 0 : (pageScroll[page] || 0);
+  scrollToY(y);
+  $('app-bar').classList.toggle('scrolled', scrollPos() > 8);
   let timer = 0;
   const onEnd = e => { if(e.target === to && e.animationName === 'fade-in') cleanup(); };
   const cleanup = () => {
@@ -516,59 +627,415 @@ function showPage(page, mode){
   if(animate){ to.addEventListener('animationend', onEnd); timer = setTimeout(cleanup, 1200); }
   else cleanup();
 }
-/* Load data after the animation starts, so a blocking exec does not freeze the first frame */
+
+/* ── Вкладки листаются по горизонтали, как в Telegram ─────────────────────
+   Порядок — как в нижней панели. Уходящая страница закрепляется fixed на
+   своём месте и уезжает в сторону, новая — в потоке, со своей прокруткой,
+   въезжает с другой стороны. dx — откуда начать (палец уже сдвинул пару
+   страниц), v — скорость отпускания: от неё зависит длительность доводки. */
+const TOP_PAGES = ['control', 'lists', 'logs', 'config'];
+const SLIDE_EASE = 'cubic-bezier(.2, .8, .2, 1)';
+function pageBox(el){
+  const r = el.getBoundingClientRect();
+  return {top: r.top, left: r.left, width: r.width};
+}
+function slideDuration(dist, v){
+  const W = innerWidth || 1;
+  let ms = 300 * Math.min(1, Math.abs(dist) / W) + 40;
+  if(v) ms = Math.min(ms, Math.abs(dist) / Math.abs(v) * 1.6);
+  return Math.max(140, Math.min(320, ms));
+}
+function slidePages(from, to, opt){
+  const dir = opt.dir, W = innerWidth, dx = opt.dx || 0;
+  const box = opt.box || pageBox(from);
+  to.classList.remove('peek');
+  to.style.cssText = '';
+  from.style.cssText = 'position:fixed;top:' + box.top + 'px;left:' + box.left + 'px;width:' + box.width + 'px;transform:translateX(' + dx + 'px)';
+  from.classList.add('leaving');
+  from.classList.remove('active');
+  to.classList.add('active');
+  scrollToY(pageScroll[to.dataset.page] || 0);
+  $('app-bar').classList.toggle('scrolled', scrollPos() > 8);
+  const ms = slideDuration(W - Math.abs(dx), opt.v);
+  const timing = {duration: ms, easing: SLIDE_EASE, fill: 'forwards'};
+  const a1 = from.animate([{transform: 'translateX(' + dx + 'px)'}, {transform: 'translateX(' + (-dir * W) + 'px)'}], timing);
+  const a2 = to.animate([{transform: 'translateX(' + (dx + dir * W) + 'px)'}, {transform: 'none'}], timing);
+  const cleanup = () => {
+    a1.cancel(); a2.cancel();
+    from.classList.remove('leaving');
+    from.style.cssText = '';
+    if(transitionCleanup === cleanup) transitionCleanup = null;
+  };
+  transitionCleanup = cleanup;
+  a2.onfinish = cleanup;
+}
+
+/* Свайп влево-вправо по странице. Вертикальная прокрутка главнее: на
+   .content стоит touch-action: pan-y, и браузер сам забирает жест, который
+   начался вертикально (тогда приходит pointercancel). Горизонталь
+   захватывается при естественном движении пальца вбок, не конфликтуя с
+   вертикальной прокруткой и системными жестами. Поле в фокусе, ползунки
+   и внутренние горизонтальные списки свайп не трогает. */
+const swipe = {st: 0}, pageInited = new Set(['control']);
+function swipeBlocked(t){
+  if(!t || !t.closest || !t.closest('#content, #nav-bar, #app-bar') || t.closest('.no-swipe')) return true;
+  const ed = t.closest('input, textarea, select, [contenteditable="true"]');
+  if(ed && (ed === document.activeElement || ed.type === 'range')) return true;
+  for(let el = t; el && el.id !== 'content' && el.id !== 'nav-bar' && el.id !== 'app-bar'; el = el.parentElement){
+    if(el.classList && el.classList.contains('log-view')) continue;
+    if(el.scrollWidth > el.clientWidth + 1){
+      const ox = getComputedStyle(el).overflowX;
+      if(ox === 'auto' || ox === 'scroll') return true;
+    }
+  }
+  return false;
+}
+function swipeAllowed(){
+  return !PAGE_META[currentPage].child && TOP_PAGES.includes(currentPage) && !openSheetId && !openMenuEntry &&
+    !editorCtx && !$('dialog-wrap').classList.contains('open') &&
+    !document.documentElement.classList.contains('scroll-locked') && !transitionCleanup &&
+    !matchMedia('(prefers-reduced-motion: reduce)').matches && !isAnimationsDisabled();
+}
+function swipePeek(dir){
+  const i = TOP_PAGES.indexOf(currentPage) + dir;
+  if(swipe.peek){ swipe.peek.classList.remove('peek'); swipe.peek.style.cssText = ''; swipe.peek = null; }
+  swipe.peekDir = dir;
+  if(i < 0 || i >= TOP_PAGES.length) return;
+  const el = document.querySelector('.page[data-page="' + TOP_PAGES[i] + '"]');
+  if(!el) return;
+  const b = swipe.box, top = b.top + scrollPos() - (pageScroll[TOP_PAGES[i]] || 0);
+  el.style.cssText = 'top:' + top + 'px;left:' + b.left + 'px;width:' + b.width + 'px';
+  el.classList.add('peek');
+  swipe.peek = el;
+  const pg = TOP_PAGES[i];
+  if(!pageInited.has(pg)){ pageInited.add(pg); Promise.resolve(PAGE_META[pg].init()).catch(() => {}); }
+}
+function swipeMove(dx){
+  if(!swipe.peek) dx = Math.sign(dx) * Math.min(Math.abs(dx) * .25, 64);
+  swipe.dx = dx;
+  if(swipe.from) swipe.from.style.transform = 'translateX(' + dx + 'px)';
+  if(swipe.peek) swipe.peek.style.transform = 'translateX(' + (dx + swipe.peekDir * innerWidth) + 'px)';
+}
+function swipeEnd(commit, v){
+  const from = swipe.from, peek = swipe.peek, dx = swipe.dx, dir = swipe.peekDir;
+  document.body.classList.remove('swiping');
+  swipe.st = 0; swipe.from = swipe.peek = null;
+  if(commit && peek){
+    navigate(peek.dataset.page, {dir, dx, v, box: swipe.box});
+    return;
+  }
+  const timing = {duration: slideDuration(dx), easing: SLIDE_EASE};
+  const back = [{transform: 'translateX(' + dx + 'px)'}, {transform: 'none'}];
+  if(from){
+    from.style.transform = '';
+    from.animate(back, timing);
+  }
+  if(peek){
+    const a = peek.animate([{transform: 'translateX(' + (dx + dir * innerWidth) + 'px)'},
+                            {transform: 'translateX(' + dir * innerWidth + 'px)'}], timing);
+    a.onfinish = () => { if(swipe.peek !== peek){ peek.classList.remove('peek'); peek.style.cssText = ''; } };
+  }
+}
+document.addEventListener('pointerdown', e => {
+  if(swipe.st || !e.isPrimary || (e.pointerType === 'mouse' && e.button !== 0)) return;
+  if(!swipeAllowed() || swipeBlocked(e.target)) return;
+  if(e.pointerType !== 'mouse' && (e.clientX < 10 || e.clientX > innerWidth - 10)) return;
+  swipe.st = 1; swipe.id = e.pointerId;
+  swipe.x0 = e.clientX; swipe.y0 = e.clientY;
+  swipe.trail = [[e.timeStamp, e.clientX]];
+});
+document.addEventListener('pointermove', e => {
+  if(!swipe.st || e.pointerId !== swipe.id) return;
+  const dx = e.clientX - swipe.x0, dy = e.clientY - swipe.y0;
+  if(swipe.st === 1){
+    const adx = Math.abs(dx), ady = Math.abs(dy);
+    if(ady > 16 && ady > adx * 1.2){ swipe.st = 0; return; }
+    if(adx < 10 || adx < ady * 0.9) return;
+    swipe.st = 2;
+    swipe.from = document.querySelector('.page.active');
+    if(!swipe.from){ swipe.st = 0; return; }
+    swipe.box = pageBox(swipe.from);
+    swipe.slop = Math.sign(dx) * 10;
+    swipe.peekDir = 0;
+    document.body.classList.add('swiping');
+    document.querySelectorAll('.ripple').forEach(r => r.remove());
+  }
+  const d = dx - swipe.slop;
+  const dir = d < 0 ? 1 : -1;
+  if(dir !== swipe.peekDir) swipePeek(dir);
+  swipeMove(d);
+  swipe.trail.push([e.timeStamp, e.clientX]);
+  if(swipe.trail.length > 6) swipe.trail.shift();
+});
+function swipeRelease(e, cancel){
+  if(!swipe.st || e.pointerId !== swipe.id) return;
+  if(swipe.st === 1){ swipe.st = 0; return; }
+  const tr = swipe.trail, a = tr[0], b = tr[tr.length - 1];
+  const v = b[0] > a[0] ? (b[1] - a[1]) / (b[0] - a[0]) : 0;
+  const dx = swipe.dx, W = innerWidth || 1;
+  const fling = Math.abs(v) > .25 && Math.sign(v) === Math.sign(dx) && Math.abs(dx) > 16;
+  const commitDist = Math.max(48, Math.min(W * .22, 120));
+  swipeEnd(!cancel && (Math.abs(dx) > commitDist || fling), fling ? v : 0);
+  swipe.clickGuard = e.timeStamp + 60;
+}
+document.addEventListener('click', ev => {
+  if(swipe.clickGuard && ev.timeStamp <= swipe.clickGuard){ ev.stopPropagation(); ev.preventDefault(); }
+  swipe.clickGuard = 0;
+}, true);
+document.addEventListener('touchmove', e => { if(swipe.st === 2 && e.cancelable) e.preventDefault(); }, {passive: false});
+document.addEventListener('pointerup', e => swipeRelease(e, false));
+document.addEventListener('pointercancel', e => swipeRelease(e, true));
+
+/* Данные экрана грузятся после того, как анимация пошла */
 function afterTransition(fn){
   if(typeof isAnimationsDisabled === 'function' && isAnimationsDisabled()){ fn(); return; }
   requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(fn, spawnOK ? 0 : 320)));
 }
-function navigate(page){
+function navigate(page, slide){
   if(page === currentPage){
-    if(!PAGE_META[page].child) scrollTo({top: 0, behavior: (typeof isAnimationsDisabled === 'function' && isAnimationsDisabled()) ? 'auto' : 'smooth'});
+    if(!PAGE_META[page].child) scroller.scrollTo({top: 0, behavior: (typeof isAnimationsDisabled === 'function' && isAnimationsDisabled()) ? 'auto' : 'smooth'});
     return;
   }
   closeMenu();
   const d0 = pageDepth(currentPage), d1 = pageDepth(page);
-  const mode = d1 > d0 ? 'forward' : (d1 < d0 ? 'back' : 'fade');
+  const ti0 = TOP_PAGES.indexOf(currentPage), ti1 = TOP_PAGES.indexOf(page);
+  const mode = ti0 >= 0 && ti1 >= 0 ? 'slide' : (d1 > d0 ? 'forward' : (d1 < d0 ? 'back' : 'fade'));
+  if(mode === 'slide') slide = Object.assign({dir: ti1 > ti0 ? 1 : -1, dx: 0}, slide);
+  pageScroll[currentPage] = scrollPos();
+  if(mode === 'forward') delete pageScroll[page];
   currentPage = page;
-  if(!PAGE_META[page].child) lastTop = page;
+  if(!PAGE_META[page].child){ lastTop = page; backOverride = null; }
   renderNavBar(page);
-  renderAppBar(page);
-  showPage(page, mode);
+  renderAppBar(page, mode !== 'slide');
+  showPage(page, mode, slide);
   const target = page;
-  afterTransition(() => { if(currentPage === target) PAGE_META[target].init(); });
+  afterTransition(() => {
+    if(currentPage !== target) return;
+    const want = pageScroll[target] || 0, had = scrollPos();
+    pageInited.add(target);
+    Promise.resolve(PAGE_META[target].init()).then(() => {
+      if(currentPage === target && want > had && scrollPos() === had) scrollToY(want);
+    }).catch(() => {});
+  });
   scheduleSync();
 }
-function goBack(){ navigate(PAGE_META[currentPage].parent || lastTop); }
-document.querySelectorAll('.nav-dest').forEach(b => { b.onclick = () => navigate(b.dataset.page); });
+let backOverride = null;
+function openFrom(page){
+  backOverride = {page, to: currentPage};
+  navigate(page);
+}
+function goBack(){
+  const o = backOverride;
+  if(o && o.page === currentPage){ backOverride = null; return navigate(o.to); }
+  navigate(PAGE_META[currentPage].parent || lastTop);
+}
 
-/* Long press on the settings button toggles developer mode; the click after it is swallowed */
+/* Нажатие на вкладку засчитывается по pointerup */
+function bindNavTap(b, go){
+  let down = null, handled = 0;
+  b.addEventListener('pointerdown', e => { down = {id: e.pointerId, x: e.clientX, y: e.clientY}; });
+  b.addEventListener('pointercancel', () => { down = null; });
+  b.addEventListener('pointerup', e => {
+    const d = down; down = null;
+    if(!d || d.id !== e.pointerId || e.button > 0) return;
+    if(longGuard && longGuard.el === b) return;
+    if(Math.abs(e.clientX - d.x) > 12 || Math.abs(e.clientY - d.y) > 12) return;
+    handled = e.timeStamp;
+    go();
+  });
+  b.addEventListener('click', e => {
+    const h = handled; handled = 0;
+    if(h && e.timeStamp - h < 800) return;
+    go();
+  });
+}
+document.querySelectorAll('.nav-dest').forEach(b => bindNavTap(b, () => navigate(b.dataset.page)));
+
+/* ── Быстрые действия: долгое нажатие на вкладку ───────────────────────── */
+function goThen(page, fn){
+  if(currentPage === page){ fn(); return; }
+  navigate(page);
+  setTimeout(() => { if(currentPage === page) fn(); }, 420);
+}
+function prevListMode(){
+  const p = store.get('nfq_prev_mode'), cur = S.mode;
+  return ['auto', 'list', 'all'].includes(p) && p !== cur ? p : (cur === 'auto' ? 'list' : 'auto');
+}
+const NAV_QUICK = {
+  control: () => [
+    {icon: 'restart', label: t('Перезапуск'), onClick: () => goThen('control', restartSvc)},
+    S.running
+      ? {icon: 'stop', label: t('Остановить'), onClick: () => goThen('control', () => act('stop'))}
+      : {icon: 'play', label: t('Запустить'), onClick: () => goThen('control', () => act('start'))},
+    {icon: 'tune', label: t('Выбор стратегии'), onClick: () => goThen('control', openStrategySheet)}
+  ],
+  lists: () => {
+    const m = prevListMode();
+    return [
+      {icon: 'trash', label: t('Очистить auto.list'), onClick: () => goThen('lists', clearAuto)},
+      {icon: 'list', label: t('Режим работы: {0}', m), sub: t('сейчас {0}', S.mode || '—'), onClick: () => goThen('lists', () => setMode(m))}
+    ];
+  },
+  logs: () => [
+    {icon: 'refresh', label: t('Обновить журнал'), onClick: () => goThen('logs', loadLog)},
+    {icon: 'trash', label: t('Очистить'), onClick: () => goThen('logs', clearLogs)}
+  ],
+  config: () => [
+    {icon: 'edit', label: t('Редактировать'), onClick: () => goThen('config', () => openSlideEditor('conf'))},
+    {icon: 'upload', label: t('Импортировать'), onClick: () => goThen('config', () => $('impFile').click())},
+    {icon: 'share', label: t('Поделиться'), onClick: () => shareFileMenu(document.querySelector('.nav-dest[data-page="config"]'), CONFFILE_PATH)}
+  ]
+};
+document.querySelectorAll('.nav-dest').forEach(b => onLongPress(b, null, () => {
+  const f = NAV_QUICK[b.dataset.page];
+  if(f) openMenu(b, f(), {scrim: true});
+}));
+
 let devMode = store.get('nfq_dev') === '1';
+function toggleDevMode(){
+  devMode = !devMode;
+  store.set('nfq_dev', devMode ? '1' : '0');
+  renderParams(S);
+  if(currentPage === 'settings') renderSettings();
+  toast(devMode ? t('Режим разработчика включён') : t('Режим разработчика выключен'));
+}
 (function bindSettingsPress(){
   const b = $('settings-btn');
-  let tm = 0, fired = false;
-  const cancel = () => { clearTimeout(tm); tm = 0; };
-  b.addEventListener('pointerdown', () => {
-    cancel(); fired = false;
-    tm = setTimeout(() => {
-      tm = 0; fired = true;
-      devMode = !devMode;
-      store.set('nfq_dev', devMode ? '1' : '0');
-      renderParams(S);
-      if(currentPage === 'settings') renderSettings();
-      toast(devMode ? t('Режим разработчика включён') : t('Режим разработчика выключен'));
-    }, 650);
-  });
-  ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => b.addEventListener(ev, cancel));
-  b.addEventListener('contextmenu', e => e.preventDefault());
-  b.addEventListener('click', () => { if(fired){ fired = false; return; } navigate('settings'); });
+  if(!b) return;
+  onLongPress(b, null, toggleDevMode);
+  b.addEventListener('click', () => navigate('settings'));
 })();
+['app-title', 'brand-logo'].forEach(id => {
+  const el = $(id);
+  if(el) onLongPress(el, null, () => {
+    if($('app-bar').classList.contains('top')) toggleDevMode();
+  });
+});
 
-/* Elevation on scroll */
-addEventListener('scroll', () => $('app-bar').classList.toggle('scrolled', scrollY > 8), {passive: true});
+/* ── Растяжение при упоре в край, как в Android 12+ ─────────────────────── */
+const stretch = {el: null, pull: 0, y: 0};
+function stretchApply(){
+  const el = stretch.el, p = stretch.pull;
+  if(!el) return;
+  const k = 1 + .06 * (1 - Math.exp(-Math.abs(p) / 450));
+  const oy = p > 0 ? 0 : scroller.clientHeight - el.getBoundingClientRect().top;
+  el.style.transformOrigin = '50% ' + oy + 'px';
+  el.style.transform = 'scaleY(' + k + ')';
+  if(currentPage === 'control' && !ptrBusy) p > 0 ? ptrShow(p) : ptrHide();
+}
 
-/* Modal bottom sheets share one scrim */
+const PTR_PULL = 110;
+let ptrBusy = false;
+function ptrShow(p){
+  const el = $('ptr');
+  if(!el) return;
+  const k = Math.min(1, p / PTR_PULL);
+  el.classList.remove('hide');
+  el.style.opacity = k;
+  el.style.transform = 'translateY(' + Math.round(k * 24) + 'px) rotate(' + Math.round(k * 270) + 'deg) scale(' + (.6 + .4 * k) + ')';
+  el.classList.toggle('ready', k >= 1);
+}
+function ptrHide(){
+  const el = $('ptr');
+  if(!el) return;
+  el.classList.add('hide');
+  el.classList.remove('ready', 'spin');
+  el.style.opacity = 0;
+  el.style.transform = '';
+}
+async function refreshStatusPage(){
+  if(ptrBusy) return;
+  ptrBusy = true;
+  const el = $('ptr');
+  if(el){
+    el.classList.add('spin');
+    el.style.transform = 'translateY(24px)';
+  }
+  try {
+    await ctlx(['net-recheck'], 30000);
+    await Promise.all([stat(), initStrategySelector()]);
+  } finally { ptrBusy = false; ptrHide(); }
+}
+function stretchRelease(){
+  const el = stretch.el, pulled = stretch.pull;
+  if(el && currentPage === 'control' && !ptrBusy){
+    if(pulled >= PTR_PULL) refreshStatusPage(); else ptrHide();
+  }
+  stretch.el = null; stretch.pull = 0;
+  if(!el || !el.classList.contains('stretch')) return;
+  el.classList.add('stretch-release');
+  el.style.transform = '';
+  const done = () => { el.classList.remove('stretch', 'stretch-release'); el.style.transformOrigin = ''; };
+  el.addEventListener('transitionend', done, {once: true});
+  setTimeout(done, 500);
+}
+document.addEventListener('touchstart', e => {
+  stretchRelease();
+  if(e.touches.length !== 1 || !e.target.closest || !e.target.closest('#content')) return;
+  if(openSheetId || editorCtx || transitionCleanup || matchMedia('(prefers-reduced-motion: reduce)').matches || isAnimationsDisabled()) return;
+  for(let el = e.target; el && el.id !== 'content'; el = el.parentElement){
+    if(el.scrollHeight > el.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(el).overflowY)) return;
+  }
+  stretch.el = document.querySelector('.page.active');
+  stretch.y = e.touches[0].clientY;
+  stretch.pull = 0;
+}, {passive: true});
+document.addEventListener('touchmove', e => {
+  const el = stretch.el;
+  if(!el || e.touches.length !== 1) return;
+  if(swipe.st === 2){ stretchRelease(); return; }
+  const y = e.touches[0].clientY, dy = y - stretch.y;
+  stretch.y = y;
+  const maxY = scroller.scrollHeight - scroller.clientHeight;
+  const atTop = scrollPos() <= 0, atBottom = scrollPos() >= maxY - 1;
+  let p = stretch.pull;
+  if(p > 0 || (p === 0 && dy > 0 && atTop)) p = Math.max(0, p + dy);
+  else if(p < 0 || (p === 0 && dy < 0 && atBottom)) p = Math.min(0, p + dy);
+  if(p !== 0 && e.cancelable) e.preventDefault();
+  if(p === stretch.pull) return;
+  stretch.pull = p;
+  if(p === 0){
+    el.classList.remove('stretch'); el.style.transform = ''; el.style.transformOrigin = '';
+    if(currentPage === 'control' && !ptrBusy) ptrHide();
+    return;
+  }
+  el.classList.add('stretch');
+  el.classList.remove('stretch-release');
+  stretchApply();
+}, {passive: false});
+document.addEventListener('touchend', e => { if(!e.touches.length) stretchRelease(); }, {passive: true});
+
+const fling = {top: 0, t: 0, v: 0, touching: 0, last: 0};
+document.addEventListener('touchstart', e => { fling.touching = e.touches.length; }, {passive: true, capture: true});
+document.addEventListener('touchend', e => { fling.touching = e.touches.length; }, {passive: true, capture: true});
+document.addEventListener('touchcancel', () => { fling.touching = 0; }, {passive: true, capture: true});
+function stretchAbsorb(fromTop, v){
+  const el = document.querySelector('.page.active');
+  if(!el || stretch.el || transitionCleanup || matchMedia('(prefers-reduced-motion: reduce)').matches || isAnimationsDisabled()) return;
+  const k = 1 + Math.min(.05, .012 + Math.abs(v) * .008);
+  const oy = fromTop ? 0 : scroller.clientHeight - el.getBoundingClientRect().top;
+  el.style.transformOrigin = '50% ' + oy + 'px';
+  const a = el.animate([{transform: 'none'}, {transform: 'scaleY(' + k + ')', offset: .3}, {transform: 'none'}],
+    {duration: 420, easing: 'cubic-bezier(.2, .8, .3, 1)'});
+  a.onfinish = a.oncancel = () => { if(!el.classList.contains('stretch')) el.style.transformOrigin = ''; };
+}
+scroller.addEventListener('scroll', () => {
+  const now = performance.now(), top = scrollPos(), dt = now - fling.t;
+  if(dt > 0 && dt < 100) fling.v = .5 * fling.v + .5 * (top - fling.top) / dt;
+  else fling.v = 0;
+  fling.top = top; fling.t = now;
+  if(fling.touching || now - fling.last < 500) return;
+  const max = scroller.scrollHeight - scroller.clientHeight;
+  if(top <= 0 && fling.v < -.3){ fling.last = now; stretchAbsorb(true, fling.v); }
+  else if(top >= max - 1 && fling.v > .3){ fling.last = now; stretchAbsorb(false, fling.v); }
+}, {passive: true});
+document.addEventListener('touchcancel', stretchRelease, {passive: true});
+
+/* elevation on scroll: surface → surface-container */
+scroller.addEventListener('scroll', () => $('app-bar').classList.toggle('scrolled', scrollPos() > 8), {passive: true});
+
+/* ── Modal bottom sheets: один scrim на все листы ──────────────────────── */
 let openSheetId = null, sheetReturnFocus = null;
-/* Hide the background from tab order and AT (inert is Chromium 102+) */
 function setBackgroundInert(on){
   if(!('inert' in HTMLElement.prototype)) return;
   ['#content', '.app-bar', '.nav-bar'].forEach(sel => {
@@ -593,6 +1060,7 @@ function closeSheet(){
   const el = $(openSheetId);
   el.classList.remove('open');
   el.style.transform = '';
+  sheetScrimRelease();
   $('sheet-scrim').classList.remove('show');
   setBackgroundInert(false);
   if(sheetReturnFocus && sheetReturnFocus.focus) sheetReturnFocus.focus({ preventScroll: true });
@@ -602,11 +1070,14 @@ function closeSheet(){
 }
 function openMonetModal(){ drawThemeUI(); openSheet('monet-modal'); }
 
-/* Back: overlays, then child screen, then home, then exit */
+/* ── «Назад»: сначала оверлеи, потом дочерний экран, потом домой, потом выход ── */
 function handleBack(allowExit){
   if(openMenuEntry){ closeMenu(); return true; }
   if($('dialog-wrap').classList.contains('open')){ dialogResolve(false); return true; }
-  if($('editor-panel').classList.contains('open')){ closeSlideEditor(); return true; }
+  if($('editor-panel').classList.contains('open')){
+    if(typeof closeEditorSearch === 'function' && !$('editor-search-bar').hidden){ closeEditorSearch(); return true; }
+    closeSlideEditor(); return true;
+  }
   if(openSheetId){ closeSheet(); return true; }
   if(PAGE_META[currentPage].child){ goBack(); return true; }
   if(allowExit && currentPage !== 'control'){ navigate('control'); return true; }
@@ -619,9 +1090,7 @@ window.onBackKeyPressed = function(){
 };
 document.addEventListener('keydown', e => { if(e.key === 'Escape') handleBack(false); });
 
-/* The manager's back gesture is webView.goBack(), closing the WebUI when history is empty.
-      Chromium skips entries pushed without user activation, so keep one entry per open layer plus
-      a spare, pushed only while the page has fresh activation: no layers means no entries. */
+/* ── Жест «Назад» через историю WebView ────────────────────────────────── */
 let histDepth = (history.state && history.state.nfq) || 0, histPending = false, syncTimer = 0;
 function uiLayers(){
   let n = pageDepth(currentPage) + (PAGE_META[currentPage].child ? (lastTop !== 'control' ? 1 : 0) : (currentPage !== 'control' ? 1 : 0));
@@ -647,7 +1116,6 @@ function syncHistory(){
     }
   } catch(e) { histPending = false; }
 }
-/* Defer a tick: closing a menu and opening a screen must settle in one state */
 function scheduleSync(){ if(!syncTimer) syncTimer = setTimeout(syncHistory, 0); }
 addEventListener('popstate', e => {
   const d = (e.state && e.state.nfq) || 0;
@@ -657,10 +1125,8 @@ addEventListener('popstate', e => {
   if(d < was) handleBack(true);
   scheduleSync();
 });
-/* Touch and key give user activation: the moment to add entries */
 ['pointerdown', 'keydown'].forEach(ev => addEventListener(ev, () => setTimeout(syncHistory, 0), true));
 
-/* Lock background scrolling while an overlay is open */
 function updateScrollLock(){
   const lock = !!(openSheetId || editorCtx || openMenuEntry || $('dialog-wrap').classList.contains('open'));
   document.documentElement.classList.toggle('scroll-locked', lock);
@@ -687,9 +1153,22 @@ document.addEventListener('focusout', () => setTimeout(updateKeyboard, 60));
 (window.visualViewport || window).addEventListener('resize', updateKeyboard);
 addEventListener('orientationchange', () => { vpBase = 0; setTimeout(updateKeyboard, 300); });
 
-/* Sheet drag handle: swipe down or tap closes */
+/* ── Bottom sheet: смахивание вниз за drag handle ───────────────────────── */
+function sheetScrimFollow(sheet, dy){
+  const sc = $('sheet-scrim');
+  if(!sc) return;
+  const p = Math.max(0, Math.min(1, 1 - dy / Math.max(1, sheet.offsetHeight)));
+  sc.style.transition = 'none';
+  sc.style.opacity = p;
+}
+function sheetScrimRelease(){
+  const sc = $('sheet-scrim');
+  if(!sc) return;
+  sc.style.transition = sc.style.opacity = '';
+}
 function initSheetDrag(sheet){
   const zone = sheet.querySelector('.sheet-drag');
+  if(!zone) return;
   let y0 = null, dy = 0, dragged = false;
   zone.addEventListener('pointerdown', e => {
     y0 = e.clientY; dy = 0; dragged = false;
@@ -701,11 +1180,13 @@ function initSheetDrag(sheet){
     dy = Math.max(0, e.clientY - y0);
     if(dy > 4) dragged = true;
     sheet.style.transform = 'translateY(' + dy + 'px)';
+    sheetScrimFollow(sheet, dy);
   });
   const end = () => {
     if(y0 == null) return;
     y0 = null;
     sheet.style.transition = '';
+    sheetScrimRelease();
     if(dy > Math.min(120, sheet.offsetHeight * .25)) requestAnimationFrame(() => closeSheet());
     else sheet.style.transform = '';
   };
@@ -714,3 +1195,45 @@ function initSheetDrag(sheet){
   zone.addEventListener('click', () => { if(dragged){ dragged = false; return; } closeSheet(); });
 }
 document.querySelectorAll('.sheet').forEach(initSheetDrag);
+
+/* ── Лист со списком: смахивание вниз с любого места ───────────────────── */
+function initSheetSwipe(sheet){
+  const list = sheet.querySelector('.sheet-scroll');
+  if(!list) return;
+  let y0 = 0, lastY = 0, lastT = 0, v = 0, state = '', inList = false;
+  sheet.addEventListener('touchstart', e => {
+    state = '';
+    if(e.touches.length !== 1 || e.target.closest('.sheet-drag')) return;
+    if(e.target.closest('.wheel, input[type=range]')) return;
+    y0 = lastY = e.touches[0].clientY; lastT = e.timeStamp; v = 0;
+    inList = !!e.target.closest('.sheet-scroll');
+    state = !inList || list.scrollTop <= 0 ? 'wait' : 'scroll';
+  }, {passive: true});
+  sheet.addEventListener('touchmove', e => {
+    if(!state || state === 'scroll') return;
+    const y = e.touches[0].clientY, dy = y - y0;
+    if(state === 'wait'){
+      if(dy < 0 || (inList && list.scrollTop > 0)){ state = 'scroll'; return; }
+      if(e.cancelable) e.preventDefault();
+      if(dy < 8) return;
+      state = 'drag'; y0 = y; sheet.style.transition = 'none';
+    }
+    if(e.cancelable) e.preventDefault();
+    if(e.timeStamp > lastT){ v = (y - lastY) / (e.timeStamp - lastT); lastY = y; lastT = e.timeStamp; }
+    sheet.style.transform = 'translateY(' + Math.max(0, y - y0) + 'px)';
+    sheetScrimFollow(sheet, Math.max(0, y - y0));
+  }, {passive: false});
+  const end = e => {
+    if(state !== 'drag'){ state = ''; return; }
+    state = '';
+    if(e.cancelable) e.preventDefault();
+    const dy = Math.max(0, lastY - y0);
+    sheet.style.transition = '';
+    sheetScrimRelease();
+    if(e.type === 'touchend' && (dy > Math.min(120, sheet.offsetHeight * .25) || (v > .5 && dy > 24))) requestAnimationFrame(() => closeSheet());
+    else sheet.style.transform = '';
+  };
+  sheet.addEventListener('touchend', end, {passive: false});
+  sheet.addEventListener('touchcancel', end);
+}
+document.querySelectorAll('.sheet.list-sheet').forEach(initSheetSwipe);

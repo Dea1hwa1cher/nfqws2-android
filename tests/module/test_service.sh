@@ -87,8 +87,8 @@ MOCK_NFQWS_FAIL=3
 export MOCK_NFQWS_FAIL
 svc start
 assert_rc 1 "$svc_rc" "start reports failure through its exit status"
-assert_contains "$(cat "$SERVICE_LOG")" "завершился с кодом 3" "the exit code reaches the log"
-assert_contains "$(cat "$SERVICE_LOG")" "Последние строки лога" "the log tail is announced"
+assert_contains "$(cat "$SERVICE_LOG")" "exited with code 3" "the exit code reaches the log"
+assert_contains "$(cat "$SERVICE_LOG")" "Last log lines:" "the log tail is announced"
 assert_contains "$(cat "$SERVICE_LOG")" "refusing to start" "and the tail itself is included"
 unset MOCK_NFQWS_FAIL
 assert_no_file "$CONFDIR/state/nfqws2.pid" "no pidfile is left behind"
@@ -192,7 +192,7 @@ MOCK_IPT_FAIL=1
 export MOCK_IPT_FAIL
 svc start
 assert_rc 1 "$svc_rc" "start fails when the rules cannot be installed"
-assert_contains "$(cat "$SERVICE_LOG")" "не применились" "and says why"
+assert_contains "$(cat "$SERVICE_LOG")" "failed to apply" "and says why"
 assert_no_file "$CONFDIR/state/desired" "the service is not marked as desired"
 assert_no_file "$CONFDIR/state/nfqws2.pid" "and the daemon is rolled back"
 unset MOCK_IPT_FAIL
@@ -299,8 +299,10 @@ assert_not_contains "$(cat "$CONFFILE")" "GARBAGE_CONFIG_TEST" "rollback restore
 assert_file "$CONFDIR/state/last_rollback.json" "last_rollback.json is written"
 
 svc stop >/dev/null 2>&1
+[ -f "$WD_PIDFILE" ] && kill "$(cat "$WD_PIDFILE" 2>/dev/null)" 2>/dev/null
 
 section "atomic firewall helpers and desync mark unmarking"
+printf 'WATCHDOG=0\n' >> "$CONFFILE"
 
 svc start >/dev/null 2>&1
 assert_file "$PIDFILE" "service is running for firewall helpers check"
@@ -317,5 +319,61 @@ ipt_exec iptables -t mangle -C POSTROUTING -j nfqws_post 2>/dev/null
 assert_rc 0 $? "ipt_exec can probe existing rule"
 
 svc stop >/dev/null 2>&1
+
+ipt_snapshot() {
+  (cd "$MOCK_IPT_STORE" && find . -type f | sort | while IFS= read -r f; do echo "== $f"; cat "$f"; done)
+}
+
+section "QUIC to Meta is rejected at once"
+conf_reset
+load_conf >/dev/null 2>&1
+ipt_reset
+firewall_start >/dev/null 2>&1
+snap=$(ipt_snapshot)
+assert_contains "$snap" "-p udp --dport 443 -d 157.240.0.0/16,31.13.24.0/21," "on by default: QUIC to Meta gets an ICMP reject"
+assert_contains "$snap" "2a03:2880::/32 -j REJECT --reject-with icmp6-port-unreachable" "and over IPv6"
+assert_eq "1" "$(grep -c nfqws_mquic "$MOCK_IPT_STORE/iptables/filter/OUTPUT" 2>/dev/null)" "for the phone's own traffic"
+assert_eq "1" "$(grep -c nfqws_mquic "$MOCK_IPT_STORE/iptables/filter/FORWARD" 2>/dev/null)" "and for hotspot clients"
+firewall_stop >/dev/null 2>&1
+assert_not_contains "$(ipt_snapshot)" "nfqws_mquic" "stopping removes the rules"
+printf 'META_QUIC_REJECT=0\n' >> "$CONFFILE"
+load_conf >/dev/null 2>&1
+ipt_reset
+firewall_start >/dev/null 2>&1
+assert_not_contains "$(ipt_snapshot)" "nfqws_mquic" "off: no reject rules"
+firewall_stop >/dev/null 2>&1
+conf_reset
+load_conf >/dev/null 2>&1
+
+section "VPN pause: active interface suspends the bypass"
+NFQWS_SYSNET="$SANDBOX/sysnet"; export NFQWS_SYSNET
+mkdir -p "$NFQWS_SYSNET"
+svc stop >/dev/null 2>&1
+[ -f "$WD_PIDFILE" ] && kill "$(cat "$WD_PIDFILE" 2>/dev/null)" 2>/dev/null
+printf 'VPN_PAUSE=1\nWATCHDOG=0\n' >> "$CONFFILE"
+svc start >/dev/null 2>&1
+assert_file "$PIDFILE" "without a VPN the bypass runs"
+mkdir -p "$NFQWS_SYSNET/tun0"; printf '0x1091\n' > "$NFQWS_SYSNET/tun0/flags"
+svc home_check >/dev/null 2>&1
+assert_no_file "$PIDFILE" "a VPN coming up pauses the bypass"
+assert_eq "@vpn" "$(cat "$HOME_PAUSED_FILE" 2>/dev/null)" "and the pause is marked as VPN"
+svc start >/dev/null 2>&1
+assert_file "$PIDFILE" "a manual start overrides the VPN pause"
+assert_eq "@vpn" "$(cat "$HOME_OVERRIDE_FILE" 2>/dev/null)" "until the VPN goes away"
+svc home_check >/dev/null 2>&1
+assert_file "$PIDFILE" "the override holds while the VPN is on"
+printf '0x1090\n' > "$NFQWS_SYSNET/tun0/flags"
+svc home_check >/dev/null 2>&1
+assert_no_file "$HOME_OVERRIDE_FILE" "a VPN going down clears the override"
+printf '0x1091\n' > "$NFQWS_SYSNET/tun0/flags"
+svc home_check >/dev/null 2>&1
+assert_no_file "$PIDFILE" "the next VPN pauses again"
+rm -rf "$NFQWS_SYSNET/tun0"
+svc home_check >/dev/null 2>&1
+assert_file "$PIDFILE" "the VPN going away resumes the bypass"
+assert_no_file "$HOME_PAUSED_FILE" "and clears the pause"
+svc stop >/dev/null 2>&1
+conf_reset
+unset NFQWS_SYSNET
 
 harness_finish

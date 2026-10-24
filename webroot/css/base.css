@@ -68,6 +68,8 @@
   --bottom-inset: var(--window-inset-bottom, env(safe-area-inset-bottom, 0px));
   --appbar-height: 64px;
   --navbar-height: 80px;
+  --navbar-pill: 64px;
+  --navbar-gap: 12px;
   --content-max: 760px;
   --screen-margin: 16px;
   --gap: 12px;
@@ -125,10 +127,39 @@ html, body {
   font-family: var(--md-font);
   font-size: var(--ts-body-large);
   line-height: var(--lh-body-large);
-  min-height: 100dvh;
+  height: 100%; overflow: hidden; overscroll-behavior: none;
   transition: background-color var(--dur-medium) var(--standard), color var(--dur-medium) var(--standard);
 }
-body { overflow-x: hidden; overscroll-behavior-y: none; }
+/* Прокручивается не документ, а этот слой: корень неподвижен, и WebView нечего
+   растягивать при упоре в край — шапка и капсула навигации лежат вне
+   прокрутки и не сдвигаются. overscroll-behavior: none не пускает упор к корню. */
+.scroller {
+  position: fixed; top: 0; left: 0; right: 0; bottom: -1px;
+  overflow-x: hidden; overflow-y: auto; overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+}
+.page.stretch { will-change: transform; }
+/* Значок «оттянуть, чтобы обновить» на «Состоянии»: проявляется и
+   поворачивается по мере оттягивания, за порогом — в цвет акцента,
+   после отпускания крутится, пока идёт проверка */
+.ptr {
+  position: fixed; left: 50%; top: calc(var(--top-inset) + var(--appbar-height) + 4px); z-index: 24;
+  width: 40px; height: 40px; margin-left: -20px; border-radius: 50%;
+  display: grid; place-items: center; pointer-events: none; opacity: 0;
+  background: var(--md-sys-color-surface-container-high); color: var(--md-sys-color-on-surface-variant);
+  box-shadow: 0 1px 3px rgb(0 0 0 / .2);
+}
+.ptr.ready { color: var(--md-sys-color-primary); }
+.ptr.spin { opacity: 1 !important; color: var(--md-sys-color-primary); }
+.ptr.spin .icon { animation: ptr-spin .8s linear infinite; }
+.ptr.hide { transition: opacity var(--dur-short) var(--standard), transform var(--dur-short) var(--standard); }
+@keyframes ptr-spin { to { transform: rotate(360deg); } }
+.page.stretch-release { transition: transform var(--dur-medium) var(--emphasized-decelerate); }
+/* Подписи, пункты и пояснения не выделяются долгим нажатием.
+   Выделяется только то, что имеет смысл копировать: поля ввода, журналы, аргументы запуска. */
+body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+input, textarea, [contenteditable], .log-view, .code-block {
+  -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
 button, input, select, textarea { font-family: inherit; font-size: inherit; color: inherit; }
 /* Material Symbols: filled glyphs */
 svg.icon { width: 24px; height: 24px; flex: none; fill: currentColor; display: block; }
@@ -183,7 +214,10 @@ svg.icon.s24 { width: 24px; height: 24px; }
   background: var(--md-sys-color-surface);
   transition: background-color var(--dur-medium) var(--standard), box-shadow var(--dur-medium) var(--standard);
 }
-.app-bar.scrolled { background: var(--md-sys-color-surface-container); }
+.app-bar.scrolled {
+  background: var(--md-sys-color-surface-container);
+  box-shadow: var(--md-elev-1);
+}
 .app-bar .title { flex: 1; min-width: 0; padding-left: 8px;
   font-size: var(--ts-title-large); line-height: var(--lh-title-large); font-weight: var(--w-regular);
   color: var(--md-sys-color-on-surface); }
@@ -205,29 +239,35 @@ svg.icon.s24 { width: 24px; height: 24px; }
   transition: opacity var(--dur-medium) var(--standard);
 }
 .scrim.show { opacity: 1; pointer-events: auto; }
+.scrim.nav-scrim { z-index: 29; }
+.scrim.nav-scrim.show { pointer-events: none; }
 
 /* App bar actions */
 .bar-actions { display: flex; align-items: center; flex: none; }
 .app-bar .title.swap { animation: title-in var(--dur-medium) var(--emphasized-decelerate); }
 @keyframes title-in { from { opacity: 0; transform: translateY(4px); } }
 
-/* Navigation bar (M3): the indicator expands from the icon horizontally */
+/* ── Navigation bar (Default M3 docked) ─────────────────────────────────── */
 .nav-bar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
-  height: calc(var(--navbar-height) + var(--bottom-inset));
+  width: 100%; height: calc(var(--navbar-height) + var(--bottom-inset));
   padding-bottom: var(--bottom-inset);
   display: flex; justify-content: center;
   background: var(--md-sys-color-surface-container);
+  border: none;
+  box-shadow: none;
   transition: transform var(--dur-medium-long) var(--emphasized-decelerate),
-              background-color var(--dur-medium) var(--standard);
+              background-color var(--dur-medium) var(--standard),
+              border-radius var(--dur-medium) var(--standard),
+              box-shadow var(--dur-medium) var(--standard);
 }
-/* Hidden on child screens */
 body.nav-hidden .nav-bar {
   transform: translateY(100%);
   transition: transform var(--dur-medium) var(--emphasized-accelerate);
 }
 .nav-bar-inner { display: flex; width: 100%; max-width: var(--content-max); }
 .nav-dest {
+  position: relative;
   appearance: none; border: 0; background: none; cursor: pointer;
   flex: 1 1 0; min-width: 0;
   display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 4px;
@@ -237,6 +277,7 @@ body.nav-hidden .nav-bar {
 .nav-dest:focus-visible { outline: none; }
 .nav-dest:focus-visible .nav-ind { outline: 3px solid var(--md-sys-color-secondary); outline-offset: 2px; }
 .nav-ind {
+  position: relative;
   width: 64px; height: 32px; flex: none; border-radius: var(--shape-full);
   display: grid; place-items: center;
   transition: color var(--dur-short) var(--standard);
@@ -259,6 +300,54 @@ body.nav-hidden .nav-bar {
 }
 .nav-dest[aria-current="page"] .nav-label { color: var(--md-sys-color-on-surface); font-weight: var(--w-bold); }
 
+/* ── Navigation bar: плавающая капсула (MD3E Expressive) ────────────────── */
+html[data-nav-capsule="true"] {
+  --navbar-height: calc(var(--navbar-pill) + var(--navbar-gap));
+}
+html[data-nav-capsule="true"] .nav-bar {
+  left: 0; right: 0; bottom: calc(var(--bottom-inset) + var(--navbar-gap));
+  margin: 0 auto;
+  width: max-content; max-width: calc(100% - 2 * var(--screen-margin));
+  height: var(--navbar-pill); padding: 4px 6px;
+  border-radius: var(--shape-full);
+  background: var(--md-sys-color-surface-container-high);
+  border: none;
+  box-shadow: 0 3px 8px -1px rgba(0, 0, 0, .16), 0 8px 24px -2px rgba(0, 0, 0, .14);
+}
+html[data-nav-capsule="true"][data-amoled="true"] .nav-bar {
+  background: var(--md-sys-color-surface-container);
+  border: none;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, .6);
+}
+html[data-nav-capsule="true"] body.nav-hidden .nav-bar {
+  transform: translateY(calc(100% + var(--bottom-inset) + var(--navbar-gap) + 12px));
+}
+html[data-nav-capsule="true"] .nav-bar-inner {
+  width: auto; min-width: 0;
+  gap: 2px;
+  align-items: center;
+}
+html[data-nav-capsule="true"] .nav-dest {
+  flex: 0 1 72px; width: 72px; min-width: 0;
+  height: 100%;
+  justify-content: center; gap: 2px;
+  padding: 2px 0;
+  border-radius: var(--shape-full);
+}
+html[data-nav-capsule="true"] .nav-ind {
+  width: 56px; height: 32px;
+}
+html[data-nav-capsule="true"] .nav-label {
+  font-size: var(--ts-label-small); line-height: var(--lh-label-small);
+  letter-spacing: .1px;
+}
+html[data-nav-capsule="true"] .nav-dest:active .nav-ind {
+  transform: scale(0.92);
+}
+html[data-nav-capsule="true"] .nav-dest[aria-current="page"]:active .nav-ind {
+  transform: scale(0.95);
+}
+
 /* Content and pages */
 .content {
   position: relative;
@@ -271,6 +360,12 @@ body.nav-hidden .content { padding-bottom: calc(var(--bottom-inset) + 24px); }
 .page.active, .page.leaving { display: flex; }
 /* The leaving screen stays fixed so both are visible and scrolling does not jump */
 .page.leaving { pointer-events: none; z-index: 1; }
+/* Соседняя вкладка, пока её тянут пальцем: закреплена рядом со своей прокруткой */
+.page.peek { display: flex; position: fixed; pointer-events: none; z-index: 1; }
+/* Вертикальная прокрутка — браузеру, горизонталь — свайпу между вкладками */
+body:not(.nav-hidden) .content { touch-action: pan-y; }
+body.swiping .state:active { transform: none; }
+body.swiping .state::after { opacity: 0 !important; }
 
 /* Fade through between sections, shared axis X for child screens */
 @keyframes fade-in { from { opacity: 0; } }
@@ -597,7 +692,7 @@ html[data-containers="true"] .list > .list-item:active {
   background: var(--md-sys-color-surface-container-lowest);
   border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-card); padding: 12px 14px;
-  overflow: auto;
+  overflow-y: auto; overflow-x: hidden;
   font-family: var(--md-font-code); font-size: 12px; line-height: 1.55;
   color: var(--md-sys-color-on-surface-variant);
   white-space: pre-wrap; overflow-wrap: anywhere;

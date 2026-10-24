@@ -66,6 +66,7 @@ printf 'x\n\t\n  # y\nz\n' > "$LISTS_DIR/exclude.list"
 printf 'one\n' > "$LISTS_DIR/user.list.bak"
 : > "$LISTS_DIR/auto.list"
 mkdir -p "$LISTS_DIR/dir.list"
+set --
 want=""
 for f in user exclude auto user.list.bak dir does-not-exist user; do
   case "$f" in *.bak) p="$LISTS_DIR/$f" ;; *) p="$LISTS_DIR/$f.list" ;; esac
@@ -244,6 +245,31 @@ args=$(_startup_args)
 assert_contains "$args" "--bind-fix4" "bind-fix4 still applies"
 assert_not_contains "$args" "--bind-fix6" "bind-fix6 is skipped with IPv6 disabled"
 
+section "_startup_args: call bypass"
+conf_reset
+reload_conf
+args=$(_startup_args)
+assert_not_contains "$args" "calls_stun" "off by default"
+printf 'CALLS_BYPASS=1\n' >> "$CONFFILE"
+reload_conf
+args=$(_startup_args)
+assert_contains "$args" "--blob=calls_stun:@$BLOBS_DIR/stun.bin" "on: the STUN blob is loaded"
+assert_contains "$args" "--filter-udp=590-1400,3478-3482 --filter-l7=stun" "STUN on call ports is faked"
+assert_contains "$args" "157.240.0.0/16" "the Meta networks are filled in"
+assert_contains "$args" "149.154.160.0/20" "and the Telegram ones"
+assert_contains "$args" "2001:67c:4e8::/48" "IPv6 included"
+assert_not_contains "$args" "@META@" "no placeholder is left"
+assert_contains "$args" "--hostlist-domains=whatsapp.net" "the WhatsApp TLS channel has its profile"
+assert_not_contains "$args" "#" "without the comments of its file"
+pre=${args%%--filter-udp=590-1400*}
+assert_not_contains "$pre" "--new" "before every strategy profile"
+
+section "port_list_add"
+assert_eq "443,5349,19294:19344,49152:65535,590:1400,3478:3482" \
+  "$(port_list_add 443,590:600,1400,3478:3481,5349,19294:19344,49152:65535 590:1400 3478:3482)" \
+  "ranges absorb the ports they cover, so multiport keeps under 15"
+assert_eq "80,443,5222" "$(port_list_add 80,443,5222 5222)" "a port already there stays once"
+
 # ── render_import_merged ──────────────────────────────────────────────────────
 section "render_import_merged"
 
@@ -338,6 +364,16 @@ assert_rc 0 "$(validate_strategy_blob_references "$MODDIR/defaults/nfqws2.conf" 
 bad_conf="$SANDBOX/bad_blob.conf"
 echo 'NFQWS_BASE_ARGS="--blob=test:@$BLOBS_DIR/nonexistent_blob_xyz.bin"' > "$bad_conf"
 assert_rc 1 "$(validate_strategy_blob_references "$bad_conf" >/dev/null 2>&1; echo $?)" "detects missing blob reference"
+
+section "heal_blob self-healing"
+test_heal_blob="$SANDBOX/blobs_test/zero_256.bin"
+rm -f "$test_heal_blob"
+assert_rc 0 "$(heal_blob "$test_heal_blob" >/dev/null 2>&1; echo $?)" "heal_blob restores zero_256.bin"
+assert_file "$test_heal_blob" "healed zero_256.bin file exists"
+assert_eq "256" "$(wc -c < "$test_heal_blob" | tr -d ' ')" "healed zero_256.bin is 256 bytes"
+
+test_bad_blob="$SANDBOX/blobs_test/unknown_invalid_blob.bin"
+assert_rc 1 "$(heal_blob "$test_bad_blob" >/dev/null 2>&1; echo $?)" "heal_blob returns 1 for non-standard blob"
 
 section "generate_strategy_receipt and verify_strategy_receipt"
 

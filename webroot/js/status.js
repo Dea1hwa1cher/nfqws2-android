@@ -3,22 +3,31 @@
 /* Uptime */
 let uptTimer = null;
 function fmtUptime(sec){
-  sec = Math.max(0, Math.floor(sec));
-  const d = Math.floor(sec / 86400); sec -= d * 86400;
-  const h = Math.floor(sec / 3600); sec -= h * 3600;
-  const m = Math.floor(sec / 60); sec -= m * 60;
+  sec = Math.max(0, Math.floor(Number(sec) || 0));
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
   const p = n => String(n).padStart(2, '0');
-  if(d > 0) return d + ' ' + t('д') + ' ' + p(h) + ':' + p(m) + ':' + p(sec);
-  if(h > 0) return p(h) + ':' + p(m) + ':' + p(sec);
-  return p(m) + ':' + p(sec);
+  return p(h) + ':' + p(m) + ':' + p(s);
 }
-let uptBase = 0, uptAt = 0;
-function stopUptTimer(){ if(uptTimer){ clearInterval(uptTimer); uptTimer = null; } $('upt').textContent = '—'; }
-function startUptTimer(baseSec){
-  uptBase = Math.max(0, Math.floor(baseSec)); uptAt = Date.now();
-  const tick = () => { $('upt').textContent = fmtUptime(uptBase + (Date.now() - uptAt) / 1000); };
-  tick();
-  if(!uptTimer) uptTimer = setInterval(tick, 1000);
+let uptAnchor = null;   // {ms: время работы, t: performance.now() в тот момент}
+function uptElapsedMs(){ return uptAnchor.ms + (performance.now() - uptAnchor.t); }
+function stopUptTimer(){
+  if(uptTimer){ clearTimeout(uptTimer); uptTimer = null; }
+  uptAnchor = null;
+  $('upt').textContent = '—';
+}
+function uptTick(){
+  const ms = uptElapsedMs();
+  $('upt').textContent = fmtUptime(ms / 1000);
+  uptTimer = setTimeout(uptTick, 1000 - (ms % 1000) + 10);
+}
+function startUptTimer(ms){
+  ms = Math.max(0, ms);
+  if(uptAnchor && Math.abs(uptElapsedMs() - ms) < 2000) return;
+  uptAnchor = {ms, t: performance.now()};
+  if(uptTimer) clearTimeout(uptTimer);
+  uptTick();
 }
 
 /* Strategies carry no descriptions: what works depends on provider and region. Grouped by origin */
@@ -36,7 +45,7 @@ function strategyGroup(s){
   return 'authors';
 }
 const groupTitle = g => t((STRATEGY_GROUPS.find(x => x[0] === g) || ['', ''])[1]);
-const strategyName = s => s === 'default' ? t('По умолчанию') : String(s).replace(/^imp:/, '');
+const strategyName = s => s === 'default' ? t('По умолчанию') : s === 'smart' ? t('Умный режим') : String(s).replace(/^imp:/, '');
 const findStrategy = n => strategies.find(s => s.name === n);
 
 async function loadStrategies(){
@@ -128,6 +137,7 @@ async function applyStrategy(val){
   renderStrategyRow();
   if(S.running) await act('restart');
   else { toast(t('Стратегия «{0}» применится при следующем запуске', strategyName(val))); stat(); }
+  if(val === 'smart' && currentPage !== 'smart') smartOffer();
 }
 function editStrategy(name){
   openEditorWith({target: 'strategy', key: name, title: strategyName(name) + '.conf', lang: 'conf', b64: true,
@@ -280,6 +290,9 @@ const SW = [
 ];
 const DEV_SW = [
   ['WATCHDOG', 'Watchdog', 'watchdog'],
+  ['META_QUIC_REJECT', 'Отказ QUIC для Instagram', 'meta_quic'],
+  ['CALLS_BYPASS', 'Обход звонков (не тестировалось)', 'calls_bypass'],
+  ['TCP_MSS_CLAMP', 'Занижать TCP MSS (536)', 'tcp_mss_clamp'],
   ['WAKELOCK', 'Wakelock', 'wakelock_on']
 ];
 const LIMITS = [
@@ -295,13 +308,15 @@ function banner(kind, ic, text){
 let svcBusy = '';
 function renderHeroActions(){
   const run = !!S.running, bt = $('bt'), rs = $('bt-restart');
-  const busyLabel = {start: t('Запуск…'), stop: t('Остановка…'), restart: t('Перезапуск…')}[svcBusy];
+  const busyLabel = {start: t('Запуск…'), stop: t('Остановка…'), restart: t('Перезапуск…'), 'home-pause': t('Пауза…')}[svcBusy];
   bt.disabled = !!svcBusy;
   bt.classList.toggle('with-icon', !!svcBusy);
   bt.innerHTML = busyLabel
     ? '<span class="spinner"></span><span>' + esc(busyLabel) + '</span>'
     : '<span>' + esc(run ? t('Остановить') : t('Запустить')) + '</span>';
   rs.hidden = !run || !!svcBusy;
+  const pBtn = $('bt-pause');
+  if(pBtn) pBtn.hidden = !run || !!svcBusy || !S.home_override;
 }
 
 function switchRow(k, label, on){
@@ -343,7 +358,7 @@ function renderStatus(){
   $('st').textContent = j.running ? t('Служба работает') : (paused ? t('Пауза') : t('Служба остановлена'));
   const lim = {connbytes: t('лимит connbytes'), connmark_out: t('лимит connmark')}[j.limiter] || '';
   $('sub').textContent = paused
-    ? (j.paused === 'vpn'
+    ? (j.paused === '@vpn' || j.paused === 'vpn'
         ? t('Активен VPN. Обход возобновится при отключении VPN.')
         : t('Домашняя Wi‑Fi «{0}». Обход возобновится, когда телефон уйдёт из этой сети.', j.paused))
     : t('Режим') + ' ' + (j.mode || '—') + (j.running && lim ? ', ' + lim : '');
@@ -351,7 +366,7 @@ function renderStatus(){
   const qd = $('qdrop-num');
   qd.textContent = j.running ? (j.qdrop || 0) : '—';
   qd.classList.toggle('bad', j.running && j.qdrop > 0);
-  if(j.running) startUptTimer(j.uptime || 0); else stopUptTimer();
+  if(j.running) startUptTimer(j.uptime_ms != null ? j.uptime_ms : (j.uptime || 0) * 1000); else stopUptTimer();
   renderHeroActions();
   renderParams(j);
   $('dbg').checked = (j.log_level == 1);
@@ -424,9 +439,11 @@ async function act(a){
   renderHeroActions();
   const r = await withBusy([a], 40000);
   svcBusy = '';
-  const ok = {start: 'Служба запущена', stop: 'Служба остановлена', restart: 'Служба перезапущена'}[a];
+  const ok = {start: 'Служба запущена', stop: 'Служба остановлена', restart: 'Служба перезапущена',
+    'home-pause': 'Обход на паузе в домашнем Wi‑Fi'}[a];
   toast(r.code ? errText(r, 'Команда не выполнена') : t(ok));
   await stat();
 }
 function toggle(){ act(S.running ? 'stop' : 'start'); }
 function restartSvc(){ act('restart'); }
+function pauseHome(){ act('home-pause'); }
