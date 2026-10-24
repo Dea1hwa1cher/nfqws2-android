@@ -106,6 +106,16 @@ sandbox.renderBenchBest('fake_tls_auto', 25, 30, 45, 'alt4', 'fake_tls_auto');
 const bestEl = sandbox.$('bench-best');
 truthy(bestEl.innerHTML.includes('YouTube Focus') && bestEl.innerHTML.includes('alt4'), 'Bench best renders dedicated YouTube focus button when different');
 
+// ── Wilson score strategy ranking ─────────────────────────────────────────
+sect('Wilson score strategy ranking');
+truthy(typeof sandbox.wilsonScore === 'function', 'wilsonScore helper is exported');
+eq(0, sandbox.wilsonScore(0, 0), 'wilsonScore returns 0 on zero total');
+const scoreLuckySingle = sandbox.wilsonScore(1, 1);
+const scoreSolidBatch = sandbox.wilsonScore(29, 30);
+truthy(scoreSolidBatch > scoreLuckySingle, 'Wilson score prioritizes high sample size (29/30) over 1/1 fluke');
+truthy(scoreLuckySingle > 0.15 && scoreLuckySingle < 0.35, '1/1 Wilson score lower bound is discounted (~0.20)');
+truthy(scoreSolidBatch > 0.75 && scoreSolidBatch < 0.95, '29/30 Wilson score lower bound is solid (~0.83)');
+
 // ── 3. Strategy auto-selection logic ───────────────────────────────────────
 sect('strategy auto-selection logic');
 

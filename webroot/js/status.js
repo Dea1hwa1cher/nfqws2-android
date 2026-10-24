@@ -292,6 +292,7 @@ const DEV_SW = [
   ['WATCHDOG', 'Watchdog', 'watchdog'],
   ['META_QUIC_REJECT', 'Отказ QUIC для Instagram', 'meta_quic'],
   ['CALLS_BYPASS', 'Обход звонков (не тестировалось)', 'calls_bypass'],
+  ['TCP_MSS_CLAMP', 'Занижать TCP MSS (536)', 'tcp_mss_clamp'],
   ['WAKELOCK', 'Wakelock', 'wakelock_on']
 ];
 const LIMITS = [

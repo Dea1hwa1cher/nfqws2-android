@@ -290,6 +290,7 @@ EN = {
  "Для разработчиков": "For developers",
  "Отказ QUIC для Instagram": "Reject QUIC for Instagram",
  "Обход звонков (не тестировалось)": "Calls bypass (untested)",
+ "Занижать TCP MSS (536)": "Clamp TCP MSS (536)",
  "Watchdog": "Watchdog",
  "Wakelock": "Wakelock",
  "Режим обработки": "Processing mode",

@@ -66,7 +66,7 @@ PY
   devs=$(sed -n 's/^DEVS //p' "$SANDBOX/tops.txt")
   zips=$(sed -n 's/^ZIPS //p' "$SANDBOX/tops.txt")
 
-  expected=$(printf '%s %s' "$MODULE_FILES" "$MODULE_DIRS" | tr ' ' '\n' | grep -v '^$' | sort | tr '\n' ' ' | sed 's/ $//')
+  expected=$(printf '%s %s' "$MODULE_FILES" "$MODULE_DIRS" | tr ' ' '\n' | grep -v '^$' | LC_ALL=C sort | tr '\n' ' ' | sed 's/ $//')
   assert_eq "$expected" "$tops" "the archive holds exactly the module top level"
   assert_eq "" "$devs" "no developer directory is archived"
   assert_eq "" "$zips" "no nested archive is archived"
@@ -133,7 +133,7 @@ PY
          "$MODPATH/.gitignore"
   rm -f "$MODPATH"/*.zip
 
-  left=$(find "$MODPATH" -maxdepth 1 -mindepth 1 -exec basename {} \; | sort | tr '\n' ' ' | sed 's/ $//')
+  left=$(find "$MODPATH" -maxdepth 1 -mindepth 1 -exec basename {} \; | LC_ALL=C sort | tr '\n' ' ' | sed 's/ $//')
   assert_eq "$expected" "$left" "after cleanup only module entries remain"
 
   devs=$(find "$MODPATH" \( -path '*/tests/*' -o -path '*/tools/*' -o -path '*/.workbuddy-ai/*' -o -name '*.zip' \) 2>/dev/null | head -3)

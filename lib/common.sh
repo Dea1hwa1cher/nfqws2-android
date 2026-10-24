@@ -109,6 +109,7 @@ set_defaults() {
   : "${VPN_PAUSE:=0}"
   : "${META_QUIC_REJECT:=1}"
   : "${CALLS_BYPASS:=0}"
+  : "${TCP_MSS_CLAMP:=0}"
   : "${AUTO_PORTS:=0}"
 }
 
@@ -1393,6 +1394,15 @@ _fw_iface_rules() {
     _fw_add_rule "$CMD" $IPT_GROUP_POST "$OUT" tcp dports "$TP" "--tcp-flags rst rst" "$JNFQ"
   fi
 
+  # TCP MSS Clamping to mitigate HTTP/2 mid-stream reassembly blocks (TSPU 2026)
+  if [ -n "$TCP_MSS_CLAMP" ] && [ "$TCP_MSS_CLAMP" != "0" ]; then
+    local mss_val="$TCP_MSS_CLAMP"
+    [ "$mss_val" = "1" ] && mss_val=536
+    if [ -n "$TP" ]; then
+      _fw_add_rule "$CMD" $IPT_GROUP_POST "$OUT" tcp dports "$TP" "--tcp-flags syn,rst syn" "-j TCPMSS --set-mss $mss_val"
+    fi
+  fi
+
   # NAT fix for UDP
   if [ "$REAL_CMD" = "iptables" ] && [ "$NAT_FIX" = "1" ]; then
     $CMD -w -t nat -A $IPT_GROUP_NAT $OUT -p udp -m mark --mark $MARK_PROCESSED -j MASQUERADE
@@ -1980,7 +1990,7 @@ render_strategy() {
 
 # Module settings (same across strategies) are carried over whole from the live
 # config on strategy change/reset. NFQWS_EXTRA_ARGS only for standard $MODE_* refs.
-USER_KEYS="META_QUIC_REJECT CALLS_BYPASS IPV6_ENABLED TCP_PORTS UDP_PORTS NFQUEUE_NUM PKT_LIMIT_OUT PKT_LIMIT_IN BLOCK_QUIC NAT_FIX APP_MODE AUTOSTART WATCHDOG NFQWS_USER LOG_LEVEL LOG_MAX_KB WAKELOCK HOME_WIFI ENABLE_HOTSPOT NET_STRATEGY VPN_PAUSE AUTO_PORTS NFQWS_EXTRA_ARGS"
+USER_KEYS="META_QUIC_REJECT CALLS_BYPASS TCP_MSS_CLAMP IPV6_ENABLED TCP_PORTS UDP_PORTS NFQUEUE_NUM PKT_LIMIT_OUT PKT_LIMIT_IN BLOCK_QUIC NAT_FIX APP_MODE AUTOSTART WATCHDOG NFQWS_USER LOG_LEVEL LOG_MAX_KB WAKELOCK HOME_WIFI ENABLE_HOTSPOT NET_STRATEGY VPN_PAUSE AUTO_PORTS NFQWS_EXTRA_ARGS"
 merge_user_keys() { # <generated config> <settings source config>  -> stdout
   awk -v keys=" $USER_KEYS " -v src="$2" '
     function quotes(str,   t) { t = str; return gsub(/"/, "", t) }

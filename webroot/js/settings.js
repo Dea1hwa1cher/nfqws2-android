@@ -443,10 +443,23 @@ function renderBenchBest(name, ok, total, avg_ms, best_yt, best_dc){
   '</div>';
 }
 
+function wilsonScore(ok, total) {
+  if (!total || total <= 0) return 0;
+  const z = 1.96;
+  const n = total;
+  const p = ok / n;
+  const z2 = z * z;
+  return (p + z2 / (2 * n) - z * Math.sqrt((p * (1 - p) + z2 / (4 * n)) / n)) / (1 + z2 / n);
+}
+
 function sortBenchList(){
   const listEl = $('bench-list');
   if(!listEl) return;
-  const sorted = Object.values(benchResults).sort((a, b) => b.ok - a.ok || a.avg_ms - b.avg_ms);
+  const sorted = Object.values(benchResults).sort((a, b) => {
+    const sA = wilsonScore(a.ok, a.total);
+    const sB = wilsonScore(b.ok, b.total);
+    return (sB - sA) || (b.ok - a.ok) || (a.avg_ms - b.avg_ms);
+  });
   listEl.innerHTML = sorted.map(it => renderBenchRow(it.idx, it.name, it.ok, it.total, it.avg_ms, it.top_fail, false, it.yt_ok, it.dc_ok)).join('');
 }
 
